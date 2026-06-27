@@ -14,15 +14,21 @@ build/
 .vite/
 .turbo/
 *.tsbuildinfo
+apps/desktop/src-tauri/target/
 target/
+apps/desktop/src-tauri/resources/sidecar/
+apps/desktop/src-tauri/resources/node/*
+!apps/desktop/src-tauri/resources/node/.gitkeep
 
 # Runtime data
+.safeclaw/
 .data/
 .memory/
 .sessions/
 storage/
 uploads/
 tmp/
+apps/sidecar/.a3s/
 *.sqlite
 *.sqlite3
 *.db

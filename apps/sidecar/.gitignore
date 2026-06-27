@@ -1,0 +1,11 @@
+# Environment variables - only ignore local overrides
+env/.env.local
+env/.env.*.local
+
+# ACL config (local development)
+config.acl
+
+# Locally-provisioned runtime assets (e.g. lightpanda binary fetched by
+# `just install-browser`). Never commit these — they are large platform
+# binaries pinned by apps/api/config/browser-binary.json.
+.runtime/

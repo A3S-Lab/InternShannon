@@ -1,0 +1,44 @@
+[workspace]
+
+[package]
+name = "internshannon-ui"
+version = "0.2.1"
+edition = "2021"
+description = "书小安 Desktop UI"
+authors = ["A3S Lab Team"]
+license = "MIT"
+
+[lib]
+name = "internshannon_ui_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "InternShannon"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["unstable", "tray-icon", "image-png"] }
+tauri-plugin-shell = "2"
+tauri-plugin-http = "2"
+tauri-plugin-dialog = "2.7"
+tauri-plugin-fs = "2.5"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-updater = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+dirs = "5"
+tokio = { version = "1.35", features = ["net", "sync", "rt"] }
+notify = { version = "6", default-features = false, features = ["macos_kqueue"] }
+notify-debouncer-mini = "0.4"
+globset = "0.4"
+hcl-rs = "0.18"
+regex = "1"
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "json"] }

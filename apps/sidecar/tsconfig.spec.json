@@ -1,0 +1,14 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "isolatedModules": true,
+        "paths": {
+            "@/*": [
+                "src/*"
+            ],
+            "@a3s-lab/ocr": [
+                "../../packages/ocr/src/index.ts"
+            ]
+        }
+    }
+}

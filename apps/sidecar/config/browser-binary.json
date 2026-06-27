@@ -1,0 +1,30 @@
+{
+  "$comment": [
+    "Single source of truth for the headless browser binary used by the kernel's web_search tool.",
+    "Consumed by `just install-browser` for the desktop sidecar.",
+    "Lightpanda upstream only publishes under a moving `nightly` tag, so we pin to a specific",
+    "snapshot timestamp + sha256. A mismatched download is a hard error: it forces an explicit",
+    "version bump here instead of silently consuming a new upstream binary."
+  ],
+  "name": "lightpanda",
+  "snapshot": "nightly-2026-05-19",
+  "homepage": "https://github.com/lightpanda-io/browser",
+  "platforms": {
+    "darwin-arm64": {
+      "url": "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-macos",
+      "sha256": "f21142a29aac5b4beb44d171c149f58c88ebd2cc887780d500eaaeb9f38a921e"
+    },
+    "darwin-x64": {
+      "url": "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-x86_64-macos",
+      "sha256": "1aa48c6789349d0c747e9ca98ff3fb8c5a4e616716796649d5602f950e687d45"
+    },
+    "linux-arm64": {
+      "url": "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-aarch64-linux",
+      "sha256": "9540788397a396f0336099836bf1c3ec9197c3ba3b7f457b38626eb026ec6dbd"
+    },
+    "linux-x64": {
+      "url": "https://github.com/lightpanda-io/browser/releases/download/nightly/lightpanda-x86_64-linux",
+      "sha256": "c132420af9f81632f1ecff1d4bcdb3d25a6aa6086062e742627e6ea9dc74ab1c"
+    }
+  }
+}

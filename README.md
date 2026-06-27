@@ -1,10 +1,10 @@
-# Sanitized Package Workspace
+# Desktop And Sidecar Workspace
 
-This repository snapshot contains only reusable shared packages. Application
-runtimes, access-control services, deployment scripts, and packaging assets have
-been removed from the branch history.
+This repository snapshot restores the Desktop shell and Sidecar runtime on top
+of the sanitized branch history.
 
 ```bash
 pnpm install
-pnpm build
+pnpm sidecar:build
+pnpm desktop:doctor
 ```

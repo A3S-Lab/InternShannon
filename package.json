@@ -2,9 +2,12 @@
   "name": "@shuxiaoan/workspace",
   "version": "0.1.0",
   "private": true,
-  "description": "Sanitized shared package workspace",
+  "description": "Desktop and sidecar workspace",
   "scripts": {
-    "build": "pnpm -r --if-present build",
+    "build": "pnpm --filter @shuxiaoan/sidecar build",
+    "desktop:doctor": "pnpm --filter @shuxiaoan/desktop doctor",
+    "desktop:stage-sidecar": "pnpm --filter @shuxiaoan/desktop stage:sidecar",
+    "sidecar:build": "pnpm --filter @shuxiaoan/sidecar build",
     "test": "pnpm -r --if-present test"
   },
   "devDependencies": {

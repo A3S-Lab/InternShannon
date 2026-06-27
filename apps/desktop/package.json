@@ -1,0 +1,43 @@
+{
+  "name": "@shuxiaoan/desktop",
+  "private": true,
+  "version": "0.2.1",
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "clean": "rimraf src-tauri/target && rimraf node_modules",
+    "build": "pnpm tauri:build && pnpm check:sidecar-resources",
+    "doctor": "node scripts/desktop-doctor.mjs",
+    "doctor:test": "node --test scripts/desktop-doctor-state.spec.mjs",
+    "stage:sidecar": "node scripts/stage-sidecar-resources.mjs",
+    "stage:sidecar:standalone": "node scripts/stage-sidecar-resources.mjs --standalone",
+    "stage:node-runtime": "node scripts/stage-node-runtime.mjs",
+    "stage:clawsentry-runtime": "node scripts/stage-clawsentry-runtime.mjs",
+    "clean:node-runtime": "node scripts/stage-node-runtime.mjs --clean",
+    "clean:clawsentry-runtime": "node scripts/stage-clawsentry-runtime.mjs --clean",
+    "sync:core-skills": "node scripts/sync-core-skills.mjs sync",
+    "check:core-skills": "node scripts/sync-core-skills.mjs check",
+    "check:box-resources": "node scripts/verify-box-resources.mjs --dir src-tauri/target/release/bundle/macos/书小安.app/Contents/Resources",
+    "check:sidecar-resources": "node scripts/verify-sidecar-resources.mjs --dir src-tauri/target/release/bundle/macos/书小安.app/Contents/Resources",
+    "check:standalone-sidecar": "node scripts/verify-sidecar-resources.mjs --dir src-tauri/target/release/bundle/macos/书小安.app/Contents/Resources --require-standalone",
+    "smoke:standalone-sidecar": "node scripts/smoke-standalone-sidecar.mjs",
+    "tauri": "tauri",
+    "tauri:dev": "node scripts/tauri-dev.mjs",
+    "tauri:build": "tauri build --config src-tauri/tauri.test.conf.json --no-sign",
+    "tauri:build:standalone": "node scripts/build-standalone-tauri.mjs",
+    "tauri:build:test": "pnpm tauri:build",
+    "tauri:bundle": "node scripts/build-standalone-tauri.mjs --release",
+    "tauri:build:macos-fixed": "pnpm tauri:bundle && node scripts/fix-macos-bundle.mjs",
+    "tauri:build:validated": "pnpm tauri:bundle && pnpm check:standalone-sidecar && node scripts/verify-box-resources.mjs --dir src-tauri/resources/box",
+    "format": "pnpm biome format --write scripts"
+  },
+  "dependencies": {
+    "@a3s-lab/code": "4.2.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.14",
+    "@tauri-apps/cli": "^2",
+    "@types/node": "^22.7.9",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3"
+  }
+}
