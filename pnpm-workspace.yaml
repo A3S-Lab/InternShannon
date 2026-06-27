@@ -1,0 +1,12 @@
+packages:
+  - packages/agent-planning
+  - packages/lark
+  - packages/ocr
+  - packages/ooxml
+  - packages/wechat
+  - packages/workflow
+verifyDepsBeforeRun: false
+shamefullyHoist: true
+strictPeerDependencies: false
+onlyBuiltDependencies:
+  - '@biomejs/biome'

@@ -1,0 +1,34 @@
+{
+    "name": "@a3s-lab/wechat",
+    "version": "0.0.1",
+    "description": "WeChat Channel adapter for A3S OS integrations",
+    "author": "ZhiXiao-Lin",
+    "license": "MIT",
+    "source": "./src/index.ts",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "sideEffects": false,
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "require": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
+    },
+    "files": [
+        "dist"
+    ],
+    "scripts": {
+        "build": "rimraf dist tsconfig.tsbuildinfo && tsc",
+        "clean": "rimraf dist && rimraf node_modules",
+        "prepublishOnly": "pnpm run build"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "rimraf": "^6.0.1",
+        "typescript": "^5.1.3"
+    },
+    "publishConfig": {
+        "access": "public"
+    }
+}
