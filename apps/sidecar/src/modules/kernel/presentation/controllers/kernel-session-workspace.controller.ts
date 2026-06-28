@@ -9,8 +9,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiParam, ApiTags } from '@nestjs/swagger';
-import { AuthenticatedApi } from '@/shared/security/desktop-access';
-import { UploadSizeLimit } from '@/modules/config/presentation/interceptors/upload-size-limit.interceptor';
+import { DesktopApi } from '@/shared/security/desktop-access';
+import { UploadSizeLimit } from '@/modules/kernel/presentation/interceptors/upload-size-limit.interceptor';
 import {
 	ApiBadRequestResponse,
 	ApiCreatedResponse,
@@ -18,7 +18,7 @@ import {
 	ApiServerErrorResponse,
 	ApiUnauthorizedResponse,
 } from '@/shared/api';
-import { CurrentUserId } from '@/shared/security/decorators/current-user.decorator';
+import { DesktopOwnerId } from '@/shared/security/decorators/desktop-owner.decorator';
 import {
 	SessionWorkspaceFileUploadService,
 	type SessionWorkspaceUploadConflictStrategy,
@@ -26,7 +26,7 @@ import {
 import {
 	SessionWorkspaceUploadFileResponseDto,
 	SessionWorkspaceUploadProgressResponseDto,
-} from '../../dto/workspace.dto';
+} from '../dto/workspace.dto';
 
 interface WorkspaceMultipartFile {
 	originalname: string;
@@ -38,7 +38,7 @@ interface WorkspaceMultipartFile {
 type ChunkUploadBodyValue = string | number | undefined;
 
 @ApiTags('内核 - 会话工作区')
-@AuthenticatedApi()
+@DesktopApi()
 @Controller('kernel/sessions/:sessionId/workspace')
 export class KernelSessionWorkspaceController {
 	constructor(private readonly uploads: SessionWorkspaceFileUploadService) {}
@@ -85,7 +85,7 @@ export class KernelSessionWorkspaceController {
 		@Body('path') targetPath: string | undefined,
 		@Body('conflictStrategy') conflictStrategy: SessionWorkspaceUploadConflictStrategy | undefined,
 		@UploadedFile() file: WorkspaceMultipartFile | undefined,
-		@CurrentUserId() userId?: string,
+		@DesktopOwnerId() userId?: string,
 	): Promise<SessionWorkspaceUploadFileResponseDto> {
 		if (conflictStrategy && conflictStrategy !== 'overwrite' && conflictStrategy !== 'rename') {
 			throw new BadRequestException('invalid conflictStrategy');
@@ -145,7 +145,7 @@ export class KernelSessionWorkspaceController {
 		@Body('chunkCount') chunkCount: ChunkUploadBodyValue,
 		@Body('conflictStrategy') conflictStrategy: SessionWorkspaceUploadConflictStrategy | undefined,
 		@UploadedFile() chunk: WorkspaceMultipartFile | undefined,
-		@CurrentUserId() userId?: string,
+		@DesktopOwnerId() userId?: string,
 	): Promise<SessionWorkspaceUploadProgressResponseDto> {
 		if (!chunk?.buffer) {
 			throw new BadRequestException('chunk is required');

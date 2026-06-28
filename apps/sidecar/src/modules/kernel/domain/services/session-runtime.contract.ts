@@ -110,7 +110,7 @@ export interface SessionRuntimeOverrides {
      * WITHOUT turning `skills` into a restrictive whitelist. Setting `skills` to
      * gate capabilities also narrows the session to exactly those skills (see
      * the factory `runtimeSkillNames` whitelist), which is right for locked
-     * specialists but wrong for the default assistant (书小安), which must keep
+     * specialists but wrong for the default assistant (internShannon), which must keep
      * all its system skills. This flag enables `capabilities` while leaving every
      * other skill intact. Execute access stays READ-ONLY for the default agent
      * (enforced in CapabilitiesToolService).

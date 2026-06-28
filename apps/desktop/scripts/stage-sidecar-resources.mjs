@@ -173,7 +173,7 @@ function rewritePortableNodeModuleSymlinks(nodeModulesDir, deployNodeModules) {
 					.split(path.sep)
 					.join("/");
 				if (
-					relativeLinkPath === ".pnpm/node_modules/@shuxiaoan/sidecar" ||
+					relativeLinkPath === ".pnpm/node_modules/@internshannon/sidecar" ||
 					target.endsWith("/apps/sidecar")
 				) {
 					fs.unlinkSync(absolutePath);
@@ -277,7 +277,7 @@ function stageDistOnly() {
 		fail(
 			[
 				`Missing API build output: ${entrypoint}`,
-				"Run `pnpm --filter @shuxiaoan/sidecar build` before staging sidecar resources.",
+				"Run `pnpm --filter @internshannon/sidecar build` before staging sidecar resources.",
 			].join(" "),
 		);
 	}
@@ -303,7 +303,7 @@ function runPnpmDeploy(deployDir) {
 		[
 			"--config.verify-deps-before-run=false",
 			"--filter",
-			"@shuxiaoan/sidecar",
+			"@internshannon/sidecar",
 			"deploy",
 			"--prod",
 			"--legacy",

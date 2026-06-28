@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
-import { desktopJsonFilePath } from '@/infrastructure/desktop/desktop-paths';
+import { desktopJsonFilePath } from '@/shared/infrastructure/desktop/desktop-paths';
 import { ConfigEntryRecord, IConfigRepository } from '../../domain/repositories/config-repository.interface';
 
 /**

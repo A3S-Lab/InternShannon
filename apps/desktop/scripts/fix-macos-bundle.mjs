@@ -16,7 +16,7 @@ if (process.platform !== "darwin") {
 	process.exit(0);
 }
 
-const appName = process.env.SAFECLAW_APP_NAME ?? "书安";
+const appName = process.env.SAFECLAW_APP_NAME ?? "internShannon";
 const executableName = process.env.SAFECLAW_EXECUTABLE_NAME ?? appName;
 const appPath = path.resolve(
 	process.cwd(),

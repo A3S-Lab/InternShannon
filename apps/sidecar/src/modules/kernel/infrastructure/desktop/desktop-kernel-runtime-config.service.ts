@@ -1,8 +1,8 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { APP_CONFIG_SERVICE } from '@/infrastructure/desktop/app-config/app-config.module';
-import { AppConfigService } from '@/infrastructure/desktop/app-config/app-config.service';
+import { CONFIG_SERVICE, ConfigService } from '@/modules/config/domain/services/config-service.interface';
 import {
   IKernelRuntimeConfigService,
+  KernelRuntimeModelProvider,
   KernelRuntimeModelsConfig,
 } from '../../domain/services/kernel-runtime-config.service.interface';
 
@@ -26,12 +26,51 @@ export class DesktopKernelRuntimeConfigService
 {
   constructor(
     @Optional()
-    @Inject(APP_CONFIG_SERVICE)
-    private readonly appConfigService?: AppConfigService,
+    @Inject(CONFIG_SERVICE)
+    private readonly configService?: ConfigService,
   ) {}
 
   async getModelsConfig(): Promise<KernelRuntimeModelsConfig | null> {
-    const config = (await this.appConfigService?.getModelsConfig()) ?? null;
+    const settings = await this.configService?.getSettings();
+    const llm = settings?.llm;
+    const config: KernelRuntimeModelsConfig | null = llm
+      ? {
+          defaultModel: llm.defaultModel,
+          providers: llm.providers.map(provider => ({
+            name: provider.name,
+            apiKey: provider.apiKey ?? null,
+            baseUrl: provider.baseUrl ?? null,
+            headers: provider.headers ?? null,
+            sessionIdHeader: provider.sessionIdHeader ?? null,
+            models: provider.models.map(model => ({
+              id: model.id,
+              name: model.name ?? model.id,
+              family: model.family ?? '',
+              apiKey: model.apiKey ?? null,
+              baseUrl: model.baseUrl ?? null,
+              headers: model.headers ?? null,
+              sessionIdHeader: model.sessionIdHeader ?? null,
+              attachment: model.attachment ?? null,
+              reasoning: model.reasoning ?? null,
+              toolCall: model.toolCall ?? null,
+              temperature: model.temperature ?? null,
+              limit: model.limit ?? null,
+            })),
+          })) satisfies KernelRuntimeModelProvider[],
+          mcpServers: llm.mcpServers,
+          maxToolRounds: llm.maxToolRounds ?? null,
+          thinkingBudget: llm.thinkingBudget ?? null,
+          toolTimeoutMs: llm.toolTimeoutMs ?? null,
+          queueTimeoutMs: llm.queueTimeoutMs ?? null,
+          maxExecutionTimeMs: llm.maxExecutionTimeMs ?? null,
+          streamStallWarningMs: llm.streamStallWarningMs ?? null,
+          streamStallHardMs: llm.streamStallHardMs ?? null,
+          streamStallActiveToolHardMs: llm.streamStallActiveToolHardMs ?? null,
+          maxConsecutiveToolErrors: llm.maxConsecutiveToolErrors ?? null,
+          maxStreamRetries: llm.maxStreamRetries ?? null,
+          clawSentry: llm.clawSentry ?? null,
+        }
+      : null;
     return this.withDesktopRuntimeDefaults(config);
   }
 

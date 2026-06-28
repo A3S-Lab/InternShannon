@@ -1,4 +1,4 @@
-# 书小安 Desktop 前端开发规范
+# internShannon Desktop 前端开发规范
 
 ## 项目概述
 
@@ -32,30 +32,30 @@ just sidecar-build
 just desktop-dev
 
 # 构建可重复验证的 Tauri .app
-pnpm --filter @a3s-lab/internshannon tauri:build
+pnpm --filter @a3s/desktop tauri:build
 
 # 构建 `.app` 并校验 sidecar JS 资源已进入 bundle
-pnpm --filter @a3s-lab/internshannon build
+pnpm --filter @a3s/desktop build
 
 # 构建发行安装包（包含 DMG 等平台 installer 和 standalone sidecar）
-pnpm --filter @a3s-lab/internshannon tauri:bundle
+pnpm --filter @a3s/desktop tauri:bundle
 
 # 校验 release sidecar 是否已经真正 standalone（tauri:bundle 已自动执行一次）
-pnpm --filter @a3s-lab/internshannon check:standalone-sidecar
+pnpm --filter @a3s/desktop check:standalone-sidecar
 
 # 从已构建的 `.app` 资源目录隔离启动 sidecar 并检查 /api/v1/health
-pnpm --filter @a3s-lab/internshannon smoke:standalone-sidecar
+pnpm --filter @a3s/desktop smoke:standalone-sidecar
 
 # 构建包含 hoisted sidecar node_modules 的 standalone `.app` 验证包
 # 成功/失败后会尽力把 src-tauri/resources/sidecar 清回 dist-only
 # 可能需要 registry/store 访问
-pnpm --filter @a3s-lab/internshannon tauri:build:standalone
+pnpm --filter @a3s/desktop tauri:build:standalone
 
 # 使用 Biome 格式化代码
-pnpm --filter @a3s-lab/internshannon format
+pnpm --filter @a3s/desktop format
 
 # 类型检查
-pnpm --filter @a3s-lab/internshannon exec tsc --noEmit
+pnpm --filter @a3s/desktop exec tsc --noEmit
 ```
 
 `desktop-local` 会打印实际选中的 Web/API/Health/Data/Smoke 信息。如果

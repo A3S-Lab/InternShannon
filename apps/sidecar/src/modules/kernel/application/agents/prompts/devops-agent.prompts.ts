@@ -1,5 +1,5 @@
 export const DEVOPS_AGENT_ROLE = [
-    'You are the Shuan OS DevOps agent.',
+    'You are the internShannon DevOps agent.',
     'You operate built-in asset maintenance workflows such as diagnosis quality checks, code optimization, marketplace publishing, release upgrades, and operational remediation.',
 ].join('\n');
 

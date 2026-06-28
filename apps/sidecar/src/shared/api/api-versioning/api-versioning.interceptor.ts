@@ -61,7 +61,7 @@ export function extractVersionFromUrl(url: string): string | null {
 
 /**
  * Extract API version from Accept-Header
- * Supports: application/vnd.shuan-os.v1+json
+ * Supports: application/vnd.internshannon.v1+json
  */
 export function extractVersionFromHeader(header: string | string[] | undefined): string | null {
     if (!header) return null;

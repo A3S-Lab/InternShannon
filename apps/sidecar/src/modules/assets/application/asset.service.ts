@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@/shared/common/errors';
 import { createHash, randomUUID } from 'node:crypto';
-import { PageQueryOptions, PageResult } from '@/shared/application/pagination.dto';
+import { PageQueryOptions, PageResult } from '@/shared/domain/pagination';
 interface NotificationService {
     create(input: {
         userId: string;
@@ -125,18 +125,18 @@ title: 知识库总览
 
 // 全局知识库(多域):面向 Desktop 本地工作区公开共享的 category='knowledge' 资产,按 DOMAIN 区分。
 // owner 沿用内置资产约定 'builtin-docs'/organization;visibility=public + metadata.builtin
-// → 本地用户只读可达(见 asset-access enforceRead),书小安经渐进式 API 检索。每个域是一个单例,由迁移 100 的部分唯一索引
+// → 本地用户只读可达(见 asset-access enforceRead),internShannon经渐进式 API 检索。每个域是一个单例,由迁移 100 的部分唯一索引
 // (owner_type='organization' AND category='knowledge' AND metadata#>>'{knowledge,globalDomain}'=<域>)保证。
 const GLOBAL_KNOWLEDGE_OWNER_ID = 'builtin-docs';
 
 /** 平台文档中心(os-docs)所属的规范域键。getOrCreateGlobalDocsKnowledge 解析/创建此域。 */
 const PLATFORM_DOCS_DOMAIN = PLATFORM_DOCS_GLOBAL_DOMAIN;
 const PLATFORM_DOCS_KNOWLEDGE_NAME = 'os-docs-global-knowledge';
-const PLATFORM_DOCS_KNOWLEDGE_DESCRIPTION = '书安 OS 文档中心的全局共享知识库:面向所有用户公开,供书小安结合文档作答。';
+const PLATFORM_DOCS_KNOWLEDGE_DESCRIPTION = 'internShannon 文档中心的全局共享知识库:面向所有用户公开,供internShannon结合文档作答。';
 const PLATFORM_DOCS_KNOWLEDGE_PURPOSE_MD = `# Purpose
 
-这是书安 OS 文档中心的【全局共享知识库】,由系统从内置 os-docs 文档自动摄取并维护,面向所有用户公开只读。
-书小安在回答问题时可经渐进式 API 检索此处,以书安 OS 官方文档为依据并标注来源。
+这是internShannon 文档中心的【全局共享知识库】,由系统从内置 os-docs 文档自动摄取并维护,面向所有用户公开只读。
+internShannon在回答问题时可经渐进式 API 检索此处,以internShannon 官方文档为依据并标注来源。
 `;
 const PLATFORM_DOCS_KNOWLEDGE_SCHEMA_MD = `# Schema
 
@@ -147,12 +147,12 @@ const PLATFORM_DOCS_KNOWLEDGE_SCHEMA_MD = `# Schema
 `;
 const PLATFORM_DOCS_KNOWLEDGE_INDEX_MD = `---
 type: synthesis
-title: 书安 OS 文档中心
+title: internShannon 文档中心
 ---
 
-# 书安 OS 文档中心
+# internShannon 文档中心
 
-全局共享的书安 OS 官方文档知识库入口;此处汇总了平台中间件与开放平台的文档,可检索、可关联。
+全局共享的internShannon 官方文档知识库入口;此处汇总了平台中间件与开放平台的文档,可检索、可关联。
 `;
 
 /** 把域键规范化为合法资产名片段(全局知识库资产名 = global-knowledge-<域>)。 */
@@ -297,7 +297,7 @@ export class AssetServiceImpl implements IAssetService {
             opts?.description?.trim() ||
             (isPlatformDocs
                 ? PLATFORM_DOCS_KNOWLEDGE_DESCRIPTION
-                : `全局共享知识库(${normalizedDomain}):面向所有用户公开,供书小安结合知识作答。`);
+                : `全局共享知识库(${normalizedDomain}):面向所有用户公开,供internShannon结合知识作答。`);
         try {
             const asset = await this.createAsset(
                 name,
@@ -1576,8 +1576,8 @@ export class AssetServiceImpl implements IAssetService {
             assetId,
             sha: commitSha,
             message: message || `Update ${path}`,
-            authorName: authorName || 'Shuan OS',
-            authorEmail: authorEmail || 'system@shuan.local',
+            authorName: authorName || 'internShannon',
+            authorEmail: authorEmail || 'system@internshannon.local',
             parentShas: parentCommitSha ? [parentCommitSha] : [],
             treeSha: blobSha,
             createdAt,
@@ -2403,8 +2403,8 @@ export class AssetServiceImpl implements IAssetService {
             assetId,
             sha: commitSha,
             message,
-            authorName: authorName || 'Shuan OS',
-            authorEmail: authorEmail || 'system@shuan.local',
+            authorName: authorName || 'internShannon',
+            authorEmail: authorEmail || 'system@internshannon.local',
             parentShas: parentCommitSha ? [parentCommitSha] : [],
             treeSha,
             createdAt,

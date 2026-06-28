@@ -8,7 +8,7 @@ if [[ "$(uname -s)" != "Darwin" ]]; then
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="${SAFECLAW_APP_NAME:-书安}"
+APP_NAME="${SAFECLAW_APP_NAME:-internShannon}"
 VERSION="${SAFECLAW_VERSION:-$(node -e 'console.log(require(process.argv[1]).version)' "$ROOT_DIR/package.json")}"
 DMG_NAME="${SAFECLAW_DMG_NAME:-${APP_NAME}-${VERSION}.dmg}"
 BUILD_BUNDLES="${SAFECLAW_BUILD_BUNDLES:-app}"
@@ -78,7 +78,7 @@ fi
 
 if [[ ! -f "$UPDATER_ARCHIVE_PATH" ]]; then
   echo "Updater archive not found: $UPDATER_ARCHIVE_PATH" >&2
-  echo "Expected because 书安 desktop builds must retain updater artifacts." >&2
+  echo "Expected because internShannon desktop builds must retain updater artifacts." >&2
   exit 1
 fi
 

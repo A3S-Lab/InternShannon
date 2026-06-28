@@ -8,7 +8,7 @@ function jsonFetch(responseBody: unknown, status = 200) {
 }
 
 describe('@a3s-lab/ocr', () => {
-    it('ships disabled built-in backend templates for Shuan OS config backfill', () => {
+    it('ships disabled built-in backend templates for internShannon config backfill', () => {
         expect(DEFAULT_OCR_SETTINGS.defaultBackend).toBe('mineru');
         expect(DEFAULT_OCR_SETTINGS.backends.map(backend => backend.type)).toEqual([
             'mineru',

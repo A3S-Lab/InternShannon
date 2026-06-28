@@ -1,6 +1,2 @@
-// ============================================================================
-// Auth Decorators
-// ============================================================================
-
-export * from './current-user.decorator';
+export * from './desktop-owner.decorator';
 export * from './dev-only.decorator';

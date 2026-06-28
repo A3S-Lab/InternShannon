@@ -1,4 +1,4 @@
-import { PageQueryOptions } from '@/shared/application/pagination.dto';
+import { PageQueryOptions } from '@/shared/domain/pagination';
 
 export type WorkflowDefinitionStatus = 'draft' | 'published' | 'archived';
 export type WorkflowDefinitionVisibility = 'private' | 'public';

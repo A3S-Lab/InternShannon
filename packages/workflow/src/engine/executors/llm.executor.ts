@@ -103,7 +103,7 @@ export class LLMNodeExecutor extends BaseNodeExecutor {
         let supportsAttachment: boolean | undefined;
         // Model actually sent to the API. Trusted resolver mode overrides it with the resolver's
         // resolved id — when the node left `model` blank, that's the config service's
-        // defaultModel (the ShuanOS vault default), so built-in / default LLM nodes run
+        // defaultModel (the internShannon vault default), so built-in / default LLM nodes run
         // on the platform default. Library/standalone must name a model; there is no
         // hardcoded fallback (see the !effectiveModel guard below).
         let effectiveModel = model;

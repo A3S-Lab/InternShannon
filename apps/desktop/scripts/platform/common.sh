@@ -31,7 +31,7 @@ detect_platform() {
 # =============================================================================
 
 # App names (can be overridden via environment)
-APP_NAME="${SAFECLAW_APP_NAME:-书安}"
+APP_NAME="${SAFECLAW_APP_NAME:-internShannon}"
 EXECUTABLE_NAME="${SAFECLAW_EXECUTABLE_NAME:-$APP_NAME}"
 
 # libkrun version

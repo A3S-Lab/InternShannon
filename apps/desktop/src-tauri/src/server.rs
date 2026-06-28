@@ -415,7 +415,7 @@ fn is_internshannon_sidecar_command(command: &str) -> bool {
         return false;
     }
 
-    normalized.contains("书小安.app/Contents/Resources/main.js")
+    normalized.contains("internShannon.app/Contents/Resources/main.js")
         || normalized.contains("InternShannon.app/Contents/Resources/main.js")
         || normalized.contains("/apps/sidecar/dist/main.js")
 }
@@ -531,7 +531,7 @@ where
             "reuse",
             "sidecar_incompatible",
             format!(
-                "Port 29653 is occupied by a healthy but API-incompatible process ({owners}). Quit the old 书小安 app or stop that process, then retry."
+                "Port 29653 is occupied by a healthy but API-incompatible process ({owners}). Quit the old internShannon app or stop that process, then retry."
             ),
         ));
     }
@@ -756,7 +756,7 @@ mod tests {
     #[test]
     fn recognizes_bundled_internshannon_sidecar_commands() {
         assert!(is_internshannon_sidecar_command(
-            "/Applications/书小安.app/Contents/Resources/node/bin/node /Applications/书小安.app/Contents/Resources/main.js"
+            "/Applications/internShannon.app/Contents/Resources/node/bin/node /Applications/internShannon.app/Contents/Resources/main.js"
         ));
         assert!(is_internshannon_sidecar_command(
             "/repo/apps/desktop/node /repo/apps/sidecar/dist/main.js"

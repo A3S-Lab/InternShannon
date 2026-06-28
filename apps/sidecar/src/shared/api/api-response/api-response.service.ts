@@ -4,7 +4,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { Request } from 'express';
-import { PaginatedResponseDto } from '../../application/pagination.dto';
+import { PaginatedResponseDto } from '@/shared/api/presentation/dto/pagination.dto';
 import { StatusCode, StatusCodeHttpStatus } from '../../common/errors/error-codes';
 import { API_SUCCESS_MESSAGE, API_SUCCESS_STATUS } from './api-response.constants';
 import { ApiErrorResponseDto, ApiResponseDto } from './api-response.dto';

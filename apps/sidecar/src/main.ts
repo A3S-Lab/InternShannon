@@ -6,7 +6,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { raw } from 'express';
 import helmet from 'helmet';
-import { ShuxiaoanSidecarModule } from './shuxiaoan-sidecar.module';
+import { InternShannonSidecarModule } from './intern-shannon-sidecar.module';
 import { type IKernelService, KERNEL_SERVICE } from './modules/kernel/domain/services/kernel-service.interface';
 import { createValidationPipe } from './shared/api/validation';
 import { APP_MODE } from './shared/constants';
@@ -28,7 +28,7 @@ async function bootstrap() {
     };
 
     phase('NestFactory.create start');
-    const app = await NestFactory.create<NestExpressApplication>(ShuxiaoanSidecarModule, {
+    const app = await NestFactory.create<NestExpressApplication>(InternShannonSidecarModule, {
         logger: new QuietBootLogger(['error', 'warn', 'log', 'fatal']),
         rawBody: true,
     });
@@ -123,8 +123,8 @@ async function bootstrap() {
     );
 
     const swaggerConfig = new DocumentBuilder()
-        .setTitle('书小安')
-        .setDescription('书小安本地 sidecar API')
+        .setTitle('internShannon')
+        .setDescription('internShannon本地 sidecar API')
         .setVersion('0.1')
         .addServer('/', 'Current host')
         .build();

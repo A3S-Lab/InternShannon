@@ -1,5 +1,6 @@
 export * from './agent-kind.vo';
 export * from './asset-category.vo';
+export * from './asset-catalog-profile.vo';
 export * from './asset-lifecycle.vo';
 export * from './asset-benchmark.vo';
 export * from './asset-secret-vault.vo';

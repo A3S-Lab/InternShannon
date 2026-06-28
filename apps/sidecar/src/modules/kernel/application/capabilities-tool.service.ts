@@ -436,7 +436,7 @@ export class CapabilitiesToolService {
     }
 
     /**
-     * 默认会话助手(书小安,agentId='default')以【只读】方式使用渐进式 API:它经
+     * 默认会话助手(internShannon,agentId='default')以【只读】方式使用渐进式 API:它经
      * runtimeDefaults().allowCapabilities 被放行 capabilities,但 execute 仅允许 GET 只读
      * 操作 —— 拒绝写 / 删,以中和「恶意知识文档或用户输入诱导对话助手执行用户本有权限的
      * 破坏性写操作」的提示注入面。锁定型 agent(asset / orchestration)各有 assets 单资产
@@ -448,7 +448,7 @@ export class CapabilitiesToolService {
         const session = await this.kernelService.getSession(input.sessionId);
         if (session?.agentId === 'default') {
             throw new BadRequestException(
-                '书小安(对话助手)通过渐进式 API 仅可执行只读(查询)操作;写入 / 删除请在对应产品界面手动完成。',
+                'internShannon(对话助手)通过渐进式 API 仅可执行只读(查询)操作;写入 / 删除请在对应产品界面手动完成。',
             );
         }
     }

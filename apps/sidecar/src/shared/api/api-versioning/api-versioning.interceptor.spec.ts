@@ -24,7 +24,7 @@ describe('api versioning helpers', () => {
 
     it('extracts versions from URL, Accept header, and X-API-Version', () => {
         expect(extractVersionFromUrl('/api/v1/runtimes')).toBe('1');
-        expect(extractVersionFromHeader('application/vnd.shuan-os.v1+json')).toBe('1');
+        expect(extractVersionFromHeader('application/vnd.internshannon.v1+json')).toBe('1');
         expect(extractVersionFromCustomHeader('v1')).toBe('1');
     });
 
@@ -34,7 +34,7 @@ describe('api versioning helpers', () => {
             originalUrl: '/api/v1/runtimes',
             headers: {
                 'x-api-version': '1',
-                accept: 'application/vnd.shuan-os.v1+json',
+                accept: 'application/vnd.internshannon.v1+json',
             },
         };
 

@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { CommandBus } from '@nestjs/cqrs';
-import { CreateSessionCommand } from '@/modules/kernel/application/commands/create-session';
-import { KernelMessageRunIntakeService } from '@/modules/kernel/application/kernel-message-run-intake.service';
+import {
+    IKernelMessageRunService,
+    KERNEL_MESSAGE_RUN_SERVICE,
+} from '@/modules/kernel/domain/services/kernel-message-run.service.interface';
 import { KERNEL_SERVICE, type IKernelService } from '@/modules/kernel/domain/services/kernel-service.interface';
 import type { Session } from '@/modules/kernel/domain/entities/session.entity';
 import type { WechatChannelMessage } from '../domain';
@@ -16,9 +17,9 @@ export class WechatAgentBridgeService {
     private readonly sessionCache = new Map<string, string>();
 
     constructor(
-        private readonly commandBus: CommandBus,
         @Inject(KERNEL_SERVICE) private readonly kernelService: IKernelService,
-        private readonly messageRunIntake: KernelMessageRunIntakeService,
+        @Inject(KERNEL_MESSAGE_RUN_SERVICE)
+        private readonly messageRuns: IKernelMessageRunService,
     ) {}
 
     async runDefaultAgent(message: WechatChannelMessage): Promise<string> {
@@ -31,7 +32,7 @@ export class WechatAgentBridgeService {
         const replyParts: string[] = [];
         let errorMessage = '';
 
-        await this.messageRunIntake.run({
+        await this.messageRuns.run({
             sessionId: session.id,
             content,
             emit: event => {
@@ -101,13 +102,17 @@ export class WechatAgentBridgeService {
             return existing;
         }
 
-        const session = await this.commandBus.execute<CreateSessionCommand, Session>(
-            new CreateSessionCommand(undefined, userId, `微信对话 ${cacheKey.slice(0, 8)}`, undefined, {
+        const session = await this.kernelService.createSession(
+            undefined,
+            userId,
+            `微信对话 ${cacheKey.slice(0, 8)}`,
+            undefined,
+            {
                 integration: WECHAT_SOURCE,
                 externalPlatform: 'wechat',
                 externalChatType: message.isGroup ? 'group' : 'p2p',
                 externalConversationHash: cacheKey,
-            }),
+            },
         );
         this.sessionCache.set(cacheKey, session.id);
         return session;

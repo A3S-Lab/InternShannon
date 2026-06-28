@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigServiceImpl } from '@/modules/config/application/config.service';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { CONFIG_SERVICE, ConfigService } from '@/modules/config/domain/services/config-service.interface';
 import {
     WECHAT_INTEGRATION_CONFIG_KEY,
     type WechatIntegrationConfig,
@@ -10,7 +10,7 @@ import {
 export class ConfigServiceWechatConfigRepository implements WechatIntegrationConfigRepository {
     private readonly logger = new Logger(ConfigServiceWechatConfigRepository.name);
 
-    constructor(private readonly configService: ConfigServiceImpl) {}
+    constructor(@Inject(CONFIG_SERVICE) private readonly configService: ConfigService) {}
 
     async getConfig(): Promise<WechatIntegrationConfig> {
         const entry = await this.configService.getConfigEntry(WECHAT_INTEGRATION_CONFIG_KEY);

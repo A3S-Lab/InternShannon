@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsBoolean, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
-import { PaginationQueryDto } from '@/shared/application/pagination.dto';
+import { PaginationQueryDto } from '@/shared/api/presentation/dto/pagination.dto';
 
 export class AdjudicateLoopRunRequestDto {
     @IsIn(['approve', 'reject'])

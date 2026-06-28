@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { PermissionApi } from '@/shared/security/desktop-access';
+import { DesktopCapabilityApi } from '@/shared/security/desktop-access';
 import { ApiOkResponse } from '@/shared/api/openapi';
 import {
     ClawSentrySupervisorService,
@@ -8,7 +8,7 @@ import {
 } from '../../application/clawsentry-supervisor.service';
 
 @ApiTags('内核 - 安全')
-@PermissionApi('platform:runtime:access')
+@DesktopCapabilityApi('platform:runtime:access')
 @Controller('kernel/security')
 export class KernelSecurityController {
     constructor(private readonly clawSentry: ClawSentrySupervisorService) {}

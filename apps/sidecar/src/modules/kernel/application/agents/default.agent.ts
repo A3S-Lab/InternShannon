@@ -14,7 +14,7 @@ export class DefaultAgent implements AgentSpec {
         return {
             planningMode: 'disabled',
             goalTracking: false,
-            // Opt 书小安 into the progressive-API (`capabilities`) WITHOUT whitelisting
+            // Opt internShannon into the progressive-API (`capabilities`) WITHOUT whitelisting
             // its skills, so it can ground answers in the user's personal knowledge base
             // (assets module · personal-knowledge "search"). Execute access is gated
             // READ-ONLY for the default agent in CapabilitiesToolService.

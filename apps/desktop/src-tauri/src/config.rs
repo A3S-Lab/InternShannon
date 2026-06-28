@@ -157,7 +157,7 @@ impl AppConfig {
     fn default_hcl() -> String {
         String::from(
             r#"# InternShannon UI Configuration
-# https://github.com/A3S-Lab/InternShannon
+# https://github.com/A3S-Lab/internShannon
 
 # Editor settings
 editor {

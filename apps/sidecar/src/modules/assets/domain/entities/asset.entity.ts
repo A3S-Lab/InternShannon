@@ -2345,7 +2345,7 @@ export class Asset extends AggregateRoot<string> {
                 ? [
                     `Run ${source.command || source.name}`,
                     `Working directory: ${source.workingDirectory || '.'}`,
-                    'This compatibility runner recorded the step metadata for Shuan OS.',
+                    'This compatibility runner recorded the step metadata for internShannon.',
                     'Step completed successfully.',
                 ].join('\n')
                 : `Queued ${source.name} for pipeline runner.`,

@@ -1,4 +1,4 @@
-import { PageResult } from '@/shared/application/pagination.dto';
+import { PageResult } from '@/shared/domain/pagination';
 
 export interface ResponseAssembler<TInput, TOutput> {
     toResponse(input: TInput): TOutput;

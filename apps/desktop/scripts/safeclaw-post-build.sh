@@ -11,7 +11,7 @@
 #   ./safeclaw-post-build.sh [bundle_path]
 #
 # Environment variables:
-#   SAFECLAW_APP_NAME          - App display name (default: 书安)
+#   SAFECLAW_APP_NAME          - App display name (default: internShannon)
 #   SAFECLAW_EXECUTABLE_NAME   - Executable name (default: same as app name)
 #   LIBKRUN_VERSION            - libkrun version (default: 1.17.0)
 
@@ -38,7 +38,7 @@ Arguments:
   BUNDLE_PATH    Path to the bundle (optional, auto-detected if not provided)
 
 Options:
-  --app-name NAME         Set app display name (default: 书安)
+  --app-name NAME         Set app display name (default: internShannon)
   --exec-name NAME        Set executable name (default: same as app name)
   --libkrun-version VER   Set libkrun version (default: 1.17.0)
   --skip-verify           Skip verification steps
@@ -46,7 +46,7 @@ Options:
 
 Examples:
   $(basename "$0")                                    # Auto-detect bundle
-  $(basename "$0") /path/to/书安.app                  # macOS app bundle
+  $(basename "$0") /path/to/internShannon.app                  # macOS app bundle
   $(basename "$0") ./target/release/bundle/appimage/*.AppImage
 
 EOF

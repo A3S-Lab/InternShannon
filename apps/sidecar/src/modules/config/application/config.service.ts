@@ -15,7 +15,7 @@ import {
     ConfigEntryRecord,
     IConfigRepository,
 } from '../domain/repositories/config-repository.interface';
-import type { DeepPartial } from '../domain/services/config-service.interface';
+import type { ConfigService, DeepPartial } from '../domain/services/config-service.interface';
 import {
     AppearanceSettings,
     AppSettings,
@@ -77,7 +77,7 @@ const MANAGED_APP_CONFIG_MUTATION_MESSAGE =
     'Managed application settings must be changed through typed config APIs such as /config or /config/categories/:name';
 
 @Injectable()
-export class ConfigServiceImpl {
+export class ConfigServiceImpl implements ConfigService {
     private readonly logger = new Logger(ConfigServiceImpl.name);
     private settingsCache: AppSettings | null = null;
 
@@ -694,8 +694,8 @@ export class ConfigServiceImpl {
     private cloneDefaultSettings(): AppSettings {
         const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as AppSettings;
         if (isDesktop()) {
-            settings.platform.appName = '书小安';
-            settings.general.appName = '书小安';
+            settings.platform.appName = 'internShannon';
+            settings.general.appName = 'internShannon';
         }
         return settings;
     }
@@ -1105,11 +1105,8 @@ export class ConfigServiceImpl {
     private normalizeAppName(value: string | undefined, fallback: string | undefined): string | undefined {
         const candidate = value?.trim() || fallback;
         if (!candidate) return candidate;
-        if (isDesktop() && /^(书小安\s*OS|书安\s*OS|书安OS)$/i.test(candidate)) {
-            return '书小安';
-        }
-        if (/^书安\s+OS$/i.test(candidate)) {
-            return '书安OS';
+        if (isDesktop() && /^internShannon(?:\s*OS)?$/i.test(candidate)) {
+            return 'internShannon';
         }
         return candidate;
     }

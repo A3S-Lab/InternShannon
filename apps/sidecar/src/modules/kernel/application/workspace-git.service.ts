@@ -676,7 +676,7 @@ export class WorkspaceGitService {
         if (segments[0] === '.a3s' && segments[1] === 'workspace-git') return true;
         if (segments.includes('.git') || segments.includes('node_modules')) return true;
         const fileName = segments[segments.length - 1];
-        return fileName === '.keep' || fileName === '.DS_Store' || fileName === '.shuan-os-trash';
+        return fileName === '.keep' || fileName === '.DS_Store' || fileName === '.internshannon-trash';
     }
 
     private lineStats(oldContent: Buffer, newContent: Buffer, binary: boolean): { additions: number; deletions: number } {

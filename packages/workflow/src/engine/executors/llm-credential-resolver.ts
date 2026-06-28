@@ -19,7 +19,7 @@ export interface LLMCredentials {
     /**
      * The resolved model id to call. When the node left its `model` blank (the default
      * for built-in / default LLM nodes), this is the config service's `defaultModel` —
-     * the ShuanOS platform default — so those nodes run on the vault-configured default
+     * the internShannon platform default — so those nodes run on the vault-configured default
      * instead of a model hardcoded into the node or the executor.
      */
     model?: string;

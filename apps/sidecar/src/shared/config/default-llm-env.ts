@@ -21,7 +21,7 @@ export interface DefaultLlmEnvSettings {
 }
 
 /**
- * Resolves 书安OS's default LLM (defaultModel + its hosting provider) into
+ * Resolves internShannon's default LLM (defaultModel + its hosting provider) into
  * environment variables consumed by built-in agent containers.
  */
 export function buildDefaultLlmEnv(settings: DefaultLlmEnvSettings | null | undefined): Array<{ name: string; value: string }> {

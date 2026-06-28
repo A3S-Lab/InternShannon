@@ -92,7 +92,7 @@ export function classifyApiPortCheck({ error = '', healthy = false, listening, o
     }
 
     return createDoctorCheck({
-        action: `Stop the process on ${port}, or retry after confirming it is the ShuanOS desktop sidecar.`,
+        action: `Stop the process on ${port}, or retry after confirming it is the internShannon desktop sidecar.`,
         details: [owner, error],
         label: 'Desktop API port',
         status: 'fail',
@@ -159,7 +159,7 @@ export function summarizeDoctorChecks(checks) {
     );
 }
 
-export function formatDoctorReport(checks, { title = 'desktop-doctor: ShuanOS desktop local preflight' } = {}) {
+export function formatDoctorReport(checks, { title = 'desktop-doctor: internShannon desktop local preflight' } = {}) {
     const summary = summarizeDoctorChecks(checks);
     const lines = [title, `Checks: ${summary.ok} ok, ${summary.warn} warn, ${summary.fail} fail`, ''];
 

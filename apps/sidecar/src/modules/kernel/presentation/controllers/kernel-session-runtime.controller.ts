@@ -1,15 +1,15 @@
 import { BadRequestException, Body, Controller, Get, Inject, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { AuthenticatedApi } from '@/shared/security/desktop-access';
+import { DesktopApi } from '@/shared/security/desktop-access';
 import { ApiOkResponse, ApiPaginatedResponse } from '@/shared/api/openapi';
 import {
     PaginatedResponseDto,
     PaginationQueryDto,
     parsePaginationOptions,
     toPaginatedResponse,
-} from '@/shared/application/pagination.dto';
+} from '@/shared/api/presentation/dto/pagination.dto';
 import { NotFoundException } from '@/shared/common/errors';
-import { CurrentUserId } from '@/shared/security/decorators/current-user.decorator';
+import { DesktopOwnerId } from '@/shared/security/decorators/desktop-owner.decorator';
 import { isLockedAgent, lockedRunViolation } from '../../application/agents/locked-agent.policy';
 import { KernelBtwQueryService } from '../../application/kernel-btw-query.service';
 import { KernelMessageRunCancellationService } from '../../application/kernel-message-run-cancellation.service';
@@ -32,7 +32,7 @@ import {
 } from '../dto/response';
 
 @ApiTags('内核 - 会话运行')
-@AuthenticatedApi()
+@DesktopApi()
 @Controller('kernel/sessions/:sessionId')
 export class KernelSessionRuntimeController {
     constructor(
@@ -56,7 +56,7 @@ export class KernelSessionRuntimeController {
     })
     async snapshot(
         @Param('sessionId') sessionId: string,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<KernelSessionSnapshotResponseDto> {
         await this.sessionAccess.requireOwnedSession(sessionId, userId);
         const snapshot = await this.sessionSnapshot.getSnapshot(sessionId);
@@ -74,7 +74,7 @@ export class KernelSessionRuntimeController {
     })
     async status(
         @Param('sessionId') sessionId: string,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<KernelSessionStatusResponseDto> {
         await this.sessionAccess.requireOwnedSession(sessionId, userId);
         const activeSession = this.runtimeAccess.active(sessionId);
@@ -96,7 +96,7 @@ export class KernelSessionRuntimeController {
     async logs(
         @Param('sessionId') sessionId: string,
         @Query() query: PaginationQueryDto,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<PaginatedResponseDto<KernelSessionLogEntryResponseDto>> {
         await this.sessionAccess.requireOwnedSession(sessionId, userId);
         const { page, limit, offset } = parsePaginationOptions(query);
@@ -129,7 +129,7 @@ export class KernelSessionRuntimeController {
     async runMessage(
         @Param('sessionId') sessionId: string,
         @Body() dto: RunKernelSessionMessageRequestDto,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<KernelSessionRunResponseDto> {
         const session = await this.sessionAccess.requireOwnedSession(sessionId, userId);
         const violation = lockedRunViolation(session.agentId, dto);
@@ -160,7 +160,7 @@ export class KernelSessionRuntimeController {
     async btw(
         @Param('sessionId') sessionId: string,
         @Body() dto: AskKernelSessionBtwRequestDto,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<KernelSessionRunResponseDto> {
         await this.sessionAccess.requireOwnedSession(sessionId, userId);
         const events: KernelSessionRuntimeEventResponseDto[] = [];
@@ -185,7 +185,7 @@ export class KernelSessionRuntimeController {
     })
     async pause(
         @Param('sessionId') sessionId: string,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<KernelSessionCancelResponseDto> {
         return this.cancelOwnedSession(sessionId, userId);
     }
@@ -198,7 +198,7 @@ export class KernelSessionRuntimeController {
     })
     async cancel(
         @Param('sessionId') sessionId: string,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<KernelSessionCancelResponseDto> {
         return this.cancelOwnedSession(sessionId, userId);
     }
@@ -225,7 +225,7 @@ export class KernelSessionRuntimeController {
     })
     async reset(
         @Param('sessionId') sessionId: string,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<KernelSessionResetResponseDto> {
         await this.sessionAccess.requireOwnedSession(sessionId, userId);
         const result = await this.sessionReset.reset(sessionId);

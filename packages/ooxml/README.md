@@ -1,6 +1,6 @@
 # @a3s-lab/ooxml
 
-Shared Office document adapters for Shuan OS workspace editors.
+Shared Office document adapters for internShannon workspace editors.
 
 This package owns conversion between Office/OOXML bytes and Univer snapshots so the web file manager can preview and edit common office files without routing through PDF conversion.
 

@@ -8,8 +8,8 @@ import type {
  * Map a NORMALIZED memory stream event (the shape produced by `normalizeStreamEvent` for
  * memory_stored / memory_recalled / memory_cleared) into a `RecordUserMemoryInput`.
  *
- * The layer derivation mirrors the frontend's `resolveXiaoanMemoryLayer`
- * (apps/web/src/lib/xiaoan-memory-timeline-item.ts) so the server-persisted `layer` matches exactly what
+ * The layer derivation mirrors the frontend's `resolveInternShannonMemoryLayer`
+ * (apps/web/src/lib/internShannon-memory-timeline-item.ts) so the server-persisted `layer` matches exactly what
  * the timeline UI shows. Returns null for any non-memory event so the runner tap is a cheap no-op on the
  * vast majority of stream frames.
  */

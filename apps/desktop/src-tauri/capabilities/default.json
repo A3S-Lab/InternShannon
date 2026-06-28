@@ -1,7 +1,7 @@
 {
 	"$schema": "https://raw.githubusercontent.com/nicegui-dev/nicegui-tauri/main/capability_schema.json",
 	"identifier": "default",
-	"description": "Default capabilities for InternShannon",
+	"description": "Default capabilities for internShannon",
 	"windows": ["main"],
 	"permissions": [
 		"core:default",

@@ -27,9 +27,9 @@ use std::os::windows::process::CommandExt;
 
 const MIN_WINDOW_WIDTH: f64 = 800.0;
 const MIN_WINDOW_HEIGHT: f64 = 600.0;
-const DEFAULT_RELEASE_URL: &str = "https://github.com/A3S-Lab/InternShannon/releases";
+const DEFAULT_RELEASE_URL: &str = "https://github.com/A3S-Lab/internShannon/releases";
 const DEFAULT_UPDATER_ENDPOINT: &str =
-    "https://github.com/A3S-Lab/InternShannon/releases/latest/download/latest.json";
+    "https://github.com/A3S-Lab/internShannon/releases/latest/download/latest.json";
 const DEFAULT_UPDATER_PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkxNUQ4QjEzRDlEMTE1NEEKUldSS0ZkSFpFNHRka2ZhZVJPUU53RnBFb3VDODFEaFVtTUswa0NnK1ZBajJlc2FLTGR3dFlmZkUK";
 const UPDATER_PROGRESS_EVENT: &str = "internshannon://updater-progress";
 #[cfg(target_os = "windows")]
@@ -922,7 +922,7 @@ fn build_embedded_gateway_failure_dialog(
 ) -> String {
     let stage_label = embedded_gateway_stage_label(failure.stage);
     let mut message = format!(
-        "书小安本地服务暂时没有准备好。\n\n界面会继续显示启动状态，并在“查看详情”中提供诊断信息。请先点击界面里的“重新检测”；如果仍未恢复，再重启应用。\n\n检测地址: {gateway_url}\n失败阶段: {stage_label}"
+        "internShannon本地服务暂时没有准备好。\n\n界面会继续显示启动状态，并在“查看详情”中提供诊断信息。请先点击界面里的“重新检测”；如果仍未恢复，再重启应用。\n\n检测地址: {gateway_url}\n失败阶段: {stage_label}"
     );
 
     if let Some(path) = diagnostic_report_path {
@@ -1642,7 +1642,7 @@ pub fn run() {
 
             let handle = app.handle();
 
-            let app_menu = SubmenuBuilder::new(handle, "书小安")
+            let app_menu = SubmenuBuilder::new(handle, "internShannon")
                 .item(&PredefinedMenuItem::about(handle, None, None)?)
                 .separator()
                 .item(&PredefinedMenuItem::hide(handle, None)?)
@@ -1699,7 +1699,7 @@ pub fn run() {
             let tray_icon = app.default_window_icon().cloned().expect("no default icon");
 
             let _tray = TrayIconBuilder::with_id("main-tray")
-                .tooltip("书小安")
+                .tooltip("internShannon")
                 .icon(tray_icon)
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
@@ -1829,7 +1829,7 @@ pub fn run() {
                     );
                     let _ = show_blocking_message_dialog(
                         &app_handle,
-                        "书小安 本地服务暂不可用",
+                        "internShannon 本地服务暂不可用",
                         message,
                         MessageDialogKind::Error,
                         MessageDialogButtons::Ok,
@@ -1923,11 +1923,11 @@ mod tests {
         fs::create_dir_all(&dir).expect("create temp test dir");
         let target = dir.join("session.json");
 
-        workspace_write_file(target.display().to_string(), "{\"ok\":\"书小安\"}\n".to_string())
+        workspace_write_file(target.display().to_string(), "{\"ok\":\"internShannon\"}\n".to_string())
             .expect("write workspace file");
 
         let written = fs::read_to_string(&target).expect("read written file");
-        assert_eq!(written, "{\"ok\":\"书小安\"}\n");
+        assert_eq!(written, "{\"ok\":\"internShannon\"}\n");
         let _ = fs::remove_dir_all(&dir);
     }
 }

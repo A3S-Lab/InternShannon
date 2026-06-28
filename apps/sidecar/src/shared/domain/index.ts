@@ -7,4 +7,5 @@ export * from './domain-error';
 export * from './domain-event';
 export * from './domain-event-publisher';
 export * from './entity';
+export * from './pagination';
 export * from './value-object';

@@ -1,4 +1,4 @@
-import { PageQueryOptions, PageResult } from '@/shared/application/pagination.dto';
+import { PageQueryOptions, PageResult } from '@/shared/domain/pagination';
 import { Asset } from '../entities/asset.entity';
 import { Blob } from '../entities/blob.entity';
 import { Branch } from '../entities/branch.entity';
@@ -130,7 +130,7 @@ export interface IAssetService {
      */
     getOrCreatePersonalKnowledge(userId: string): Promise<Asset>;
     /**
-     * 解析/懒创建【平台文档全局知识库】(书安 OS 文档中心,域='platform-docs')。
+     * 解析/懒创建【平台文档全局知识库】(internShannon 文档中心,域='platform-docs')。
      * 等价于 getOrCreateGlobalKnowledge('platform-docs'),保留以兼容既有文档同步/检索调用。
      */
     getOrCreateGlobalDocsKnowledge(): Promise<Asset>;

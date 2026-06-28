@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString } from 'class-validator';
-import { PaginationQueryDto } from '@/shared/application/pagination.dto';
+import { PaginationQueryDto } from '@/shared/api/presentation/dto/pagination.dto';
 
 /**
  * 会话列表查询参数：在标准分页基础上增加 `conversational`。

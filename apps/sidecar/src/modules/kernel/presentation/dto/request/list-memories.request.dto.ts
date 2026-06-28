@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional } from 'class-validator';
-import { PaginationQueryDto } from '@/shared/application/pagination.dto';
+import { PaginationQueryDto } from '@/shared/api/presentation/dto/pagination.dto';
 import type {
     UserMemoryAction,
     UserMemoryLayer,

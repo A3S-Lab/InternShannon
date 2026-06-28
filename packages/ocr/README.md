@@ -1,6 +1,6 @@
 # @a3s-lab/ocr
 
-Standard OCR adapter package for Shuan OS.
+Standard OCR adapter package for internShannon.
 
 The package exposes one small contract for OCR backends and ships HTTP adapters for:
 
@@ -35,6 +35,6 @@ console.log(result.text);
 - `OcrBackendConfig` stores backend connection parameters.
 - `OcrBackend` implements `recognize(input, options)`.
 - `OcrResult` normalizes backend-specific responses into text, pages, blocks, and raw metadata.
-- `DEFAULT_OCR_SETTINGS` is the default Shuan OS OCR settings source used by the API config schema.
+- `DEFAULT_OCR_SETTINGS` is the default internShannon OCR settings source used by the API config schema.
 
 The built-in adapters are intentionally lightweight and use `fetch`, so each deployment can run the OCR services out of process.

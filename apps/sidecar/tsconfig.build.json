@@ -2,7 +2,7 @@
     "extends": "./tsconfig.json",
     "include": [
         "src/main.ts",
-        "src/shuxiaoan-sidecar.module.ts",
+        "src/intern-shannon-sidecar.module.ts",
         "src/desktop-runtime/**/*.ts",
         "src/infrastructure/desktop/acl-config/acl-config.service.ts",
         "src/infrastructure/desktop/app-config/app-config.module.ts",

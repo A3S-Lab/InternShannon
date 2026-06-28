@@ -328,9 +328,9 @@ function resetSourceSidecarToDistOnly() {
 function readProductName() {
     try {
         const config = JSON.parse(fs.readFileSync(TAURI_CONFIG_PATH, 'utf8'));
-        return config.productName ?? '书小安';
+        return config.productName ?? 'internShannon';
     } catch {
-        return '书小安';
+        return 'internShannon';
     }
 }
 

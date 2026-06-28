@@ -405,7 +405,7 @@ export interface AssistantMcpServerConfig {
  * 具有最高优先级，覆盖前端通过会话 metadata 下发的同名字段。
  */
 export class AssistantSettings {
-    /** 显示名称；'' = 内置默认（书小安）。仅用于前端展示，不投影到运行时。 */
+    /** 显示名称；'' = 内置默认（internShannon）。仅用于前端展示，不投影到运行时。 */
     name?: string;
     /** 头像图片 URL；'' = 内置默认头像。仅用于前端展示，不投影到运行时。 */
     avatar?: string;
@@ -556,7 +556,7 @@ const EXAMPLE_PLUGIN_HTML = `<!doctype html>
 
 export const DEFAULT_SETTINGS: AppSettings = {
     platform: {
-        appName: '书安OS',
+        appName: 'internShannon',
         logoUrl: '',
         language: 'zh-CN',
         publicBaseUrl: '',
@@ -592,7 +592,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     },
     packages: {
         registryHost: '',
-        defaultNamespace: 'shuan',
+        defaultNamespace: 'internshannon',
         defaultVisibility: 'organization',
         immutableTags: true,
         allowAnonymousPull: false,
@@ -607,7 +607,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
         featuredReviewRequired: true,
     },
     runtime: {
-        defaultNamespace: 'shuan-runtime',
+        defaultNamespace: 'internshannon-runtime',
         defaultRuntimeClass: '',
         defaultCpuLimit: '1000m',
         defaultMemoryLimit: '1Gi',
@@ -617,7 +617,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
         imagePullPolicy: 'IfNotPresent',
     },
     general: {
-        appName: '书安OS',
+        appName: 'internShannon',
         language: 'zh-CN',
         splashScreen: true,
         restoreWorkspace: true,

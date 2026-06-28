@@ -50,7 +50,7 @@ export function redactSecrets(value: unknown): unknown {
 // high-signal formats, so legitimate output (UUIDs, hashes) isn't mangled.
 const SECRET_VALUE_PATTERNS: RegExp[] = [
     /sk-[A-Za-z0-9]{16,}/g, // OpenAI-style API keys
-    /a3s_pat_[A-Za-z0-9]{12,}/g, // ShuanOS personal access tokens
+    /a3s_pat_[A-Za-z0-9]{12,}/g, // internShannon personal access tokens
     /gh[pousr]_[A-Za-z0-9]{16,}/g, // GitHub tokens
     /AKIA[0-9A-Z]{16}/g, // AWS access key id
     /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, // Three-part bearer tokens

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
-import { PaginationQueryDto } from '@/shared/application/pagination.dto';
+import { PaginationQueryDto } from '@/shared/api/presentation/dto/pagination.dto';
 
 const CONFIG_ENTRY_PREFIX_PATTERN = /^config(?:\/.*)?$/;
 const CONFIG_ENTRY_KEY_PATTERN = /^config\/.+$/;

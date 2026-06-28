@@ -16,15 +16,15 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { ApiQuery, ApiTags } from '@nestjs/swagger';
 import { AssetAccessService } from '@/modules/assets/application/asset-access.service';
 import { Asset } from '@/modules/assets/domain/entities/asset.entity';
-import { AuthenticatedApi, RequirePermissions } from '@/shared/security/desktop-access';
+import { DesktopApi, RequireDesktopCapabilities } from '@/shared/security/desktop-access';
 import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiPaginatedResponse } from '@/shared/api/openapi';
 import {
     PaginatedResponseDto,
     PaginationQueryDto,
     parsePaginationOptions,
     toPaginatedResponse,
-} from '@/shared/application/pagination.dto';
-import { CurrentUserId } from '@/shared/security/decorators/current-user.decorator';
+} from '@/shared/api/presentation/dto/pagination.dto';
+import { DesktopOwnerId } from '@/shared/security/decorators/desktop-owner.decorator';
 import {
     applyLockedAgentMetadata,
     isLockedAgent,
@@ -50,7 +50,7 @@ import {
 } from '../dto/response';
 
 @ApiTags('内核')
-@AuthenticatedApi()
+@DesktopApi()
 @Controller('kernel')
 export class KernelController {
     constructor(
@@ -65,7 +65,7 @@ export class KernelController {
     ) {}
 
     @Post('sessions')
-    @RequirePermissions('agent:deploy')
+    @RequireDesktopCapabilities('agent:deploy')
     @ApiCreatedResponse({
         summary: '创建新会话',
         description:
@@ -74,7 +74,7 @@ export class KernelController {
     })
     async createSession(
         @Body() dto: CreateSessionRequestDto,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<CreateSessionResponseDto> {
         const resolvedUserId = this.resolveUserId(userId);
         await this.sessionAccess.assertWorkspacePathAccess(dto.cwd, resolvedUserId);
@@ -114,7 +114,7 @@ export class KernelController {
         type: SessionResponseDto,
     })
     async listSessions(
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
         // 用户总览页传 conversational=true：只看「真正的对话」，排除资产开发/编排/devops/系统等
         // 功能内部运行时会话。后台「会话」管理页不传，仍看全部。过滤同时作用于列表与 total，
         // 否则分页语义会错乱。`conversational` 必须在 DTO 白名单内，否则 cloud 模式
@@ -152,7 +152,7 @@ export class KernelController {
         description: '根据会话ID获取详细信息，包括配置、状态和元数据',
         type: SessionResponseDto,
     })
-    async getSession(@Param('id') id: string, @CurrentUserId() userId: string) {
+    async getSession(@Param('id') id: string, @DesktopOwnerId() userId: string) {
         const session = await this.sessionAccess.requireOwnedSession(id, userId);
         return this.toSessionResponse(session, userId, true);
     }
@@ -167,7 +167,7 @@ export class KernelController {
     async updateSession(
         @Param('id') id: string,
         @Body() patch: Record<string, unknown>,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<SessionResponseDto | null> {
         const current = await this.sessionAccess.requireOwnedSession(id, userId);
         const violation = lockedSessionViolation(current?.agentId, patch);
@@ -185,7 +185,7 @@ export class KernelController {
     @Delete('sessions/:id')
     @HttpCode(HttpStatus.NO_CONTENT)
     @ApiNoContentResponse('结束并删除指定的会话，释放相关资源')
-    async endSession(@Param('id') id: string, @CurrentUserId() userId: string) {
+    async endSession(@Param('id') id: string, @DesktopOwnerId() userId: string) {
         await this.sessionAccess.requireOwnedSession(id, userId);
         const command = new EndSessionCommand(id);
         return this.commandBus.execute(command);
@@ -200,7 +200,7 @@ export class KernelController {
     async getSessionMessages(
         @Param('id') id: string,
         @Query() pagination: PaginationQueryDto,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<PaginatedResponseDto<MessageResponseDto>> {
         await this.sessionAccess.requireOwnedSession(id, userId);
         const { page, limit, offset } = parsePaginationOptions(pagination);
@@ -238,7 +238,7 @@ export class KernelController {
     })
     async getCapabilities(
         @Query() dto: CapabilitiesQueryDto,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<CapabilityResult> {
         try {
             return await this.capabilitiesTool.dispatch(dto, userId);

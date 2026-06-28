@@ -1,13 +1,13 @@
-# 书安 Local Release
+# internShannon Local Release
 
-Use `scripts/safeclaw-local-release.sh` to build 书安 locally and upload the generated signed binaries and updater metadata directly to GitHub Releases without committing 书安 source code.
+Use `scripts/safeclaw-local-release.sh` to build internShannon locally and upload the generated signed binaries and updater metadata directly to GitHub Releases without committing internShannon source code.
 
 ## Defaults
 
 - App directory: `apps/safeclaw`
-- Release repo: `A3S-Lab/书安`
+- Release repo: `A3S-Lab/internShannon`
 - Tag: `safeclaw-v<package.json version>`
-- Updater endpoint: `https://github.com/A3S-Lab/书安/releases/latest/download/latest.json`
+- Updater endpoint: `https://github.com/A3S-Lab/internShannon/releases/latest/download/latest.json`
 - Signing key: `~/.tauri/safeclaw-updater.key`
 - Password fallback file: `/tmp/safeclaw_tauri_key_password.txt`
 
@@ -38,7 +38,7 @@ scripts/safeclaw-local-release.sh
 ## What It Does
 
 1. Generates a temporary Tauri updater config with the local public key.
-2. Builds 书安 locally with updater artifact generation enabled.
+2. Builds internShannon locally with updater artifact generation enabled.
 3. Applies the macOS bundle fix when running on macOS.
 4. Collects `latest.json`, signatures, and platform bundles from `src-tauri/target/release`.
 5. Creates the GitHub Release if missing.

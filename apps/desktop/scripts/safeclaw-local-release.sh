@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_DIR="${SAFECLAW_APP_DIR:-$ROOT_DIR/apps/safeclaw}"
-REPO="${SAFECLAW_RELEASE_REPO:-A3S-Lab/书安}"
+REPO="${SAFECLAW_RELEASE_REPO:-A3S-Lab/internShannon}"
 KEY_PATH="${SAFECLAW_TAURI_KEY_PATH:-$HOME/.tauri/safeclaw-updater.key}"
 PUBKEY_PATH="${SAFECLAW_TAURI_PUBKEY_PATH:-${KEY_PATH}.pub}"
 PASSWORD_FILE_DEFAULT="${SAFECLAW_TAURI_KEY_PASSWORD_FILE:-$HOME/.tauri/safeclaw-updater.key.password}"
@@ -25,7 +25,7 @@ for cmd in gh pnpm node python3; do
 done
 
 [[ -d "$APP_DIR" ]] || {
-  echo "书安 app directory not found: $APP_DIR" >&2
+  echo "internShannon app directory not found: $APP_DIR" >&2
   exit 1
 }
 
@@ -51,7 +51,7 @@ VERSION="$(
   node -e 'console.log(require(process.argv[1]).version)' "$APP_DIR/package.json"
 )"
 TAG="${SAFECLAW_RELEASE_TAG:-safeclaw-v$VERSION}"
-TITLE="${SAFECLAW_RELEASE_TITLE:-书安 v$VERSION}"
+TITLE="${SAFECLAW_RELEASE_TITLE:-internShannon v$VERSION}"
 ENDPOINTS="${SAFECLAW_UPDATER_ENDPOINTS:-https://github.com/${REPO}/releases/latest/download/latest.json}"
 NOTES_FILE="${SAFECLAW_RELEASE_NOTES_FILE:-}"
 PUBLISHED_AT="${SAFECLAW_RELEASE_PUB_DATE:-$(date -u +"%Y-%m-%dT%H:%M:%SZ")}"
@@ -100,7 +100,7 @@ if [[ ! -d node_modules ]]; then
   pnpm install --frozen-lockfile
 fi
 
-echo "[safeclaw-release] building 书安 $VERSION"
+echo "[safeclaw-release] building internShannon $VERSION"
 if [[ -n "$TARGET" ]]; then
   pnpm tauri build --config src-tauri/tauri.release.local.json --bundles "$BUNDLES" --target "$TARGET"
 else
@@ -221,7 +221,7 @@ for asset in sorted(bundle_root.rglob("*")):
         continue
     if asset.name.endswith(".sig"):
         continue
-    if "书安" not in asset.name:
+    if "internShannon" not in asset.name:
         continue
     installer = detect_installer(asset.name)
     if installer is None:
@@ -290,7 +290,7 @@ for path in sorted(release_root.rglob("*")):
     if name == "latest.json":
         print(path.as_posix())
         continue
-    if not name.startswith("书安"):
+    if not name.startswith("internShannon"):
         continue
     if name.endswith(allowed_suffixes):
         print(path.as_posix())
@@ -333,7 +333,7 @@ if ! gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
     gh release create "$TAG" \
       --repo "$REPO" \
       --title "$TITLE" \
-      --notes "Local 书安 desktop release built and signed with the Tauri updater key."
+      --notes "Local internShannon desktop release built and signed with the Tauri updater key."
   fi
 fi
 

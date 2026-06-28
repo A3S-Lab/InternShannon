@@ -1,5 +1,5 @@
 {
-  "name": "@shuxiaoan/desktop",
+  "name": "@internshannon/desktop",
   "private": true,
   "version": "0.2.1",
   "scripts": {
@@ -16,9 +16,9 @@
     "clean:clawsentry-runtime": "node scripts/stage-clawsentry-runtime.mjs --clean",
     "sync:core-skills": "node scripts/sync-core-skills.mjs sync",
     "check:core-skills": "node scripts/sync-core-skills.mjs check",
-    "check:box-resources": "node scripts/verify-box-resources.mjs --dir src-tauri/target/release/bundle/macos/书小安.app/Contents/Resources",
-    "check:sidecar-resources": "node scripts/verify-sidecar-resources.mjs --dir src-tauri/target/release/bundle/macos/书小安.app/Contents/Resources",
-    "check:standalone-sidecar": "node scripts/verify-sidecar-resources.mjs --dir src-tauri/target/release/bundle/macos/书小安.app/Contents/Resources --require-standalone",
+    "check:box-resources": "node scripts/verify-box-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources",
+    "check:sidecar-resources": "node scripts/verify-sidecar-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources",
+    "check:standalone-sidecar": "node scripts/verify-sidecar-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources --require-standalone",
     "smoke:standalone-sidecar": "node scripts/smoke-standalone-sidecar.mjs",
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-dev.mjs",

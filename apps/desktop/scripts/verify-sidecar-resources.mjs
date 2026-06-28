@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import { builtinModules, createRequire } from 'node:module';
 import path from 'node:path';
 
-const DEFAULT_RESOURCES_DIR = 'src-tauri/target/release/bundle/macos/书小安.app/Contents/Resources';
-const REQUIRED_FILES = ['main.js', 'shuxiaoan-sidecar.module.js', 'shared/infrastructure/config/load-env.js'];
+const DEFAULT_RESOURCES_DIR = 'src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources';
+const REQUIRED_FILES = ['main.js', 'intern-shannon-sidecar.module.js', 'shared/infrastructure/config/load-env.js'];
 const BUILTIN_MODULES = new Set(
     builtinModules.flatMap(moduleName => [
         moduleName,

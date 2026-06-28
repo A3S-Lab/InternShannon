@@ -10,8 +10,8 @@ import {
     ApiUnauthorizedResponse,
     SkipApiResponse,
 } from '@/shared/api';
-import { CurrentUserId } from '@/shared/security/decorators/current-user.decorator';
-import { AuthenticatedApi } from '@/shared/security/desktop-access';
+import { DesktopOwnerId } from '@/shared/security/decorators/desktop-owner.decorator';
+import { DesktopApi } from '@/shared/security/desktop-access';
 import { WorkspaceUploadService } from '../../application/workspace-upload.service';
 import { IWorkspaceStorage, WORKSPACE_STORAGE } from '../../domain/services/workspace-storage.interface';
 import {
@@ -38,10 +38,10 @@ import {
     WorkspaceUploadDto,
     WriteBinaryDto,
     WriteFileDto,
-} from '../../dto/workspace.dto';
+} from '../dto/workspace.dto';
 
 @ApiTags('内核 - 工作区')
-@AuthenticatedApi()
+@DesktopApi()
 @Controller('workspace')
 export class WorkspaceController {
     constructor(
@@ -70,7 +70,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async inspectReadiness(@Query() query: InspectReadinessQueryDto, @CurrentUserId() userId?: string) {
+    async inspectReadiness(@Query() query: InspectReadinessQueryDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspaceRootAccess(query.workspaceRoot, userId);
         return this.storage.inspectReadiness(query.workspaceRoot);
     }
@@ -84,7 +84,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async ensureReadiness(@Query() query: EnsureReadinessQueryDto, @CurrentUserId() userId?: string) {
+    async ensureReadiness(@Query() query: EnsureReadinessQueryDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspaceRootAccess(query.workspaceRoot, userId);
         return this.storage.ensureReadiness(query.workspaceRoot);
     }
@@ -98,7 +98,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效或路径不安全' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async initAgent(@Body() body: InitAgentDto, @CurrentUserId() userId?: string) {
+    async initAgent(@Body() body: InitAgentDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(body.workspacePath, userId);
         await this.storage.initAgent(body.workspacePath);
         return { success: true };
@@ -113,7 +113,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效或路径不安全' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async mkdir(@Body() body: MkdirDto, @CurrentUserId() userId?: string) {
+    async mkdir(@Body() body: MkdirDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(body.path, userId);
         await this.storage.mkdir(body.path);
         return { success: true };
@@ -128,7 +128,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效或路径不安全' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async writeFile(@Body() body: WriteFileDto, @CurrentUserId() userId?: string) {
+    async writeFile(@Body() body: WriteFileDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(body.path, userId);
         await this.storage.writeFile(body.path, body.content);
         return { success: true };
@@ -144,7 +144,7 @@ export class WorkspaceController {
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiNotFoundResponse({ description: '文件不存在' })
     @ApiServerErrorResponse()
-    async readFile(@Query() query: ReadFileQueryDto, @CurrentUserId() userId?: string) {
+    async readFile(@Query() query: ReadFileQueryDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(query.path, userId);
         return { content: await this.storage.readFile(query.path) };
     }
@@ -158,7 +158,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效或路径不安全' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async fileExists(@Query() query: FileExistsQueryDto, @CurrentUserId() userId?: string) {
+    async fileExists(@Query() query: FileExistsQueryDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(query.path, userId);
         return { exists: await this.storage.exists(query.path) };
     }
@@ -173,7 +173,7 @@ export class WorkspaceController {
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiNotFoundResponse({ description: '文件或目录不存在' })
     @ApiServerErrorResponse()
-    async remove(@Query() query: RemoveQueryDto, @CurrentUserId() userId?: string) {
+    async remove(@Query() query: RemoveQueryDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(query.path, userId);
         await this.storage.remove(query.path);
         return { success: true };
@@ -189,7 +189,7 @@ export class WorkspaceController {
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiNotFoundResponse({ description: '目录不存在' })
     @ApiServerErrorResponse()
-    async readDir(@Query() query: ReadDirQueryDto, @CurrentUserId() userId?: string) {
+    async readDir(@Query() query: ReadDirQueryDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(query.path, userId);
         return this.storage.readDir(query.path);
     }
@@ -204,7 +204,7 @@ export class WorkspaceController {
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiNotFoundResponse({ description: '源路径不存在' })
     @ApiServerErrorResponse()
-    async rename(@Body() body: RenameDto, @CurrentUserId() userId?: string) {
+    async rename(@Body() body: RenameDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(body.src, userId);
         await this.assertWorkspacePathAccess(body.dest, userId);
         await this.storage.rename(body.src, body.dest);
@@ -221,7 +221,7 @@ export class WorkspaceController {
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiNotFoundResponse({ description: '源文件不存在' })
     @ApiServerErrorResponse()
-    async copyFile(@Body() body: CopyFileDto, @CurrentUserId() userId?: string) {
+    async copyFile(@Body() body: CopyFileDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(body.src, userId);
         await this.assertWorkspacePathAccess(body.dest, userId);
         await this.storage.copyFile(body.src, body.dest);
@@ -243,7 +243,7 @@ export class WorkspaceController {
     @ApiServerErrorResponse()
     async readBinaryFile(
         @Query() query: ReadBinaryQueryDto,
-        @CurrentUserId() userId: string | undefined,
+        @DesktopOwnerId() userId: string | undefined,
         @Res() res: Response,
     ) {
         await this.assertWorkspacePathAccess(query.path, userId);
@@ -261,7 +261,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效或路径不安全' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async writeBinaryFile(@Body() body: WriteBinaryDto, @CurrentUserId() userId?: string) {
+    async writeBinaryFile(@Body() body: WriteBinaryDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(body.path, userId);
         await this.storage.writeBinaryFile(body.path, Buffer.from(body.data));
         return { success: true };
@@ -278,7 +278,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async listUploads(@Query() query: ListWorkspaceUploadsQueryDto, @CurrentUserId() userId?: string) {
+    async listUploads(@Query() query: ListWorkspaceUploadsQueryDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspaceRootAccess(query.workspaceRoot, userId);
         return this.uploads.list(query, this.resolveUserId(userId));
     }
@@ -293,7 +293,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效或文件过大' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async createUpload(@Body() body: CreateWorkspaceUploadDto, @CurrentUserId() userId?: string) {
+    async createUpload(@Body() body: CreateWorkspaceUploadDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspaceRootAccess(body.workspaceRoot, userId);
         return this.uploads.create(body, this.resolveUserId(userId));
     }
@@ -312,7 +312,7 @@ export class WorkspaceController {
     async getUpload(
         @Param('uploadId') uploadId: string,
         @Query() query: GetWorkspaceUploadQueryDto,
-        @CurrentUserId() userId: string | undefined,
+        @DesktopOwnerId() userId: string | undefined,
     ) {
         await this.assertWorkspaceRootAccess(query.workspaceRoot, userId);
         return this.uploads.get(uploadId, query.workspaceRoot, this.resolveUserId(userId));
@@ -333,7 +333,7 @@ export class WorkspaceController {
     async downloadUpload(
         @Param('uploadId') uploadId: string,
         @Query() query: GetWorkspaceUploadQueryDto,
-        @CurrentUserId() userId: string | undefined,
+        @DesktopOwnerId() userId: string | undefined,
         @Res() res: Response,
     ) {
         await this.assertWorkspaceRootAccess(query.workspaceRoot, userId);
@@ -356,7 +356,7 @@ export class WorkspaceController {
     async deleteUpload(
         @Param('uploadId') uploadId: string,
         @Query() query: GetWorkspaceUploadQueryDto,
-        @CurrentUserId() userId: string | undefined,
+        @DesktopOwnerId() userId: string | undefined,
     ) {
         await this.assertWorkspaceRootAccess(query.workspaceRoot, userId);
         await this.uploads.delete(uploadId, query.workspaceRoot, this.resolveUserId(userId));
@@ -374,7 +374,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效或路径不安全' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async searchInFiles(@Query() query: SearchInFilesQueryDto, @CurrentUserId() userId?: string) {
+    async searchInFiles(@Query() query: SearchInFilesQueryDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(query.rootPath, userId);
         return this.storage.searchInFiles(query.rootPath, query.query, {
             caseSensitive: query.caseSensitive,
@@ -397,7 +397,7 @@ export class WorkspaceController {
     @ApiBadRequestResponse({ description: '请求参数无效或路径不安全' })
     @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
     @ApiServerErrorResponse()
-    async replaceInFiles(@Body() body: ReplaceInFilesDto, @CurrentUserId() userId?: string) {
+    async replaceInFiles(@Body() body: ReplaceInFilesDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(body.rootPath, userId);
         this.assertRelativeFilePaths(body.filePaths);
         return this.storage.replaceInFiles(body.rootPath, body.query, body.replacement, {
@@ -422,7 +422,7 @@ export class WorkspaceController {
     @ApiServerErrorResponse()
     async getGitStatus(
         @Query() query: GitStatusQueryDto,
-        @CurrentUserId() userId?: string,
+        @DesktopOwnerId() userId?: string,
     ): Promise<GitStatusResultDto> {
         const { rootPath } = query;
         await this.assertWorkspacePathAccess(rootPath, userId);

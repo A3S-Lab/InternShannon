@@ -1,9 +1,9 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { AuthenticatedApi } from '@/shared/security/desktop-access';
+import { DesktopApi } from '@/shared/security/desktop-access';
 import { ApiOkResponse } from '@/shared/api/openapi';
 import { NotFoundException } from '@/shared/common/errors';
-import { CurrentUserId } from '@/shared/security/decorators/current-user.decorator';
+import { DesktopOwnerId } from '@/shared/security/decorators/desktop-owner.decorator';
 import { KernelMessageRunCancellationService } from '../../application/kernel-message-run-cancellation.service';
 import { KernelSessionAccessService } from '../../application/kernel-session-access.service';
 import { KernelSessionRuntimeAccessService } from '../../application/kernel-session-runtime-access.service';
@@ -14,7 +14,7 @@ import {
 } from '../dto/response';
 
 @ApiTags('内核 - 会话运行检查')
-@AuthenticatedApi()
+@DesktopApi()
 @Controller('kernel/sessions/:sessionId/runtime')
 export class KernelSessionRuntimeInspectionController {
     constructor(
@@ -25,7 +25,7 @@ export class KernelSessionRuntimeInspectionController {
 
     @Get('runs')
     @ApiOkResponse({ summary: '列出 SDK run 快照', type: Object })
-    async runs(@Param('sessionId') sessionId: string, @CurrentUserId() userId: string): Promise<unknown> {
+    async runs(@Param('sessionId') sessionId: string, @DesktopOwnerId() userId: string): Promise<unknown> {
         return this.requireRuntime(sessionId, userId).then(active => active.session.runs());
     }
 
@@ -35,7 +35,7 @@ export class KernelSessionRuntimeInspectionController {
     async runEvents(
         @Param('sessionId') sessionId: string,
         @Param('runId') runId: string,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<unknown> {
         return this.requireRuntime(sessionId, userId).then(active => active.session.runEvents(runId));
     }
@@ -46,7 +46,7 @@ export class KernelSessionRuntimeInspectionController {
     async cancelRun(
         @Param('sessionId') sessionId: string,
         @Param('runId') runId: string,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<KernelSessionCancelResponseDto> {
         await this.requireRuntime(sessionId, userId);
         const events: KernelSessionRuntimeEventResponseDto[] = [];
@@ -62,7 +62,7 @@ export class KernelSessionRuntimeInspectionController {
     @ApiOkResponse({ summary: '列出子智能体任务', type: Object })
     async subagentTasks(
         @Param('sessionId') sessionId: string,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<unknown> {
         return this.requireRuntime(sessionId, userId).then(active => active.session.subagentTasks());
     }
@@ -73,7 +73,7 @@ export class KernelSessionRuntimeInspectionController {
     async cancelSubagentTask(
         @Param('sessionId') sessionId: string,
         @Param('taskId') taskId: string,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<KernelSessionCancelResponseDto> {
         await this.requireRuntime(sessionId, userId);
         const events: KernelSessionRuntimeEventResponseDto[] = [];
@@ -89,7 +89,7 @@ export class KernelSessionRuntimeInspectionController {
     @ApiOkResponse({ summary: '获取会话验证报告与预设', type: Object })
     async verification(
         @Param('sessionId') sessionId: string,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<Record<string, unknown>> {
         const active = await this.requireRuntime(sessionId, userId);
         return {
@@ -105,7 +105,7 @@ export class KernelSessionRuntimeInspectionController {
     async verifyCommands(
         @Param('sessionId') sessionId: string,
         @Body() dto: VerifyKernelSessionCommandsRequestDto,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<unknown> {
         if (!Array.isArray(dto.commands) || dto.commands.length === 0) {
             throw new BadRequestException('commands is required');
@@ -120,7 +120,7 @@ export class KernelSessionRuntimeInspectionController {
     async artifact(
         @Param('sessionId') sessionId: string,
         @Query('uri') uri: string | undefined,
-        @CurrentUserId() userId: string,
+        @DesktopOwnerId() userId: string,
     ): Promise<unknown> {
         const artifactUri = uri?.trim();
         if (!artifactUri) throw new BadRequestException('uri is required');

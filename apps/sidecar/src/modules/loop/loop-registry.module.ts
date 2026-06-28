@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { LoopControllerRegistry } from './application/loop-controller-registry';
 import { LoopSpecRegistry } from './application/loop-spec-registry';
-import { DiagnoseRunnerRegistry } from './loops/dev/diagnose-runner-registry';
+import { DiagnoseRunnerRegistry } from './application/loops/dev/diagnose-runner-registry';
 
 /**
  * @Global so any feature module's LoopController can inject the registries and self-register, and the

@@ -1,4 +1,4 @@
-# 书安 macOS DMG Build
+# internShannon macOS DMG Build
 
 ## 完整打包流程
 
@@ -15,22 +15,22 @@ pnpm tauri build --bundles app
 node scripts/fix-macos-bundle.mjs
 
 # 3. 验证 box 资源
-node scripts/verify-box-resources.mjs --dir src-tauri/target/release/bundle/macos/书安.app/Contents/Resources
+node scripts/verify-box-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources
 
 # 4. 创建 DMG（包含 Applications 符号链接）
 STAGING_DIR=$(mktemp -d)
-cp -R src-tauri/target/release/bundle/macos/书安.app "$STAGING_DIR/"
+cp -R src-tauri/target/release/bundle/macos/internShannon.app "$STAGING_DIR/"
 ln -sf /Applications "$STAGING_DIR/Applications"
 hdiutil create \
-  -volname "书安" \
+  -volname "internShannon" \
   -srcfolder "$STAGING_DIR" \
   -ov \
   -format UDZO \
-  src-tauri/target/release/bundle/dmg/书安_0.2.0_aarch64.dmg
+  src-tauri/target/release/bundle/dmg/internShannon_0.2.0_aarch64.dmg
 rm -rf "$STAGING_DIR"
 
 # 5. 验证 DMG 内容
-hdiutil verify src-tauri/target/release/bundle/dmg/书安_0.2.0_aarch64.dmg
+hdiutil verify src-tauri/target/release/bundle/dmg/internShannon_0.2.0_aarch64.dmg
 ```
 
 ## 一键打包脚本
@@ -55,22 +55,22 @@ export SAFECLAW_TAURI_KEY_PASSWORD="your-password"
 
 ```bash
 STAGING_DIR=$(mktemp -d)
-cp -R 书安.app "$STAGING_DIR/"
+cp -R internShannon.app "$STAGING_DIR/"
 ln -sf /Applications "$STAGING_DIR/Applications"  # 关键！
 hdiutil create -srcfolder "$STAGING_DIR" ...
 ```
 
 ### 3. libkrun 问题说明
 
-书安 依赖 libkrun 用于 TEE。打包时必须：
+internShannon 依赖 libkrun 用于 TEE。打包时必须：
 - 链接到 app bundle 内的 dylib（`Contents/Resources/box/lib/`）
 - 不能链接到 homebrew 安装的路径（`/opt/homebrew/*/libkrun*.dylib`）
 
 ## 输出文件
 
-- App bundle: `src-tauri/target/release/bundle/macos/书安.app`
-- Updater 存档: `src-tauri/target/release/bundle/macos/书安.app.tar.gz`
-- DMG: `src-tauri/target/release/bundle/dmg/书安_<version>.dmg`
+- App bundle: `src-tauri/target/release/bundle/macos/internShannon.app`
+- Updater 存档: `src-tauri/target/release/bundle/macos/internShannon.app.tar.gz`
+- DMG: `src-tauri/target/release/bundle/dmg/internShannon_<version>.dmg`
 
 ## 签名密钥
 

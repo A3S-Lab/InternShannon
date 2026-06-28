@@ -35,7 +35,7 @@ function printHelp() {
 			"Usage: node scripts/verify-box-resources.mjs [--dir <path>]",
 			"       node scripts/verify-box-resources.mjs [--dir <path>] [--json] [--output <file>]",
 			"",
-			"Validates a 书安 bundled a3s-box resource directory or a parent directory",
+			"Validates a internShannon bundled a3s-box resource directory or a parent directory",
 			"that contains box/manifest.json.",
 		].join("\n"),
 	);
@@ -233,7 +233,7 @@ function main() {
 	const productVersion =
 		manifest.internshannon_version ?? manifest.safeclaw_version;
 	console.log(
-		`Manifest: 书小安 ${productVersion} ${manifest.host_os}/${manifest.host_arch} (${manifest.profile})`,
+		`Manifest: internShannon ${productVersion} ${manifest.host_os}/${manifest.host_arch} (${manifest.profile})`,
 	);
 	console.log(`Files declared: ${(manifest.files ?? []).length}`);
 	console.log(`Runtime libs declared: ${runtimeLibs.length}`);

@@ -1,14 +1,14 @@
 import { applyDecorators, SetMetadata } from '@nestjs/common';
 
-export type PermissionType = string;
+export type DesktopCapability = string;
 
-export const DESKTOP_PERMISSION = {
+export const DESKTOP_CAPABILITY = {
     MENU_OBSERVABILITY_LIFECYCLE: 'menu:observability:lifecycle',
     MENU_SYSTEM_SETTINGS: 'menu:system:settings',
 } as const;
 
-export const REQUIRED_PERMISSIONS_KEY = 'desktop:required_permissions';
-export const DESKTOP_CONFIG_PERMISSIONS_KEY = 'desktop:config_permissions';
+export const REQUIRED_DESKTOP_CAPABILITIES_KEY = 'desktop:required_capabilities';
+export const DESKTOP_CONFIG_CAPABILITIES_KEY = 'desktop:config_capabilities';
 export const DESKTOP_CONFIG_MUTATION_KEY = 'desktop:config_mutation';
 export const DESKTOP_RESOURCE_MUTATION_KEY = 'desktop:resource_mutation';
 
@@ -52,7 +52,7 @@ interface ConfigMutationOptions {
 }
 
 interface ResourceMutationOptions {
-    permission: PermissionType;
+    capability: DesktopCapability;
     action: ManagementAction;
     description?: string;
     requireReauth?: boolean;
@@ -66,25 +66,26 @@ const DEFAULT_REAUTH_ACTIONS = new Set<ManagementAction>([
     MANAGEMENT_ACTION.RESET,
 ]);
 
-export function AuthenticatedApi(): ClassDecorator & MethodDecorator {
+export function DesktopApi(): ClassDecorator & MethodDecorator {
     return applyDecorators();
 }
 
-export function PermissionApi(...permissions: PermissionType[]): ClassDecorator & MethodDecorator {
-    return applyDecorators(RequirePermissions(...permissions));
+export function DesktopCapabilityApi(...capabilities: DesktopCapability[]): ClassDecorator & MethodDecorator {
+    return applyDecorators(RequireDesktopCapabilities(...capabilities));
 }
 
-export const RequirePermissions = (...permissions: PermissionType[]) => SetMetadata(REQUIRED_PERMISSIONS_KEY, permissions);
+export const RequireDesktopCapabilities = (...capabilities: DesktopCapability[]) =>
+    SetMetadata(REQUIRED_DESKTOP_CAPABILITIES_KEY, capabilities);
 
 export function ConfigManagementApi(): ClassDecorator & MethodDecorator {
-    return applyDecorators(SetMetadata(DESKTOP_CONFIG_PERMISSIONS_KEY, [DESKTOP_PERMISSION.MENU_SYSTEM_SETTINGS]));
+    return applyDecorators(SetMetadata(DESKTOP_CONFIG_CAPABILITIES_KEY, [DESKTOP_CAPABILITY.MENU_SYSTEM_SETTINGS]));
 }
 
 export function ConfigMutation(options: ConfigMutationOptions): MethodDecorator {
     return SetMetadata(DESKTOP_CONFIG_MUTATION_KEY, {
         action: options.action ?? MANAGEMENT_ACTION.UPDATE,
         resource: options.resource ?? MANAGEMENT_RESOURCE.CONFIG,
-        permissions: [DESKTOP_PERMISSION.MENU_SYSTEM_SETTINGS],
+        capabilities: [DESKTOP_CAPABILITY.MENU_SYSTEM_SETTINGS],
         sensitive: {
             operation: options.operation,
             requireReauth: options.requireReauth ?? false,
@@ -93,15 +94,15 @@ export function ConfigMutation(options: ConfigMutationOptions): MethodDecorator 
     });
 }
 
-export function ResourceManagementApi(permission: PermissionType): ClassDecorator & MethodDecorator {
-    return PermissionApi(permission);
+export function DesktopResourceApi(capability: DesktopCapability): ClassDecorator & MethodDecorator {
+    return DesktopCapabilityApi(capability);
 }
 
 export function ResourceMutation(options: ResourceMutationOptions): MethodDecorator {
     return SetMetadata(DESKTOP_RESOURCE_MUTATION_KEY, {
         action: options.action,
         resource: options.resource ?? MANAGEMENT_RESOURCE.RESOURCE,
-        permissions: [options.permission],
+        capabilities: [options.capability],
         sensitive: {
             operation: options.operation,
             requireReauth: options.requireReauth ?? DEFAULT_REAUTH_ACTIONS.has(options.action),

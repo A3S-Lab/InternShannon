@@ -1,9 +1,9 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { createHash } from 'crypto';
-import { PermissionApi } from '@/shared/security/desktop-access';
+import { DesktopCapabilityApi } from '@/shared/security/desktop-access';
 import { ApiOkResponse } from '@/shared/api/openapi';
-import { CurrentUserId } from '@/shared/security/decorators/current-user.decorator';
+import { DesktopOwnerId } from '@/shared/security/decorators/desktop-owner.decorator';
 import {
     type ActiveSessionSummary,
     KernelSessionRuntimeStateService,
@@ -37,15 +37,15 @@ interface RuntimeDiagResponse {
 
 @ApiTags('内核 - 运行时诊断')
 // Desktop 诊断端点返回 active runtime session 汇总（总数 / 按 agentId 分布 /
-// 每个 session 的 age/idle）。PermissionApi 仅保留菜单元数据，不执行登录校验。
-@PermissionApi('platform:runtime:access')
+// 每个 session 的 age/idle）。DesktopCapabilityApi 仅保留菜单元数据，不执行登录校验。
+@DesktopCapabilityApi('platform:runtime:access')
 @Controller('kernel/runtime')
 export class KernelRuntimeAdminController {
     constructor(private readonly runtimeState: KernelSessionRuntimeStateService) {}
 
     @Get('diag')
     @ApiOkResponse({ summary: '列出 active runtime session 汇总(诊断 leak / sweeper 状态)', type: Object })
-    diag(@CurrentUserId() userId: string): RuntimeDiagResponse {
+    diag(@DesktopOwnerId() userId: string): RuntimeDiagResponse {
         const summaries = this.runtimeState.activeSessionSummaries();
         const idleThreshold = this.idleThresholdMs();
         const sweepInterval = this.sweepIntervalMs();

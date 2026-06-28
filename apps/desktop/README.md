@@ -1,4 +1,4 @@
-# 书小安
+# internShannon
 
 <p align="center">
   <strong>Security Proxy for AI Agents</strong>
@@ -52,7 +52,7 @@ Use Tauri after the browser loop is healthy:
 ```bash
 just sidecar-build
 just desktop-dev
-pnpm --filter @a3s-lab/internshannon build
+pnpm --filter @a3s/desktop build
 ```
 
 Troubleshooting:
@@ -63,7 +63,7 @@ Troubleshooting:
   `PUBLIC_DESKTOP_DEV_PORT`.
 - Missing `apps/api/dist/main.js`: run `just sidecar-build`.
 - Release bundles still need standalone sidecar resources; use
-  `pnpm --filter @a3s-lab/internshannon tauri:bundle` for installer builds.
+  `pnpm --filter @a3s/desktop tauri:bundle` for installer builds.
 
 ---
 
@@ -89,14 +89,14 @@ AI: "Sure! I'll process that payment for you..."
 
 ## The Solution: Bank Vault Security for AI
 
-**书安** puts your AI assistant inside a hardware-enforced "bank vault" called TEE (Trusted Execution Environment).
+**internShannon** puts your AI assistant inside a hardware-enforced "bank vault" called TEE (Trusted Execution Environment).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Traditional AI vs 书安                                │
+│                    Traditional AI vs internShannon                                │
 │                                                                              │
 │  ┌─────────────────────────────────┐  ┌─────────────────────────────────┐   │
-│  │     Traditional AI Assistant    │  │      书安 with TEE          │   │
+│  │     Traditional AI Assistant    │  │      internShannon with TEE          │   │
 │  │                                 │  │                                 │   │
 │  │  ┌───────────────────────────┐  │  │  ┌───────────────────────────┐  │   │
 │  │  │      Server Memory        │  │  │  │   TEE (Hardware Vault)    │  │   │
@@ -119,7 +119,7 @@ AI: "Sure! I'll process that payment for you..."
 
 ### System Security: Defense in Depth
 
-书安 implements **4 layers of security** to protect your data:
+internShannon implements **4 layers of security** to protect your data:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -214,7 +214,7 @@ Your sensitive data follows a **strict security path** - never exposed outside t
 
 ### Threat Protection Matrix
 
-| Threat | Without 书安 | With 书安 TEE |
+| Threat | Without internShannon | With internShannon TEE |
 |--------|------------------|-------------------|
 | **Server Breach** | ❌ Attacker reads data in memory | ✅ Data encrypted, hardware prevents access |
 | **Malicious Admin** | ❌ Admin can access all data | ✅ Even admins cannot peek inside TEE |
@@ -229,9 +229,9 @@ Your sensitive data follows a **strict security path** - never exposed outside t
 
 ### Real-World Example: The Bank Vault
 
-Think of 书安 like a **bank vault** for your AI assistant:
+Think of internShannon like a **bank vault** for your AI assistant:
 
-| Scenario | Traditional AI | 书安 |
+| Scenario | Traditional AI | internShannon |
 |----------|---------------|----------|
 | Where AI works | Regular office (anyone can peek) | Inside a bank vault (hardware-locked) |
 | Who can see your data | Server admins, hackers, logs | Only the AI inside the vault |
@@ -245,7 +245,7 @@ Think of 书安 like a **bank vault** for your AI assistant:
 │                                                                         │
 │  Step 1: Classification                                                 │
 │  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │  书安 detects "secret123" after "password is" = SENSITIVE     │ │
+│  │  internShannon detects "secret123" after "password is" = SENSITIVE     │ │
 │  │  Decision: Process in TEE                                         │ │
 │  └───────────────────────────────────────────────────────────────────┘ │
 │                                                                         │
@@ -288,7 +288,7 @@ Think of 书安 like a **bank vault** for your AI assistant:
 
 ## Features
 
-- **Security Proxy**: Runs inside A3S Box VM alongside a local A3S Code agent service. 书安 handles security; A3S Code handles LLM processing
+- **Security Proxy**: Runs inside A3S Box VM alongside a local A3S Code agent service. internShannon handles security; A3S Code handles LLM processing
 - **Multi-Channel Routing**: 7 platform adapters (Telegram, Feishu, DingTalk, WeCom, Slack, Discord, WebChat) with session routing via `user_id:channel_id:chat_id` composite keys; WhatsApp, Teams, Google Chat, Signal planned (Phase 16)
 - **Privacy Classification**: Regex + semantic + compliance (HIPAA, PCI-DSS, GDPR) PII detection via shared `a3s-privacy` library
 - **Semantic Privacy Analysis**: Context-aware PII detection for natural language disclosure ("my password is X", "my SSN is X") with Chinese language support
@@ -308,9 +308,9 @@ Think of 书安 like a **bank vault** for your AI assistant:
 - **Secure Channels**: X25519 key exchange + AES-256-GCM encryption
 - **Memory System**: Three-layer data hierarchy — Resources (raw content), Artifacts (structured knowledge), Insights (cross-conversation synthesis)
 
-## 书安 Box Release Verification
+## internShannon Box Release Verification
 
-书安 now bundles the embedded `a3s-box` runtime resources required by the
+internShannon now bundles the embedded `a3s-box` runtime resources required by the
 agent-facing Box APIs. A release build is expected to contain:
 
 - `box/manifest.json`
@@ -324,8 +324,8 @@ Validation commands:
 cd apps/safeclaw
 pnpm tauri:build:validated
 pnpm check:box-resources
-node scripts/verify-box-resources.mjs --dir src-tauri/target/release/bundle/macos/书安.app/Contents/Resources
-node scripts/verify-box-resources.mjs --dir src-tauri/target/release/bundle/macos/书安.app/Contents/Resources --json --output artifacts/box-resource-report.json
+node scripts/verify-box-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources
+node scripts/verify-box-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources --json --output artifacts/box-resource-report.json
 ```
 
 `pnpm check:box-resources` expects a built desktop bundle to exist already. Use
@@ -362,8 +362,8 @@ directory instead of trusting build-time logs alone. It also uploads:
 
 ```bash
 # Clone the repository
-git clone https://github.com/A3S-Lab/书安.git
-cd 书安
+git clone https://github.com/A3S-Lab/internShannon.git
+cd internShannon
 
 # Build
 cargo build --release
@@ -391,10 +391,10 @@ safeclaw config --default
 
 ### Architecture: Lightweight Single-Binary in A3S Box VM
 
-书安 is a **self-contained single binary** that always runs inside an A3S Box VM.
+internShannon is a **self-contained single binary** that always runs inside an A3S Box VM.
 It is the guest, never the host. A3S Box provides VM-level isolation; if the hardware
 supports AMD SEV-SNP, the same VM automatically becomes a TEE with hardware memory
-encryption. 书安 detects this at startup and enables/disables TEE features accordingly.
+encryption. internShannon detects this at startup and enables/disables TEE features accordingly.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -405,7 +405,7 @@ encryption. 书安 detects this at startup and enables/disables TEE features acc
 │  │  MicroVM (libkrun)                                              │  │
 │  │                                                                  │  │
 │  │  ┌──────────────────────────────────────────────────────────┐  │  │
-│  │  │  书安 (security proxy)                                │  │  │
+│  │  │  internShannon (security proxy)                                │  │  │
 │  │  │  ┌──────────────┐ ┌────────────┐ ┌───────────────────┐  │  │  │
 │  │  │  │ Channel      │ │ Privacy    │ │ Taint Tracking    │  │  │  │
 │  │  │  │ Adapters (7) │ │ Classifier │ │ + Output Sanitizer│  │  │  │
@@ -436,21 +436,21 @@ encryption. 书安 detects this at startup and enables/disables TEE features acc
 
 ### Deployment Modes
 
-The **same binary** runs in both modes. 书安 does not care how it was launched
+The **same binary** runs in both modes. internShannon does not care how it was launched
 — it just checks `a3s-box-core` at startup to detect TEE hardware.
 
 | | Standalone (single machine) | A3S OS (K8s cluster) |
 |---|---|---|
 | **VM launcher** | `a3s-box run safeclaw` (CLI) | kubelet + `a3s-box-shim` (CRI) |
 | **TEE** | Auto-detect hardware | Auto-detect hardware |
-| **Ingress** | 书安 listens directly | A3S Gateway routes traffic (app-agnostic) |
-| **Scaling** | Single instance | K8s HPA (A3S OS doesn't know it's 书安) |
+| **Ingress** | internShannon listens directly | A3S Gateway routes traffic (app-agnostic) |
+| **Scaling** | Single instance | K8s HPA (A3S OS doesn't know it's internShannon) |
 | **Audit** | In-memory bus | Optionally → a3s-event (NATS) |
 | **Scheduling** | None | System cron + CLI |
 
 > A3S OS is **application-agnostic**. It only provides two things: A3S Gateway
 > (traffic routing) and A3S Box (VM runtime management). It does not know or care
-> whether the workload is 书安, OpenClaw, or anything else.
+> whether the workload is internShannon, OpenClaw, or anything else.
 
 ### Security Guarantees (Defense in Depth)
 
@@ -458,10 +458,10 @@ All three layers are always active. Layer 3 degrades gracefully based on hardwar
 
 ```
 Layer 1: VM Isolation (always, a3s-box)
-  书安 runs in MicroVM, never on bare host
-  Host compromise does not expose 书安 memory (hypervisor boundary)
+  internShannon runs in MicroVM, never on bare host
+  Host compromise does not expose internShannon memory (hypervisor boundary)
 
-Layer 2: Application Security (always, 书安 built-in)
+Layer 2: Application Security (always, internShannon built-in)
   Privacy classification, taint tracking, output sanitization
   Injection detection, network firewall, audit logging
   Session isolation with secure memory wipe
@@ -469,7 +469,7 @@ Layer 2: Application Security (always, 书安 built-in)
 Layer 3: Hardware TEE (when available, AMD SEV-SNP)
   VM memory encrypted by CPU — even hypervisor cannot read
   Sealed credential storage (bound to CPU + firmware measurement)
-  Remote attestation (clients can verify 书安 is in genuine TEE)
+  Remote attestation (clients can verify internShannon is in genuine TEE)
   Graceful degradation: if no SEV-SNP → Layer 1 + Layer 2 still active
 ```
 
@@ -486,10 +486,10 @@ a3s-code (agent service, separate process in same VM)
 ├── a3s-lane        (priority queue, concurrency control)
 └── a3s-privacy     (execution-time guards)
 
-NOT directly user-installed for 书安:
+NOT directly user-installed for internShannon:
   a3s-code          → separate process, called via local service
-  a3s-box-runtime   → now embedded and packaged by 书安 for Box APIs; users do not install it separately
-  a3s-gateway       → K8s Ingress, 书安 doesn't know about it
+  a3s-box-runtime   → now embedded and packaged by internShannon for Box APIs; users do not install it separately
+  a3s-gateway       → K8s Ingress, internShannon doesn't know about it
   a3s-event          → optional platform service, config-driven
 ```
 
@@ -497,10 +497,10 @@ NOT directly user-installed for 书安:
 
 ```
 Standalone:
-  User (Telegram) → 书安 (direct)
+  User (Telegram) → internShannon (direct)
 
 A3S OS:
-  User (Telegram) → A3S Gateway (Ingress) → 书安 Pod
+  User (Telegram) → A3S Gateway (Ingress) → internShannon Pod
 
 Both modes, same internal flow:
   message_in
@@ -515,7 +515,7 @@ Both modes, same internal flow:
 
 > This section provides in-depth technical details. For a quick overview, see [Security Architecture](#security-architecture) above.
 
-书安 implements multiple layers of security to protect sensitive data.
+internShannon implements multiple layers of security to protect sensitive data.
 
 ### Security Principles
 
@@ -562,13 +562,13 @@ Both modes, same internal flow:
 
 ### Remote Attestation
 
-Remote attestation allows 书安 to verify that the TEE environment is genuine and hasn't been tampered with.
+Remote attestation allows internShannon to verify that the TEE environment is genuine and hasn't been tampered with.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                      Remote Attestation Flow                             │
 │                                                                          │
-│   书安 Gateway              TEE (A3S Box)              Verifier     │
+│   internShannon Gateway              TEE (A3S Box)              Verifier     │
 │         │                            │                         │         │
 │         │──── 1. Request Quote ─────→│                         │         │
 │         │                            │                         │         │
@@ -713,7 +713,7 @@ Multi-layer approach to detect sensitive data:
 
 ### Threat Model
 
-**What 书安 Protects Against:**
+**What internShannon Protects Against:**
 
 | Threat | Protection Mechanism |
 |--------|---------------------|
@@ -726,7 +726,7 @@ Multi-layer approach to detect sensitive data:
 | Rollback attacks | Version binding in sealed storage |
 | Side-channel attacks | TEE mitigations (platform-dependent) |
 
-**What 书安 Does NOT Protect Against:**
+**What internShannon Does NOT Protect Against:**
 
 | Threat | Reason | Mitigation |
 |--------|--------|------------|
@@ -737,7 +737,7 @@ Multi-layer approach to detect sensitive data:
 
 ### AI Agent Leakage Prevention
 
-Even with TEE protection, a malicious or compromised AI agent could attempt to leak sensitive data. 书安 implements multiple defense layers to prevent this:
+Even with TEE protection, a malicious or compromised AI agent could attempt to leak sensitive data. internShannon implements multiple defense layers to prevent this:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -875,7 +875,7 @@ The taint tracking system follows sensitive data through all transformations:
 
 ### Single-VM Security Model
 
-书安 runs in a single A3S Box VM. The VM is either TEE (if AMD SEV-SNP hardware
+internShannon runs in a single A3S Box VM. The VM is either TEE (if AMD SEV-SNP hardware
 is present) or REE (VM isolation only). There is no multi-VM routing — all processing
 happens within the same VM.
 
@@ -885,7 +885,7 @@ happens within the same VM.
 │                                                                          │
 │  A3S Box VM (TEE if hardware supports, REE otherwise)                   │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
-│  │  书安 (security proxy)                                       │    │
+│  │  internShannon (security proxy)                                       │    │
 │  │  ├── classify(input)     → sensitivity level + taint registry   │    │
 │  │  ├── injection_detect()  → block prompt injection attacks       │    │
 │  │  ├── call a3s-code       → agent processes request              │    │
@@ -896,10 +896,10 @@ happens within the same VM.
 │  If TEE (SEV-SNP):                                                      │
 │  ├── VM memory encrypted by CPU — hypervisor cannot read                │
 │  ├── Sealed credential storage (bound to hardware measurement)         │
-│  └── Remote attestation (clients can verify 书安 is genuine TEE)   │
+│  └── Remote attestation (clients can verify internShannon is genuine TEE)   │
 │                                                                          │
 │  If REE (no SEV-SNP):                                                   │
-│  ├── VM isolation — 书安 memory isolated from host by hypervisor   │
+│  ├── VM isolation — internShannon memory isolated from host by hypervisor   │
 │  ├── All application security still active (classify, sanitize, audit)  │
 │  └── No hardware memory encryption, no sealed storage                  │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -907,7 +907,7 @@ happens within the same VM.
 
 ## Configuration
 
-书安 uses JSON configuration files. Default location: `~/.internshannon/config.json`
+internShannon uses JSON configuration files. Default location: `~/.internshannon/config.json`
 
 ### Configuration File Structure
 
@@ -1304,7 +1304,7 @@ safeclaw/
 
 ### 2. Duplicated Privacy Classification (Security Defect)
 
-~~`SensitivityLevel`, `ClassificationRule`, and `default_classification_rules()` are independently defined in both 书安 and a3s-code with **incompatible regex patterns**.~~ **Resolved in Phase 3.1**: Both 书安 and a3s-code now use `a3s-common::privacy::{SensitivityLevel, ClassificationRule, RegexClassifier, default_classification_rules}` as the single source of truth. 书安's `config.rs` re-exports shared types; `classifier.rs` and `backend.rs` wrap `a3s_common::privacy::RegexClassifier`.
+~~`SensitivityLevel`, `ClassificationRule`, and `default_classification_rules()` are independently defined in both internShannon and a3s-code with **incompatible regex patterns**.~~ **Resolved in Phase 3.1**: Both internShannon and a3s-code now use `a3s-common::privacy::{SensitivityLevel, ClassificationRule, RegexClassifier, default_classification_rules}` as the single source of truth. internShannon's `config.rs` re-exports shared types; `classifier.rs` and `backend.rs` wrap `a3s_common::privacy::RegexClassifier`.
 
 ### 3. Two Parallel Session Systems
 
@@ -1312,11 +1312,11 @@ safeclaw/
 
 ### 4. Gateway Config Generation Direction Is Inverted
 
-~~书安 generates TOML config for a3s-gateway via string concatenation.~~ **Resolved in Phase 3.4**: Replaced TOML generation with service discovery endpoint `GET /.well-known/a3s-service.json`. Gateway now discovers 书安 via health endpoint polling. The `gateway/integration.rs` TOML generation code has been deleted.
+~~internShannon generates TOML config for a3s-gateway via string concatenation.~~ **Resolved in Phase 3.4**: Replaced TOML generation with service discovery endpoint `GET /.well-known/a3s-service.json`. Gateway now discovers internShannon via health endpoint polling. The `gateway/integration.rs` TOML generation code has been deleted.
 
 ### 5. vsock Port Conflict
 
-~~书安's `TeeConfig` defaults to vsock port 4089, which collides with a3s-box's exec server.~~ **Resolved in Phase 3.2**: Port allocation standardized in `a3s-transport::ports` — 4088 (gRPC), 4089 (exec), 4090 (PTY), 4091 (TEE channel). 书安 communicates via Unix socket (shim bridges to vsock 4091), not raw vsock.
+~~internShannon's `TeeConfig` defaults to vsock port 4089, which collides with a3s-box's exec server.~~ **Resolved in Phase 3.2**: Port allocation standardized in `a3s-transport::ports` — 4088 (gRPC), 4089 (exec), 4090 (PTY), 4091 (TEE channel). internShannon communicates via Unix socket (shim bridges to vsock 4091), not raw vsock.
 
 ---
 
@@ -1350,7 +1350,7 @@ Real channel adapters implemented locally with HTTP API calls, signature verific
 
 ### Phase 3: Architecture Redesign ✅
 
-All 书安-side items complete. One cross-repo item remains (a3s-box framing migration) tracked in Phase 3.2 — does not block 书安 development.
+All internShannon-side items complete. One cross-repo item remains (a3s-box framing migration) tracked in Phase 3.2 — does not block internShannon development.
 
 #### Phase 3.1: Extract Shared Privacy Types (P0 — Security Fix) ✅
 
@@ -1364,13 +1364,13 @@ Extracted duplicated privacy types into shared `a3s-privacy` crate. All 3 consum
   - [x] `KeywordMatcher` — lightweight keyword-based classifier for gateway routing
   - [x] `RedactionStrategy` — Mask, Remove, Hash modes
   - [x] `default_dangerous_commands()` — exfiltration detection patterns
-- [x] **Migrate 书安**: `privacy/classifier.rs` wraps `a3s-privacy::RegexClassifier`, `config.rs` re-exports shared types
+- [x] **Migrate internShannon**: `privacy/classifier.rs` wraps `a3s-privacy::RegexClassifier`, `config.rs` re-exports shared types
 - [x] **Migrate a3s-code**: `safeclaw/config.rs` re-exports shared types, `classifier.rs` wraps `a3s-privacy::RegexClassifier`
 - [x] **Migrate a3s-gateway**: `privacy_router.rs` delegates to `a3s-privacy::KeywordMatcher` with `PrivacyLevel` ↔ `SensitivityLevel` mapping
 
 #### Phase 3.2: Unified Transport Layer (P0 — Foundation) 🚧
 
-`a3s-transport` crate implemented (28 tests). 书安 migrated; a3s-box migration pending.
+`a3s-transport` crate implemented (28 tests). internShannon migrated; a3s-box migration pending.
 
 - [x] **`a3s-transport` crate**: Shared transport abstraction
   - [x] `Transport` trait (`connect`, `send`, `recv`, `close`) — async, object-safe, Send+Sync
@@ -1383,18 +1383,18 @@ Extracted duplicated privacy types into shared `a3s-privacy` crate. All 3 consum
   - [x] 4090: PTY server
   - [x] 4091: TEE secure channel (new)
 - [ ] **Migrate a3s-box**: exec server and PTY server adopt shared framing
-- [x] **Migrate 书安**: `TeeClient` accepts `Box<dyn Transport>`, uses `Frame` wire protocol, `MockTransport` for testing
+- [x] **Migrate internShannon**: `TeeClient` accepts `Box<dyn Transport>`, uses `Frame` wire protocol, `MockTransport` for testing
 
 #### Phase 3.25: Direct a3s-code Library Integration (P0) ✅
 
 > **Transitional**: In-process `AgentEngine` will be replaced by a gRPC/unix socket
-> client to the local A3S Code service in Phase 11. 书安 should not embed a3s-code
+> client to the local A3S Code service in Phase 11. internShannon should not embed a3s-code
 > — A3S Code runs as a separate process inside the same A3S Box VM.
 
 Replaced CLI subprocess bridging (launcher.rs + bridge.rs + NDJSON protocol) with direct in-process a3s-code library calls via `AgentEngine`.
 
 - [x] **`AgentEngine`**: Wraps `SessionManager`, manages per-session UI state, translates `AgentEvent` → `BrowserIncomingMessage`
-- [x] **Config mapping**: `ModelsConfig::to_code_config()` maps 书安 config to a3s-code `CodeConfig` with multi-provider support
+- [x] **Config mapping**: `ModelsConfig::to_code_config()` maps internShannon config to a3s-code `CodeConfig` with multi-provider support
 - [x] **Handler rewrite**: All REST/WebSocket handlers delegate to engine (no CLI subprocess)
 - [x] **Type cleanup**: Removed all CLI/NDJSON types (`CliMessage`, `CliSystemMessage`, etc.)
 - [x] **Deleted**: `bridge.rs`, `launcher.rs` (subprocess management replaced by in-process calls)
@@ -1414,17 +1414,17 @@ Unified `Session` type with optional TEE support. No separate `TeeManager` — T
 
 Replaced TOML config generation with service discovery endpoint.
 
-- [x] **书安 exposes** `GET /health` and `GET /.well-known/a3s-service.json`
-- [x] **a3s-gateway discovers** 书安 via health endpoint polling
+- [x] **internShannon exposes** `GET /health` and `GET /.well-known/a3s-service.json`
+- [x] **a3s-gateway discovers** internShannon via health endpoint polling
 - [x] **Delete** `gateway/integration.rs` (TOML string concatenation replaced with `ServiceDescriptor`)
-- [x] **Routing rules** owned by gateway config, not generated by 书安
+- [x] **Routing rules** owned by gateway config, not generated by internShannon
 
 ### Phase 4: TEE Communication Layer (depends on Phase 3.2) ✅
 
-> **Architecture correction**: Phase 4 was originally designed with 书安 as a
-> host-side process that boots and manages VMs. This is **incorrect** — 书安 is
+> **Architecture correction**: Phase 4 was originally designed with internShannon as a
+> host-side process that boots and manages VMs. This is **incorrect** — internShannon is
 > the guest inside an A3S Box VM. Phase 11 will refactor:
-> - **Delete `TeeOrchestrator`** — 书安 doesn't boot VMs, `a3s-box` does
+> - **Delete `TeeOrchestrator`** — internShannon doesn't boot VMs, `a3s-box` does
 > - **Delete `a3s-box-runtime` dependency** — that's the host-side VM management library
 > - **Replace with `TeeRuntime`** — self-detection: am I in a TEE? Enable sealed storage if yes
 > - **Keep `a3s-box-core`** — TEE self-detection, sealed storage API, RA-TLS
@@ -1437,7 +1437,7 @@ Implemented RA-TLS communication and TEE lifecycle management. See [`docs/tee-re
 - [x] **Add `a3s-box-runtime` and `a3s-box-core`** to `safeclaw/Cargo.toml`
 - [x] **Update `TeeConfig`** with new fields: `shim_path`, `allow_simulated`, `secrets`, `workspace_dir`, `socket_dir`
 
-> ⚠️ `a3s-box-runtime` will be removed in Phase 11 — 书安 is the guest, not the host.
+> ⚠️ `a3s-box-runtime` will be removed in Phase 11 — internShannon is the guest, not the host.
 
 #### Phase 4.2: TeeOrchestrator Module (P0) ✅
 
@@ -1451,7 +1451,7 @@ Central coordinator for TEE lifecycle — boots MicroVM, verifies attestation, i
   - [x] `process_message(session_id, content)` — Send request over RA-TLS channel to guest agent
   - [x] `shutdown()` — Terminate all sessions, stop VM
   - [x] `is_ready()` — Check if VM is booted and TEE is verified
-- [x] **Lazy VM boot** — MicroVM starts on first `upgrade_to_tee()`, not at 书安 startup
+- [x] **Lazy VM boot** — MicroVM starts on first `upgrade_to_tee()`, not at internShannon startup
 
 > ⚠️ `TeeOrchestrator` will be replaced by `TeeRuntime` (self-detection) in Phase 11.
 
@@ -1519,7 +1519,7 @@ Prevent A3S Code from leaking sensitive data inside TEE. Uses shared `a3s-privac
 
 ### Phase 6: Local LLM Support ✅ (via a3s-power)
 
-Local LLM inference is handled by **a3s-power**, not 书安. 书安 calls a3s-code via gRPC/unix socket; a3s-code handles model selection including local backends. When a3s-power is configured as a backend, 书安 automatically benefits from offline inference with no code changes required.
+Local LLM inference is handled by **a3s-power**, not internShannon. internShannon calls a3s-code via gRPC/unix socket; a3s-code handles model selection including local backends. When a3s-power is configured as a backend, internShannon automatically benefits from offline inference with no code changes required.
 
 ### Phase 7: Advanced Privacy 🚧
 
@@ -1609,21 +1609,21 @@ Wire Gateway's channel message flow through AgentEngine with full security pipel
 ### Phase 11: Architecture Correction 📋
 
 Correct two architectural errors: (1) host/guest role inversion from Phase 4,
-(2) in-process a3s-code embedding from Phase 3.25. 书安 is a **security proxy**
+(2) in-process a3s-code embedding from Phase 3.25. internShannon is a **security proxy**
 inside an A3S Box VM. A3S Code runs as a separate local service in the same VM.
 
 #### Phase 11.1: Replace in-process AgentEngine with local service client (P0 — must fix before Phase 16+)
 
-> **This is the most critical pending item.** 书安 currently embeds a3s-code as a
+> **This is the most critical pending item.** internShannon currently embeds a3s-code as a
 > Cargo dependency and runs the agent in-process. This blurs the security boundary:
-> 书安 is a proxy, not a runtime. All new channel and workflow features (Phase 16+)
+> internShannon is a proxy, not a runtime. All new channel and workflow features (Phase 16+)
 > depend on this being fixed first.
 
 - [ ] **A3S Code local service client**: gRPC/unix socket client to a3s-code
   - Replace `AgentEngine` (in-process) with service call to local a3s-code process
   - a3s-code exposes `AgentService` on unix socket inside the VM
-  - 书安 sends prompt, receives streaming response
-- [ ] **Remove `a3s-code` Cargo dependency**: 书安 only needs proto stubs
+  - internShannon sends prompt, receives streaming response
+- [ ] **Remove `a3s-code` Cargo dependency**: internShannon only needs proto stubs
 - [ ] **Remove `AgentEngine`**: No in-process agent runtime
 - [ ] **Keep `generate_response()` API**: Refactored to call local service instead of in-process
 - [ ] **Browser UI WebSocket proxy**: `/ws/agent/browser/:id` proxies to a3s-code service
@@ -1636,7 +1636,7 @@ inside an A3S Box VM. A3S Code runs as a separate local service in the same VM.
   - If not present → disabled mode, all application security still active
   - `is_tee() -> bool` / `security_level()` / `seal(data)` / `unseal(blob)` API
 - [x] **`SealedStorage`**: AES-256-GCM with VCEK-derived keys (TEE) or file-based keys (dev)
-- [x] **Remove `a3s-box-runtime` dependency**: 书安 is guest, not host
+- [x] **Remove `a3s-box-runtime` dependency**: internShannon is guest, not host
 - [x] **Remove `TeeOrchestrator`**: No VM boot, no `VmController`, no `InstanceSpec`
 - [x] **Refactor `SessionManager`**: Remove orchestrator wiring, use `TeeRuntime`
 - [x] **Feature flag cleanup**: Removed `real-tee` and `mock-tee` flags, kept `hardening`
@@ -1671,7 +1671,7 @@ Systematic fixes for architectural defects identified through first-principles a
 Every item below addresses a gap where the current implementation gives false security
 guarantees or fails to match the stated threat model.
 
-> **Guiding principle**: 书安's core mission is *privacy-preserving AI assistant
+> **Guiding principle**: internShannon's core mission is *privacy-preserving AI assistant
 > runtime*. Every change in this phase must close a real gap in that promise — no
 > feature creep, no nice-to-haves.
 
@@ -1681,7 +1681,7 @@ Without a formal threat model, all security measures are ad-hoc guesses.
 
 - [x] **`docs/threat-model.md`**: Define trust boundaries, adversary capabilities, and attack surfaces
   - Who are the adversaries? (malicious user, compromised AI model, network attacker, platform operator)
-  - What are the trust boundaries? (user ↔ 书安, 书安 ↔ AI model, 书安 ↔ TEE, 书安 ↔ channel platform)
+  - What are the trust boundaries? (user ↔ internShannon, internShannon ↔ AI model, internShannon ↔ TEE, internShannon ↔ channel platform)
   - What attacks are explicitly out of scope? (e.g., physical access to host)
   - Map each existing security module to the specific attack vectors it defends against
 - [x] **Annotate each leakage module** with the threat-model section it addresses (code comments linking to doc)
@@ -1889,7 +1889,7 @@ P2 (defense in depth) ✅:
 
 ### Phase 16: Missing Channels 📋
 
-OpenClaw supports 13+ channels. 书安 currently covers 7. The gap matters most for
+OpenClaw supports 13+ channels. internShannon currently covers 7. The gap matters most for
 enterprise users (Teams) and the largest personal messaging platform (WhatsApp).
 
 - [ ] **WhatsApp** (P1 — largest global IM, highest personal PII density):
@@ -1936,9 +1936,9 @@ policies, privacy rules, and model choices.
 
 ### Phase 18: Workflow Orchestration 📋
 
-书安 has a task scheduler (Phase 14) but no multi-step workflow composition.
+internShannon has a task scheduler (Phase 14) but no multi-step workflow composition.
 OpenClaw's "Lobster" pattern lets skills chain: `fetch_email → summarize → post_to_slack`.
-书安 needs the same, with privacy checks at every step boundary.
+internShannon needs the same, with privacy checks at every step boundary.
 
 - [ ] **`WorkflowDef`**: Sequence of steps, each with a prompt + target tool/skill
   ```rust
@@ -1963,7 +1963,7 @@ OpenClaw's "Lobster" pattern lets skills chain: `fetch_email → summarize → p
 
 The 3-layer memory system (Resource/Artifact/Insight) accumulates knowledge within a
 session but doesn't surface it in future sessions. OpenClaw's persistent memory injects
-relevant past context automatically. 书安 needs the same — with privacy gate
+relevant past context automatically. internShannon needs the same — with privacy gate
 re-evaluation before any historical context is injected.
 
 - [ ] **Cross-session retrieval on session start**: Query L2/L3 for relevant Artifacts/Insights from past sessions
@@ -1976,10 +1976,10 @@ re-evaluation before any historical context is injected.
 
 ### Phase 20: Multi-User Support 📋
 
-书安's session key is already `user:channel:chat`, so multiple users are technically
+internShannon's session key is already `user:channel:chat`, so multiple users are technically
 handled. But there is no user management layer — no registration, no per-user config,
 no admin/user role separation. This is required for enterprise channels (Teams, Slack)
-where multiple people share one 书安 instance.
+where multiple people share one internShannon instance.
 
 - [ ] **User registry**: `UserStore` with user ID, display name, role (`admin` | `user`), per-user config overrides
 - [ ] **Per-user privacy config**: Override global privacy rules, cumulative risk thresholds, and memory settings per user
@@ -1993,7 +1993,7 @@ where multiple people share one 书安 instance.
 
 
 
-书安 exposes **33 REST endpoints + 1 WebSocket** organized into 8 modules. All responses use JSON. Error responses follow `{"error": {"code": "...", "message": "..."}}` format. CORS is enabled for all origins by default.
+internShannon exposes **33 REST endpoints + 1 WebSocket** organized into 8 modules. All responses use JSON. Error responses follow `{"error": {"code": "...", "message": "..."}}` format. CORS is enabled for all origins by default.
 
 ### System
 
@@ -2076,25 +2076,25 @@ where multiple people share one 书安 instance.
 
 ## A3S Ecosystem
 
-书安 runs inside A3S Box (VM runtime) alongside a local A3S Code service.
+internShannon runs inside A3S Box (VM runtime) alongside a local A3S Code service.
 A3S OS is **application-agnostic** — it only provides A3S Gateway (traffic routing)
 and A3S Box (VM runtime). It doesn't know or care what application runs inside.
 
 ```
 A3S Box VM
-├── 书安         security proxy (channels, classify, sanitize, audit)
+├── internShannon         security proxy (channels, classify, sanitize, audit)
 └── A3S Code         agent service (runtime, tools, LLM calls, a3s-lane)
     ↑ gRPC / unix socket (local, within same VM)
 ```
 
-| Project | Role | 书安's relationship |
+| Project | Role | internShannon's relationship |
 |---------|------|------------------------|
-| [A3S Box](https://github.com/A3S-Lab/Box) | VM runtime (standalone + K8s) | 书安 runs inside it; uses `a3s-box-core` for TEE self-detection |
-| [A3S Code](https://github.com/A3S-Lab/Code) | AI agent service | Local service in same VM; 书安 calls via gRPC/unix socket |
-| [A3S Gateway](https://github.com/A3S-Lab/Gateway) | K8s Ingress Controller | Routes traffic to 书安; app-agnostic |
-| [A3S Lane](https://github.com/A3S-Lab/Lane) | Per-session priority queue | Inside a3s-code, not 书安's concern |
+| [A3S Box](https://github.com/A3S-Lab/Box) | VM runtime (standalone + K8s) | internShannon runs inside it; uses `a3s-box-core` for TEE self-detection |
+| [A3S Code](https://github.com/A3S-Lab/Code) | AI agent service | Local service in same VM; internShannon calls via gRPC/unix socket |
+| [A3S Gateway](https://github.com/A3S-Lab/Gateway) | K8s Ingress Controller | Routes traffic to internShannon; app-agnostic |
+| [A3S Lane](https://github.com/A3S-Lab/Lane) | Per-session priority queue | Inside a3s-code, not internShannon's concern |
 | [A3S Event](https://github.com/A3S-Lab/Event) | Event bus (NATS/Redis) | Optional: audit event forwarding (Phase 13) |
-| [A3S Power](https://github.com/A3S-Lab/Power) | Local LLM inference | Optional: local model backend via a3s-code (no 书安 changes needed) |
+| [A3S Power](https://github.com/A3S-Lab/Power) | Local LLM inference | Optional: local model backend via a3s-code (no internShannon changes needed) |
 
 ## Development
 

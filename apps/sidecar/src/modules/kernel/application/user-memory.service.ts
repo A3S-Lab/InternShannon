@@ -18,7 +18,7 @@ import {
  * 099 hasn't been applied yet (driver-mirror resilience).
  *
  * `listForUser` is the read path behind GET /kernel/me/memories and returns an empty base when migration
- * 099 is absent so Xiaoan hydration stays non-blocking in older driver mirrors.
+ * 099 is absent so InternShannon hydration stays non-blocking in older driver mirrors.
  */
 @Injectable()
 export class UserMemoryService {

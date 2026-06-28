@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { APP_CONFIG_SERVICE } from '@/infrastructure/desktop/app-config/app-config.module';
-import { AppConfigService } from '@/infrastructure/desktop/app-config/app-config.service';
+import { APP_CONFIG_SERVICE } from '@/modules/config/infrastructure/desktop/app-config/app-config.module';
+import { AppConfigService } from '@/modules/config/infrastructure/desktop/app-config/app-config.service';
 import { IDesktopModelConfigSync } from '../../domain/services/desktop-model-config-sync.interface';
 import { AppSettings } from '../../domain/services/settings-schema';
 

@@ -19,7 +19,7 @@ export async function resolveLlmCredentials(
                 `Node ${nodeId}: model "${data.model ?? '<default>'}" is not configured in the server config service; refusing to fall back to inline credentials.`,
             );
         }
-        // Trusted config resolves the model id too — the config service's defaultModel (the ShuanOS
+        // Trusted config resolves the model id too — the config service's defaultModel (the internShannon
         // vault default) when the node names none — so callers run on the vault default
         // rather than a model hardcoded in the executor.
         const model = resolved.model ?? data.model;

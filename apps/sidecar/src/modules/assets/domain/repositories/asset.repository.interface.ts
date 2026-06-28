@@ -1,4 +1,4 @@
-import { PageQueryOptions, PageResult } from '@/shared/application/pagination.dto';
+import { PageQueryOptions, PageResult } from '@/shared/domain/pagination';
 import { Asset } from '../entities/asset.entity';
 import { AgentKind } from '../value-objects/agent-kind.vo';
 import { AssetCategory } from '../value-objects/asset-category.vo';

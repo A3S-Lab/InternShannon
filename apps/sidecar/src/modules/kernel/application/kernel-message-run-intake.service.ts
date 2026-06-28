@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import type { Session } from '../domain/entities/session.entity';
+import type { IKernelMessageRunService, KernelMessageRunInput } from '../domain/services/kernel-message-run.service.interface';
 import { type IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
 import { describeLockedRunViolation, isLockedAgent, LOCKED_AGENT_POLICY } from './agents/locked-agent.policy';
 import { KernelConversationLogService } from './kernel-conversation-log.service';
@@ -9,17 +10,12 @@ import { KernelSessionRuntimeStateService } from './kernel-session-runtime-state
 import type { ActiveSession } from './session-runtime.types';
 import type { ToolConfirmationGate } from './tool-confirmation-gate';
 
-export interface KernelMessageRunIntakeInput {
-    sessionId: string;
-    content: string;
-    images?: { mediaType: string; data: string }[];
-    model?: string;
+export interface KernelMessageRunIntakeInput extends KernelMessageRunInput {
     confirmation?: ToolConfirmationGate | null;
-    emit: (message: unknown) => void;
 }
 
 @Injectable()
-export class KernelMessageRunIntakeService {
+export class KernelMessageRunIntakeService implements IKernelMessageRunService {
     private readonly logger = new Logger(KernelMessageRunIntakeService.name);
 
     constructor(

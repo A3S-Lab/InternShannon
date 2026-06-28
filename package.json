@@ -1,13 +1,14 @@
 {
-  "name": "@shuxiaoan/workspace",
+  "name": "@internshannon/workspace",
   "version": "0.1.0",
   "private": true,
   "description": "Desktop and sidecar workspace",
   "scripts": {
-    "build": "pnpm --filter @shuxiaoan/sidecar build",
-    "desktop:doctor": "pnpm --filter @shuxiaoan/desktop doctor",
-    "desktop:stage-sidecar": "pnpm --filter @shuxiaoan/desktop stage:sidecar",
-    "sidecar:build": "pnpm --filter @shuxiaoan/sidecar build",
+    "build": "pnpm --filter @internshannon/sidecar build",
+    "desktop:doctor": "pnpm --filter @internshannon/desktop doctor",
+    "desktop:stage-sidecar": "pnpm --filter @internshannon/desktop stage:sidecar",
+    "sidecar:build": "pnpm --filter @internshannon/sidecar build",
+    "sidecar:ddd:check": "pnpm --filter @internshannon/sidecar ddd:check",
     "test": "pnpm -r --if-present test"
   },
   "devDependencies": {

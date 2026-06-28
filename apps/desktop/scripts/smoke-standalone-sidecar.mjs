@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-const DEFAULT_RESOURCES_DIR = 'src-tauri/target/release/bundle/macos/书小安.app/Contents/Resources';
+const DEFAULT_RESOURCES_DIR = 'src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources';
 const DEFAULT_TIMEOUT_MS = 45_000;
 const LOG_LIMIT = 8_000;
 

@@ -90,10 +90,10 @@ Core skill sync utilities live here.
   is only a warning because `desktop-local` and `desktop-dev` can fall back.
 
 `build-macos-dmg.sh`
-- Builds `书安.app`, patches bundled `a3s box` dylib linkage, refreshes the
+- Builds `internShannon.app`, patches bundled `a3s box` dylib linkage, refreshes the
   updater archive/signature, verifies bundled `box` resources, and then packages
   the app into a distributable macOS `.dmg`.
-- Keeps the updater archive `书安.app.tar.gz` in the build output so the app
+- Keeps the updater archive `internShannon.app.tar.gz` in the build output so the app
   remains updater-capable.
 - Loads updater signing materials from `~/.tauri/safeclaw-updater.key*` by default
   so local DMG builds stay updater-ready without manual env exports.
