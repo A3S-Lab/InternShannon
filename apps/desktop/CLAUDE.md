@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-- **技术栈**: Tauri v2 shell + `apps/web` React/Rsbuild 前端 + NestJS sidecar API
+- **技术栈**: Tauri v2 shell + desktop static frontend + NestJS sidecar API
 - **状态管理**: Valtio (全局) + ahooks useReactive (组件内)
 - **路由**: React Router v7 (Hash Router，兼容 Tauri)
 - **API**: NestJS sidecar 运行在 `http://127.0.0.1:29653`
@@ -17,49 +17,43 @@
 CI=true pnpm install
 
 # 桌面本地预检：CLI、sidecar build、29653/5000 端口状态
-just desktop-doctor
-
-# 浏览器内跑通桌面本地闭环（APP_MODE=desktop，不依赖 Docker/Postgres/Redis/RustFS）
-just desktop-local
-
-# desktop-local ready 后复制终端打印的 smoke 命令；默认形态：
-PUBLIC_DESKTOP_URL=http://127.0.0.1:5000 PUBLIC_DESKTOP_GATEWAY_URL=http://127.0.0.1:29653 just desktop-smoke
+just doctor
 
 # 构建 NestJS sidecar (运行 Tauri 前必须)
 just sidecar-build
 
-# 启动 Tauri 开发模式 (原生窗口 + NestJS sidecar)
-just desktop-dev
+# 启动 Tauri 开发模式 (会先构建 sidecar，再启动桌面窗口)
+just dev
 
 # 构建可重复验证的 Tauri .app
-pnpm --filter @a3s/desktop tauri:build
+pnpm --filter @internshannon/desktop tauri:build
 
 # 构建 `.app` 并校验 sidecar JS 资源已进入 bundle
-pnpm --filter @a3s/desktop build
+just build
 
 # 构建发行安装包（包含 DMG 等平台 installer 和 standalone sidecar）
-pnpm --filter @a3s/desktop tauri:bundle
+just bundle
 
 # 校验 release sidecar 是否已经真正 standalone（tauri:bundle 已自动执行一次）
-pnpm --filter @a3s/desktop check:standalone-sidecar
+just check-standalone
 
 # 从已构建的 `.app` 资源目录隔离启动 sidecar 并检查 /api/v1/health
-pnpm --filter @a3s/desktop smoke:standalone-sidecar
+just smoke-standalone
 
 # 构建包含 hoisted sidecar node_modules 的 standalone `.app` 验证包
 # 成功/失败后会尽力把 src-tauri/resources/sidecar 清回 dist-only
 # 可能需要 registry/store 访问
-pnpm --filter @a3s/desktop tauri:build:standalone
+pnpm --filter @internshannon/desktop tauri:build:standalone
 
 # 使用 Biome 格式化代码
-pnpm --filter @a3s/desktop format
+pnpm --filter @internshannon/desktop format
 
 # 类型检查
-pnpm --filter @a3s/desktop exec tsc --noEmit
+pnpm --filter @internshannon/desktop exec tsc --noEmit
 ```
 
-`desktop-local` 会打印实际选中的 Web/API/Health/Data/Smoke 信息。如果
-`5000` 被占用，它会切到下一个可用前端端口；需要固定端口时设置
+`just dev` 会打印实际选中的 Web/API/Health 信息。如果 `5000`
+被占用，它会切到下一个可用前端端口；需要固定端口时设置
 `PUBLIC_DESKTOP_DEV_PORT`。Tauri/Rust 改动只允许在 `apps/desktop/src-tauri/`
 内进行，repo root 不是 Rust workspace。
 

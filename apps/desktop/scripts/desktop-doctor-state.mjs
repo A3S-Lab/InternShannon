@@ -120,7 +120,7 @@ export function classifyWebPortCheck({ error = '', listening, owner = '', port }
     }
 
     return createDoctorCheck({
-        action: 'desktop-local and desktop-dev can choose another web port; set PUBLIC_DESKTOP_DEV_PORT if you need a fixed one.',
+        action: 'just dev can choose another web port; set PUBLIC_DESKTOP_DEV_PORT if you need a fixed one.',
         details: [owner],
         label: 'Desktop web port',
         status: 'warn',

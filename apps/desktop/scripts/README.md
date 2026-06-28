@@ -3,7 +3,7 @@ Core skill sync utilities live here.
 - `sync-core-skills.mjs sync`: copy backend-owned embedded core skills into `src-tauri/resources/skills`
 - `sync-core-skills.mjs check`: fail if embedded and distribution copies drift
 - `desktop-doctor.mjs`: read-only preflight for desktop-local CLI readiness, sidecar build output, and port state
-- `stage-sidecar-resources.mjs`: copy `apps/api/dist` into `src-tauri/resources/sidecar`,
+- `stage-sidecar-resources.mjs`: copy `apps/sidecar/dist` into `src-tauri/resources/sidecar`,
   or stage a standalone runtime with `--standalone`
 - `stage-node-runtime.mjs`: download, checksum, cache, and stage an official
   Node.js runtime into `src-tauri/resources/node`
@@ -24,7 +24,7 @@ Core skill sync utilities live here.
 - Can also validate an extracted bundle directory via `--dir <path>`.
 
 `stage-sidecar-resources.mjs`
-- Stages the built NestJS desktop sidecar from `apps/api/dist` into
+- Stages the built NestJS desktop sidecar from `apps/sidecar/dist` into
   `src-tauri/resources/sidecar`.
 - Tauri maps this directory into the app Resources root so production startup
   can resolve `Resources/main.js`.

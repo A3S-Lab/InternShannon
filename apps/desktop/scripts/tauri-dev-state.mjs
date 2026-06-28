@@ -41,7 +41,6 @@ export function formatTauriDevStartupMessage({ requestedPort, selectedPort, webU
         `  Web      ${normalizeUrl(webUrl)}`,
         `  API      ${normalizeUrl(gatewayUrl)}/api/v1`,
         `  Health   ${normalizeUrl(gatewayUrl)}/api/v1/health`,
-        `  Smoke    PUBLIC_DESKTOP_URL=${normalizeUrl(webUrl)} PUBLIC_DESKTOP_GATEWAY_URL=${normalizeUrl(gatewayUrl)} just desktop-smoke`,
     ];
 
     if (selectedPort !== requestedPort) {

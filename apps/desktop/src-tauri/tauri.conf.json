@@ -4,10 +4,9 @@
   "version": "0.2.1",
   "identifier": "com.a3s.internshannon",
   "build": {
-    "beforeDevCommand": "pnpm --filter @internshannon/web workspace:dev",
     "devUrl": "http://127.0.0.1:5000",
-    "beforeBuildCommand": "pnpm --filter @internshannon/sidecar build && pnpm --filter @internshannon/web workspace:build && pnpm stage:sidecar",
-    "frontendDist": "../../web/dist/workspace"
+    "beforeBuildCommand": "pnpm --filter @internshannon/sidecar run build && pnpm run stage:sidecar",
+    "frontendDist": "../frontend"
   },
   "app": {
     "windows": [

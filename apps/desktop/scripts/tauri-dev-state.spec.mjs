@@ -46,7 +46,6 @@ test('formats port fallback and startup messages', () => {
             '  Web      http://127.0.0.1:5002',
             '  API      http://127.0.0.1:29653/api/v1',
             '  Health   http://127.0.0.1:29653/api/v1/health',
-            '  Smoke    PUBLIC_DESKTOP_URL=http://127.0.0.1:5002 PUBLIC_DESKTOP_GATEWAY_URL=http://127.0.0.1:29653 just desktop-smoke',
             '  Note     requested web port 5000 was busy; using 5002',
             '',
         ].join('\n'),

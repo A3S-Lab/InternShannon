@@ -23,47 +23,41 @@
 
 The current desktop client is not a root Rust workspace. It is composed of:
 
-- `apps/web`: React/Rsbuild workspace UI
-- `apps/api`: NestJS sidecar running with `APP_MODE=desktop`
-- `apps/desktop`: Tauri v2 shell and bundle scripts
+- `apps/desktop`: Tauri v2 shell, static desktop frontend, and bundle scripts
+- `apps/sidecar`: NestJS sidecar running with `APP_MODE=desktop`
 
 For first-phase desktop work, use the local desktop loop before cloud/Docker
 infrastructure:
 
 ```bash
 CI=true pnpm install
-just desktop-doctor
-just desktop-local
-```
-
-`desktop-local` prints the exact Web/API/Health/Data/Smoke values it selected.
-After it reports ready, copy the printed smoke command. The default shape is:
-
-```bash
-PUBLIC_DESKTOP_URL=http://127.0.0.1:5000 PUBLIC_DESKTOP_GATEWAY_URL=http://127.0.0.1:29653 just desktop-smoke
+just doctor
+just dev
 ```
 
 This path intentionally avoids Docker, Postgres, Redis, Etcd, and RustFS. It
 uses local workspace storage and a local data directory so the Agent workflow can
 be tested quickly in a browser.
 
-Use Tauri after the browser loop is healthy:
+`just dev` builds the sidecar first, starts a small local desktop frontend on the
+selected web port, and then launches the Tauri shell. The native shell spawns or
+reuses the sidecar on `127.0.0.1:29653`.
 
 ```bash
 just sidecar-build
-just desktop-dev
-pnpm --filter @a3s/desktop build
+just dev
+just build
 ```
 
 Troubleshooting:
 
-- `desktop-doctor` fails on Nest/Rsbuild/Tauri CLI: run `CI=true pnpm install`.
+- `just doctor` fails on Nest/Tauri CLI: run `CI=true pnpm install`.
 - API port `29653` is busy but unhealthy: stop the listed process before launch.
-- Web port `5000` is busy: `desktop-local` can choose another port, or set
+- Web port `5000` is busy: `just dev` can choose another port, or set
   `PUBLIC_DESKTOP_DEV_PORT`.
-- Missing `apps/api/dist/main.js`: run `just sidecar-build`.
+- Missing `apps/sidecar/dist/main.js`: run `just sidecar-build`.
 - Release bundles still need standalone sidecar resources; use
-  `pnpm --filter @a3s/desktop tauri:bundle` for installer builds.
+  `just bundle` for installer builds.
 
 ---
 

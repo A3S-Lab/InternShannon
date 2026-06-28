@@ -39,13 +39,6 @@ const checks = [
         remediation: 'Run CI=true pnpm install from the repo root.',
     }),
     runCommandCheck({
-        args: ['--dir', 'apps/web', 'exec', 'rsbuild', '--version'],
-        command: 'pnpm',
-        displayCommand: 'pnpm --dir apps/web exec rsbuild --version',
-        label: 'Rsbuild CLI',
-        remediation: 'Run CI=true pnpm install from the repo root.',
-    }),
-    runCommandCheck({
         args: ['--dir', 'apps/desktop', 'exec', 'tauri', '--version'],
         command: 'pnpm',
         displayCommand: 'pnpm --dir apps/desktop exec tauri --version',
@@ -56,7 +49,14 @@ const checks = [
         exists: existsSync(path.join(repoRoot, 'apps/sidecar/dist/main.js')),
         label: 'Desktop sidecar build',
         path: 'apps/sidecar/dist/main.js',
-        remediation: 'Run just sidecar-build before launching desktop-dev or packaging.',
+        remediation: 'Run just sidecar-build before launching dev or packaging.',
+    }),
+    classifyPathCheck({
+        exists: existsSync(path.join(repoRoot, 'apps/desktop/frontend/index.html')),
+        label: 'Desktop frontend',
+        path: 'apps/desktop/frontend/index.html',
+        remediation: 'Restore the desktop frontend entrypoint before launching dev or packaging.',
+        required: true,
     }),
 ];
 

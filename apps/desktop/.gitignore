@@ -39,10 +39,6 @@ src-tauri/.a3s
 src-tauri/resources/sidecar/
 src-tauri/resources/node/*
 !src-tauri/resources/node/.gitkeep
-src-tauri/resources/python/*
-!src-tauri/resources/python/.gitkeep
-src-tauri/resources/clawsentry/*
-!src-tauri/resources/clawsentry/.gitkeep
 
 # Config
 config.hcl
