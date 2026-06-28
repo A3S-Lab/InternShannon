@@ -1444,7 +1444,7 @@ export const assetsApi = {
       input,
     ),
   /**
-   * 播种/重新摄取全局共享文档知识库(InternShannon OS 文档中心 / os-docs,对所有用户公开,InternShannon据此作答)。
+   * 播种/重新摄取 InternShannon 文档知识库(os-docs,本地 Desktop 用于文档问答)。
    * 超管专属(后端 platform:runtime:access 把关)。幂等:重复同步以文件名覆盖、不产生副本。
    */
   syncDocsKnowledge: (options?: ApiRequestInit) =>

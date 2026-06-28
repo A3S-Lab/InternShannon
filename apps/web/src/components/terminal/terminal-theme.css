@@ -1,5 +1,5 @@
 /*
- * InternShannon OS 终端统一主题。
+ * InternShannon 终端统一主题。
  *
  * @wterm/react 通过给 .wterm 容器附加 .theme-<name> 类来切换主题，
  * 类里的 --term-* CSS variable 会覆盖默认值。

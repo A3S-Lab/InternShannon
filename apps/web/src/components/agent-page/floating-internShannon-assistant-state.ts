@@ -1,4 +1,4 @@
-export const INTERNSHANNON_ASSISTANT_OPEN_EVENT = "shuanos:internShannon-assistant:open";
+export const INTERNSHANNON_ASSISTANT_OPEN_EVENT = "internshannon:assistant:open";
 export const INTERNSHANNON_ASSISTANT_QUERY_PARAM = "internShannon";
 export const INTERNSHANNON_ASSISTANT_QUERY_VALUE = "open";
 

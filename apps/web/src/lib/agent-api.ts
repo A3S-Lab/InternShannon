@@ -796,7 +796,7 @@ export const agentApi = {
   /**
    * Knowledge grounding search InternShannon can draw on:
    * - `personal` → GET /api/v1/assets/me/knowledge/search (current user's personal KB).
-   * - `docs` → GET /api/v1/assets/docs/knowledge/search (global InternShannon OS docs KB).
+   * - `docs` → GET /api/v1/assets/docs/knowledge/search (local InternShannon docs KB).
    * Both return { assetId, query, hits:[{path,title,type,snippet,score}] }.
    */
   searchKnowledge: async (scope: KnowledgeBaseScope, q: string, limit = 8): Promise<KnowledgeSearchResult> => {

@@ -337,7 +337,7 @@ export function UserProfileEditor({
                 value={value.bio}
                 disabled={saving}
                 onChange={(event) => updateField("bio", event.target.value)}
-                placeholder="简单说明你的身份、团队或使用InternShannon OS的目的"
+                placeholder="简单说明你的身份、团队或使用InternShannon的目的"
                 className="min-h-24 resize-none border-border"
               />
             </div>

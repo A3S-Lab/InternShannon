@@ -1683,7 +1683,7 @@ export interface AiProviderSettingsProps {
   onRebuildCache?: () => Promise<void>;
   isRebuildingCache?: boolean;
   showValidationNotice?: boolean;
-  /** 隐藏左侧「默认模型」菜单项与面板(云端 LLM 配置页把默认模型切换挪到了页头保存按钮旁)。 */
+  /** 隐藏左侧「默认模型」菜单项与面板(Desktop LLM 配置页把默认模型切换挪到了页头保存按钮旁)。 */
   hideDefaultRoute?: boolean;
 }
 
@@ -1720,7 +1720,7 @@ export function AiProviderSettings({
     setSelectedMenuId(DEFAULT_MODEL_MENU_ID);
   }, [providers, selectedMenuId, selectedProviderName]);
 
-  // hideDefaultRoute(云端):默认模型菜单项已隐藏,自动把选中项从「默认模型」切到首个 Provider。
+  // hideDefaultRoute(Desktop):默认模型菜单项已隐藏,自动把选中项从「默认模型」切到首个 Provider。
   useEffect(() => {
     if (!hideDefaultRoute || selectedMenuId !== DEFAULT_MODEL_MENU_ID) return;
     const first = providers[0];

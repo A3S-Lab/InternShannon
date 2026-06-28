@@ -1,5 +1,5 @@
 /**
- * ShuanOS chat embed widget (Pillar A — G3). Drop a published app's no-login chat onto any site as
+ * InternShannon chat embed widget. Drop a published app's no-login chat onto any site as
  * a floating bubble:
  *
  *   <script src="https://<your-os-host>/embed.js" data-token="<share-token>"></script>
@@ -21,7 +21,7 @@
   if (!script) return;
   var token = script.getAttribute("data-token");
   if (!token) {
-    console.error("[ShuanOS chat] <script> is missing data-token");
+    console.error("[InternShannon chat] <script> is missing data-token");
     return;
   }
   var origin = new URL(script.src, window.location.href).origin;

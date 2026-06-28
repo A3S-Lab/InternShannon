@@ -2,10 +2,10 @@ import * as assert from "node:assert/strict";
 import { test } from "node:test";
 import { pathToActivityKey, resolveStoredActivityRoute, shouldPersistActivityKey } from "./activity-route-state.ts";
 
-const staticKeys = ["chat", "skills", "settings"];
+const staticKeys = ["chat", "knowledge", "settings"];
 const routeMap = {
   chat: "/",
-  skills: "/skills",
+  knowledge: "/knowledge",
   settings: "/settings",
 };
 
@@ -13,13 +13,14 @@ test("maps the default route to chat", () => {
   assert.equal(pathToActivityKey("/", {}, staticKeys, routeMap), "chat");
 });
 
-test("maps agent config routes to the skills activity", () => {
-  assert.equal(pathToActivityKey("/agent/default/config", {}, staticKeys, routeMap), "skills");
+test("maps agent config routes to the knowledge activity for legacy compatibility", () => {
+  assert.equal(pathToActivityKey("/agent/default/config", {}, staticKeys, routeMap), "knowledge");
 });
 
-test("maps builtin settings and skills subroutes to their activity keys", () => {
+test("maps builtin settings and knowledge subroutes to their activity keys", () => {
   assert.equal(pathToActivityKey("/settings", {}, staticKeys, routeMap), "settings");
-  assert.equal(pathToActivityKey("/skills/local", {}, staticKeys, routeMap), "skills");
+  assert.equal(pathToActivityKey("/knowledge/pages", {}, staticKeys, routeMap), "knowledge");
+  assert.equal(pathToActivityKey("/skills/local", {}, staticKeys, routeMap), "knowledge");
 });
 
 test("plugin routes win over static segment fallback", () => {
@@ -28,7 +29,7 @@ test("plugin routes win over static segment fallback", () => {
 
 test("persists non-root recognized activity routes only", () => {
   assert.equal(shouldPersistActivityKey("/", "chat", routeMap), false);
-  assert.equal(shouldPersistActivityKey("/agent/default/config", "skills", routeMap), true);
+  assert.equal(shouldPersistActivityKey("/agent/default/config", "knowledge", routeMap), true);
   assert.equal(shouldPersistActivityKey("/missing", "chat", routeMap), false);
   assert.equal(shouldPersistActivityKey("/plugin", "unknown-plugin", routeMap), false);
 });
@@ -47,7 +48,7 @@ test("restores a stored builtin activity only from the root route", () => {
   assert.deepEqual(
     resolveStoredActivityRoute({
       storedKey: "settings",
-      pathname: "/skills",
+      pathname: "/knowledge",
       routeMap,
       staticKeys,
     }),
@@ -72,7 +73,7 @@ test("clears stale builtin activity keys when the static route map no longer con
     resolveStoredActivityRoute({
       storedKey: "settings",
       pathname: "/",
-      routeMap: { chat: "/", skills: "/skills" },
+      routeMap: { chat: "/", knowledge: "/knowledge" },
       staticKeys,
     }),
     { kind: "clear" },

@@ -4,8 +4,6 @@ import {
   Boxes,
   Check,
   Clock3,
-  Cloud,
-  CloudOff,
   Database,
   Library,
   Loader2,
@@ -109,8 +107,8 @@ function roleLabel(role?: InternShannonMemoryConversationRef["role"]) {
 }
 
 /**
- * Live local entries (instant feedback, editable) merged with the durable, user-scoped server
- * memory base (cross-device, prior sessions, read-only). Local entries stay reactive via the
+ * Live local entries (instant feedback, editable) merged with the durable, user-scoped local
+ * memory base (prior sessions, read-only). Local entries stay reactive via the
  * localStorage subscription; the server is hydrated once on mount and re-mergeable on demand.
  */
 function useInternShannonMemoryTimeline() {
@@ -153,16 +151,15 @@ function useInternShannonMemoryTimeline() {
 }
 
 /**
- * Tasteful "memories now persist server-side" affordance. Communicates that the timeline is no
- * longer browser-only: it draws from a durable, user-scoped cloud memory base (cross-device).
+ * Shows that the timeline draws from Desktop's durable local memory store, not only browser state.
  */
-function CloudSyncIndicator({ status, serverTotal }: { status: MemorySyncStatus; serverTotal: number }) {
+function DurableMemoryIndicator({ status, serverTotal }: { status: MemorySyncStatus; serverTotal: number }) {
   if (status === "idle" || status === "local-only") return null;
   if (status === "loading") {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-border-light bg-white px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
         <Loader2 className="size-3 animate-spin" />
-        正在同步云端记忆…
+        正在读取本地记忆…
       </span>
     );
   }
@@ -170,32 +167,32 @@ function CloudSyncIndicator({ status, serverTotal }: { status: MemorySyncStatus;
     return (
       <span
         className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700"
-        title="云端记忆库暂时无法读取，仅展示本机的实时记忆。"
+        title="本地持久记忆库暂时无法读取，仅展示当前窗口的实时记忆。"
       >
-        <CloudOff className="size-3" />
-        云端记忆暂不可用
+        <Database className="size-3" />
+        本地记忆暂不可用
       </span>
     );
   }
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700"
-      title="记忆已持久化到你的云端记忆库，跨设备 / 跨会话长期保留，而不仅是这个浏览器。"
+      title="记忆已写入本地持久记忆库，跨会话长期保留。"
     >
-      <Cloud className="size-3" />
-      已云端同步{status === "synced" && serverTotal > 0 ? ` · ${serverTotal} 条` : ""}
+      <Database className="size-3" />
+      本地已保存{status === "synced" && serverTotal > 0 ? ` · ${serverTotal} 条` : ""}
     </span>
   );
 }
 
 const KNOWLEDGE_SCOPES: ReadonlyArray<{ scope: KnowledgeBaseScope; label: string; hint: string }> = [
   { scope: "personal", label: "我的知识库", hint: "你沉淀的专属知识" },
-  { scope: "docs", label: "InternShannon OS 文档库", hint: "官方文档中心" },
+  { scope: "docs", label: "InternShannon 文档库", hint: "本地文档" },
 ];
 
 /**
  * Makes InternShannon's knowledge grounding discoverable: a subtle header chip stating it can draw on
- * 「我的知识库」+「InternShannon OS 文档库」when answering, plus a minimal inline "搜索我的知识库" quick
+ * 「我的知识库」+「InternShannon 文档库」when answering, plus a minimal inline "搜索我的知识库" quick
  * action so the user can preview hits without leaving the panel. Read-only preview — actually
  * grounding an answer happens inside a chat turn.
  */
@@ -235,7 +232,7 @@ function KnowledgeGroundingAffordance() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          title="InternShannon作答时可结合「我的知识库」与「InternShannon OS 文档库」"
+          title="InternShannon作答时可结合「我的知识库」与「InternShannon 文档库」"
           className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 transition-colors hover:border-violet-300 hover:bg-violet-100"
         >
           <Library className="size-3" />
@@ -380,7 +377,7 @@ export function FloatingInternShannonMemoryTimeline({ onOpenConversation }: Floa
     <div className="flex h-full min-h-0 flex-col bg-[#f7f9fc]">
       <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <CloudSyncIndicator status={syncStatus} serverTotal={serverTotal} />
+          <DurableMemoryIndicator status={syncStatus} serverTotal={serverTotal} />
           <div className="ml-auto">
             <KnowledgeGroundingAffordance />
           </div>
@@ -489,10 +486,10 @@ export function FloatingInternShannonMemoryTimeline({ onOpenConversation }: Floa
                       {item.origin === "server" ? (
                         <span
                           className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700"
-                          title="来自云端记忆库（跨设备 / 历史会话），只读"
+                          title="来自本地持久记忆库（历史会话），只读"
                         >
-                          <Cloud className="size-2.5" />
-                          云端
+                          <Database className="size-2.5" />
+                          本地
                         </span>
                       ) : null}
                       <span className="ml-auto text-[10px] text-muted-foreground">
@@ -540,8 +537,8 @@ export function FloatingInternShannonMemoryTimeline({ onOpenConversation }: Floa
                   {selectedReadOnly ? "记忆要点" : "修正记忆要点"}
                   {selectedReadOnly ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
-                      <Cloud className="size-2.5" />
-                      云端记忆库
+                      <Database className="size-2.5" />
+                      本地记忆库
                     </span>
                   ) : null}
                 </DialogTitle>
@@ -569,7 +566,7 @@ export function FloatingInternShannonMemoryTimeline({ onOpenConversation }: Floa
                   />
                   {selectedReadOnly ? (
                     <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
-                      该记忆来自云端记忆库（跨设备 / 历史会话沉淀），为只读，暂不支持在此修正或删除。
+                      该记忆来自本地持久记忆库（历史会话沉淀），为只读，暂不支持在此修正或删除。
                     </p>
                   ) : null}
                 </div>
@@ -599,8 +596,8 @@ export function FloatingInternShannonMemoryTimeline({ onOpenConversation }: Floa
               <DialogFooter className="flex-row justify-between border-t border-border-light bg-white px-4 py-3 sm:justify-between">
                 {selectedReadOnly ? (
                   <span className="inline-flex h-8 items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Cloud className="size-3.5" />
-                    云端记忆库 · 只读
+                    <Database className="size-3.5" />
+                    本地记忆库 · 只读
                   </span>
                 ) : (
                   <button

@@ -32,6 +32,12 @@ const router = createHashRouter([
         }),
       },
       {
+        path: "knowledge",
+        lazy: async () => ({
+          Component: (await import("./pages/knowledge/KnowledgePage")).default,
+        }),
+      },
+      {
         path: "settings",
         lazy: async () => ({
           Component: (await import("./pages/settings/SettingsPage")).default,

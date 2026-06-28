@@ -385,10 +385,10 @@ function resolvePanelMotionStyle(motionMode: AssistantPanelMotionMode) {
 // 首屏/空状态欢迎页:介绍InternShannon能力 + 示例提示词一键开聊 + 「开始新对话」,
 // 把「还没有会话,请去侧栏新建」的死胡同换成可直接上手的生产级首屏。
 const INTERNSHANNON_WELCOME_PROMPTS = [
-  "InternShannon OS 都能帮我做什么?",
+  "InternShannon 都能帮我做什么?",
   "在我的知识库里检索关于「部署流程」的内容",
-  "帮我梳理一下当前数字资产的概况",
-  "解释一下内核循环工程是什么",
+  "帮我整理一份本地知识库摘要",
+  "基于上一轮对话继续分析",
 ];
 
 function InternShannonWelcome({ starting, onStart }: { starting: boolean; onStart: (prompt?: string) => void }) {
@@ -400,7 +400,7 @@ function InternShannonWelcome({ starting, onStart }: { starting: boolean; onStar
       <div>
         <p className="text-base font-semibold text-foreground">你好,我是InternShannon</p>
         <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
-          InternShannon OS 的智能助手。我能回答平台使用问题、结合你的「我的知识库」与文档检索作答,并协助你梳理数字资产与工作流。
+          我能与你进行智能体对话，也能结合你的「我的知识库」与本地文档检索作答。
         </p>
       </div>
       <div className="flex w-full max-w-sm flex-col gap-1.5">
@@ -1279,7 +1279,7 @@ export function FloatingInternShannonAssistant() {
         {logoUrl ? (
           <img
             src={logoUrl}
-            alt="InternShannon OS"
+            alt="InternShannon"
             draggable={false}
             className="size-11 rounded-full object-contain ring-1 ring-primary/10"
           />

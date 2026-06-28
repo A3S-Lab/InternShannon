@@ -1,11 +1,7 @@
-import * as Icons from "lucide-react";
-import { type LucideIcon, MessageCircle, Settings, SlidersHorizontal } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { BookOpenText, MessageCircle, Settings } from "lucide-react";
+import { type KeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useSnapshot } from "valtio";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import pluginModel from "@/desktop/models/plugin.model";
 import { readUserStorage, removeUserStorage, writeUserStorage } from "@/lib/browser-storage";
 import { cn } from "@/lib/utils";
 import { pathToActivityKey, resolveStoredActivityRoute, shouldPersistActivityKey } from "../activity-route-state";
@@ -15,7 +11,7 @@ const STORAGE_KEY = "internshannon-active-route";
 
 const NAV_ITEMS = [
   { key: "chat", label: "对话", icon: MessageCircle, path: "/" },
-  { key: "skills", label: "配置", icon: SlidersHorizontal, path: "/skills" },
+  { key: "knowledge", label: "知识库", icon: BookOpenText, path: "/knowledge" },
 ] as const;
 
 const BOTTOM_ITEMS = [
@@ -29,11 +25,6 @@ const STATIC_ROUTE_MAP: Record<string, string> = {
   ...Object.fromEntries(BOTTOM_ITEMS.map((i) => [i.key, i.path])),
 };
 
-function resolvePluginIcon(iconName: string): LucideIcon {
-  const icon = (Icons as Record<string, unknown>)[iconName];
-  return typeof icon === "function" ? (icon as LucideIcon) : Icons.Puzzle;
-}
-
 interface ActivityItemProps {
   isActive: boolean;
   icon: ReactNode;
@@ -42,11 +33,6 @@ interface ActivityItemProps {
   onKeyDown: (e: KeyboardEvent) => void;
   tabIndex: number;
   itemRef: (el: HTMLButtonElement | null) => void;
-  draggable?: boolean;
-  onDragStart?: (e: React.DragEvent) => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDrop?: (e: React.DragEvent) => void;
-  onUninstall?: () => void;
 }
 
 const ActivityItem = ({
@@ -57,13 +43,10 @@ const ActivityItem = ({
   onKeyDown,
   tabIndex,
   itemRef,
-  draggable = false,
-  onDragStart,
-  onDragOver,
-  onDrop,
-  onUninstall,
 }: ActivityItemProps) => {
-  const button = (
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
     <button
       ref={itemRef}
       type="button"
@@ -71,10 +54,6 @@ const ActivityItem = ({
       aria-selected={isActive}
       aria-label={label}
       tabIndex={tabIndex}
-      draggable={draggable}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
       className={cn(
         "relative flex flex-col justify-center items-center w-full h-10 cursor-pointer transition-all duration-200",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/35 focus-visible:ring-inset",
@@ -100,27 +79,7 @@ const ActivityItem = ({
         <div className="size-4">{icon}</div>
       </div>
     </button>
-  );
-
-  if (onUninstall) {
-    return (
-      <Tooltip>
-        <ContextMenu>
-          <ContextMenuTrigger asChild>
-            <TooltipTrigger asChild>{button}</TooltipTrigger>
-          </ContextMenuTrigger>
-          <TooltipContent side="right">{label}</TooltipContent>
-          <ContextMenuContent>
-            <ContextMenuItem onClick={onUninstall}>卸载</ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      </Tooltip>
-    );
-  }
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      </TooltipTrigger>
       <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
   );
@@ -129,27 +88,13 @@ const ActivityItem = ({
 export default function ActivityBar() {
   const location = useLocation();
   const nav = useNavigate();
-  const { plugins } = useSnapshot(pluginModel.state);
-  const installedPlugins = useMemo(() => plugins.filter((p) => p.installed), [plugins]);
-  const pluginPathMap: Record<string, string> = useMemo(
-    () => Object.fromEntries(installedPlugins.map((p) => [p.id, p.path])),
-    [installedPlugins],
-  );
 
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-
-  const activeKey = pathToActivityKey(location.pathname, pluginPathMap, STATIC_KEYS, STATIC_ROUTE_MAP);
+  const activeKey = pathToActivityKey(location.pathname, {}, STATIC_KEYS, STATIC_ROUTE_MAP);
   const itemRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const itemRefCallbacks = useRef<Map<string, (el: HTMLButtonElement | null) => void>>(new Map());
 
-  const allKeys = useMemo(() => [...STATIC_KEYS, ...installedPlugins.map((p) => p.id)], [installedPlugins]);
-  const routeMap: Record<string, string> = useMemo(
-    () => ({
-      ...STATIC_ROUTE_MAP,
-      ...pluginPathMap,
-    }),
-    [pluginPathMap],
-  );
+  const allKeys = useMemo(() => [...STATIC_KEYS], []);
+  const routeMap: Record<string, string> = useMemo(() => ({ ...STATIC_ROUTE_MAP }), []);
 
   const handleNavigate = useCallback(
     (key: string) => {
@@ -227,31 +172,6 @@ export default function ActivityBar() {
     return callback;
   }, []);
 
-  const handleDragStart = (pluginId: string) => (e: React.DragEvent) => {
-    setDraggedId(pluginId);
-    e.dataTransfer.effectAllowed = "move";
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  };
-
-  const handleDrop = (targetId: string) => (e: React.DragEvent) => {
-    e.preventDefault();
-    if (draggedId && draggedId !== targetId) {
-      pluginModel.reorder(draggedId, targetId);
-    }
-    setDraggedId(null);
-  };
-
-  const handleUninstall = (pluginId: string) => () => {
-    pluginModel.uninstall(pluginId);
-    if (activeKey === pluginId) {
-      nav("/");
-    }
-  };
-
   return (
     <nav
       aria-label="Main navigation"
@@ -276,32 +196,6 @@ export default function ActivityBar() {
             />
           ))}
 
-          {/* Plugin separator + plugin items */}
-          {installedPlugins.length > 0 && (
-            <>
-              <div className="mx-3 my-2 border-t border-primary-foreground/15" />
-              {installedPlugins.map((plugin) => {
-                const IconComp = resolvePluginIcon(plugin.icon);
-                return (
-                  <ActivityItem
-                    key={plugin.id}
-                    icon={<IconComp className="size-4" strokeWidth={activeKey === plugin.id ? 2.2 : 1.8} />}
-                    isActive={activeKey === plugin.id}
-                    label={plugin.name}
-                    tabIndex={activeKey === plugin.id ? 0 : -1}
-                    onClick={() => handleNavigate(plugin.id)}
-                    onKeyDown={(e) => handleKeyDown(e, plugin.id)}
-                    itemRef={getItemRef(plugin.id)}
-                    draggable={true}
-                    onDragStart={handleDragStart(plugin.id)}
-                    onDragOver={handleDragOver}
-                    onDrop={handleDrop(plugin.id)}
-                    onUninstall={handleUninstall(plugin.id)}
-                  />
-                );
-              })}
-            </>
-          )}
         </div>
         <div className="pb-2">
           {/* Dev-only Box nav item */}

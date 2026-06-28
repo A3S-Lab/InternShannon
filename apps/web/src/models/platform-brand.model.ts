@@ -3,7 +3,7 @@ import constants from "@/lib/constants";
 import { proxy } from "valtio";
 
 const fallbackName =
-  (typeof document !== "undefined" ? document.title.trim() : "") || constants.name?.trim() || "InternShannon OS";
+  (typeof document !== "undefined" ? document.title.trim() : "") || constants.name?.trim() || "InternShannon";
 const fallbackLogoUrl = "/logo.png";
 const BRAND_CACHE_KEY = "platform-brand:v1";
 
