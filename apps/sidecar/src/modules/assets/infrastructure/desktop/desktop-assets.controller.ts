@@ -391,7 +391,7 @@ export class DesktopAssetsController {
                     title: frontmatter.title || this.titleFromPath(path),
                     type: this.wikiPageType(frontmatter.type),
                     sources: [],
-                    tags: frontmatter.tags,
+                    tags: frontmatter.tags ?? [],
                 };
             })
             .sort((left, right) => left.title.localeCompare(right.title, 'zh-CN'));

@@ -498,7 +498,7 @@ export default function KnowledgePage() {
             rootPath={assetRoot}
             assetId={asset?.id}
             treeDepth={8}
-            autoExpandDepth={2}
+            autoExpandDepth={3}
             defaultSidebarPanel="explorer"
             commandScope="desktop-knowledge"
             className="h-full"

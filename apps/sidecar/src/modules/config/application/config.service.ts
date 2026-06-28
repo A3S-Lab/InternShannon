@@ -694,8 +694,8 @@ export class ConfigServiceImpl implements ConfigService {
     private cloneDefaultSettings(): AppSettings {
         const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as AppSettings;
         if (isDesktop()) {
-            settings.platform.appName = 'internShannon';
-            settings.general.appName = 'internShannon';
+            settings.platform.appName = 'InternShannon';
+            settings.general.appName = 'InternShannon';
         }
         return settings;
     }
@@ -1105,8 +1105,8 @@ export class ConfigServiceImpl implements ConfigService {
     private normalizeAppName(value: string | undefined, fallback: string | undefined): string | undefined {
         const candidate = value?.trim() || fallback;
         if (!candidate) return candidate;
-        if (isDesktop() && /^internShannon(?:\s*OS)?$/i.test(candidate)) {
-            return 'internShannon';
+        if (isDesktop() && /^(?:internShannon|shu\s*xiao\s*an|shuxiaoan|xiaoan|书小安)(?:\s*OS)?$/i.test(candidate)) {
+            return 'InternShannon';
         }
         return candidate;
     }

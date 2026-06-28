@@ -3176,6 +3176,7 @@ const TreeNode = React.memo(function TreeNode({
   // Use a ref to track whether we've attempted to load children for this node
   const loadAttemptedRef = useRef<Set<string>>(new Set());
   const loadAttempted = loadAttemptedRef.current.has(node.path);
+  const lastCollapseAllVersionRef = useRef(collapseAllVersion);
 
   useEffect(() => {
     // 仅在 node 自身已携带「加载完成」的子节点时,才用 node.children 覆盖本地 state.children。
@@ -3192,9 +3193,13 @@ const TreeNode = React.memo(function TreeNode({
   }, [node.children, node.childrenLoaded, node.loadError, node.path, openNodes]);
 
   useEffect(() => {
+    if (lastCollapseAllVersionRef.current === collapseAllVersion) {
+      return;
+    }
+    lastCollapseAllVersionRef.current = collapseAllVersion;
     state.open = false;
     loadAttemptedRef.current.delete(node.path);
-  }, [collapseAllVersion, depth, node.path]);
+  }, [collapseAllVersion, node.path]);
 
   useEffect(() => {
     const selected = selectedPathSet.has(node.path) || activeFile === node.path;

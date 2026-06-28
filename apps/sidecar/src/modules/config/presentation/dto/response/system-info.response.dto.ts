@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SystemInfoResponseDto {
-    @ApiPropertyOptional({ description: '应用名称', default: 'internShannon' })
+    @ApiPropertyOptional({ description: '应用名称', default: 'InternShannon' })
     appName?: string;
 
     @ApiPropertyOptional({ description: 'Logo URL' })
