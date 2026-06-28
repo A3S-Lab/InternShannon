@@ -1,6 +1,6 @@
-# internShannon
+# InternShannon
 
-internShannon is a local-first desktop workspace for running an AI assistant
+InternShannon is a local-first desktop workspace for running an AI assistant
 beside the user's files, tools, and automation loops. The desktop app owns the
 user experience. The sidecar owns local API orchestration, configuration,
 workspace access, asset metadata, agent sessions, and integration bridges.
@@ -167,7 +167,8 @@ INTERN_SHANNON_DATA_DIR
 ## Desktop Development
 
 The desktop app lives under `apps/desktop` and packages the sidecar as a local
-resource. The app name and bundle paths use `internShannon`.
+resource. Human-facing product text uses `InternShannon`; package names,
+paths, and code identifiers keep their tooling-specific casing.
 
 Useful commands:
 
@@ -197,7 +198,7 @@ cargo metadata --manifest-path apps/desktop/src-tauri/Cargo.toml --no-deps --for
 
 ## Naming
 
-The product and human-facing brand is `internShannon`.
+The product and human-facing brand is `InternShannon`.
 
 Package names use lowercase npm-compatible scopes:
 
@@ -208,6 +209,7 @@ Package names use lowercase npm-compatible scopes:
 ```
 
 Rust crate identifiers use lowercase or snake case as required by Rust tooling.
+Code identifiers may use `internShannon` when camelCase is the local convention.
 
 ## Current Direction
 
