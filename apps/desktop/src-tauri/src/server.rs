@@ -269,6 +269,10 @@ fn model_fetch_route_compatible_status(status: reqwest::StatusCode) -> bool {
     status != reqwest::StatusCode::NOT_FOUND && status != reqwest::StatusCode::METHOD_NOT_ALLOWED
 }
 
+fn knowledge_route_compatible_status(status: reqwest::StatusCode) -> bool {
+    status.is_success()
+}
+
 /// Check whether the process already on the sidecar port supports the API shape
 /// required by this desktop bundle. A healthy old sidecar can otherwise be
 /// reused after an app update, leaving the new frontend talking to old routes.
@@ -278,7 +282,7 @@ async fn is_sidecar_api_compatible(port: u16) -> bool {
         Err(_) => return false,
     };
 
-    match client
+    let model_fetch_compatible = match client
         .post(format!(
             "http://127.0.0.1:{}/api/v1/config/llm/providers/models/fetch",
             port
@@ -289,6 +293,21 @@ async fn is_sidecar_api_compatible(port: u16) -> bool {
         .await
     {
         Ok(resp) => model_fetch_route_compatible_status(resp.status()),
+        Err(_) => false,
+    };
+    if !model_fetch_compatible {
+        return false;
+    }
+
+    match client
+        .get(format!(
+            "http://127.0.0.1:{}/api/v1/assets/me/knowledge",
+            port
+        ))
+        .send()
+        .await
+    {
+        Ok(resp) => knowledge_route_compatible_status(resp.status()),
         Err(_) => false,
     }
 }
@@ -778,6 +797,20 @@ mod tests {
             reqwest::StatusCode::BAD_REQUEST
         ));
         assert!(model_fetch_route_compatible_status(
+            reqwest::StatusCode::UNAUTHORIZED
+        ));
+    }
+
+    #[test]
+    fn treats_missing_knowledge_route_as_incompatible() {
+        assert!(knowledge_route_compatible_status(reqwest::StatusCode::OK));
+        assert!(!knowledge_route_compatible_status(
+            reqwest::StatusCode::NOT_FOUND
+        ));
+        assert!(!knowledge_route_compatible_status(
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR
+        ));
+        assert!(!knowledge_route_compatible_status(
             reqwest::StatusCode::UNAUTHORIZED
         ));
     }
