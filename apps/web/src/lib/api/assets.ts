@@ -1786,17 +1786,17 @@ export const assetsApi = {
     apiClient.get<WikiAuditEntry[]>(`/api/assets/${id}/wiki/audit-log${toQuery({ limit })}`),
   updateBlob: (id: string, path: string, input: UpdateAssetBlobInput) =>
     apiClient.post<{ commitSha: string; blobSha: string }>(
-      `/api/assets/${id}/blobs/${encodeRepositoryPath(path)}/update`,
+      `/api/assets/${id}/blobs/update${toQuery({ path })}`,
       input,
     ),
   deleteBlob: (id: string, path: string, input: DeleteAssetBlobInput) =>
     apiClient.post<{ commitSha: string; deleted: boolean }>(
-      `/api/assets/${id}/blobs/${encodeRepositoryPath(path)}/delete`,
+      `/api/assets/${id}/blobs/delete${toQuery({ path })}`,
       input,
     ),
   renameBlob: (id: string, path: string, input: RenameAssetBlobInput) =>
     apiClient.post<{ commitSha: string; blobSha: string; fromPath: string; toPath: string }>(
-      `/api/assets/${id}/blobs/${encodeRepositoryPath(path)}/rename`,
+      `/api/assets/${id}/blobs/rename${toQuery({ path })}`,
       input,
     ),
   update: (id: string, input: Partial<Pick<Asset, "description" | "homepage" | "defaultBranch" | "agentKind">>) =>
@@ -2226,14 +2226,6 @@ function toQuery(params?: PageQueryParams | Record<string, unknown>) {
   });
   const query = search.toString();
   return query ? `?${query}` : "";
-}
-
-function encodeRepositoryPath(path: string) {
-  return path
-    .split("/")
-    .filter(Boolean)
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
 }
 
 function assetItems<T>(response: AssetListResponse<T>): T[] {

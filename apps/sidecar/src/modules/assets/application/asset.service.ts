@@ -237,7 +237,12 @@ export class AssetServiceImpl implements IAssetService {
             throw new BadRequestException('缺少用户标识,无法解析专属知识库');
         }
         const existing = await this.assetRepository.findPersonalKnowledge(userId);
-        if (existing) return existing;
+        if (existing) {
+            await this.seedPersonalKnowledgeScaffold(existing).catch((error) => {
+                this.logger.warn(`专属知识库脚手架补齐失败 asset=${existing.id}: ${String(error)}`);
+            });
+            return existing;
+        }
         try {
             const asset = await this.createAsset(
                 PERSONAL_KNOWLEDGE_ASSET_NAME,
@@ -264,7 +269,18 @@ export class AssetServiceImpl implements IAssetService {
     }
 
     private async seedPersonalKnowledgeScaffold(asset: Asset): Promise<void> {
-        if (!this.gitRepo) return;
+        if (!this.gitRepo) {
+            await this.seedMetadataBlobContents(
+                asset,
+                [
+                    { path: 'purpose.md', content: PERSONAL_KNOWLEDGE_PURPOSE_MD },
+                    { path: 'schema.md', content: PERSONAL_KNOWLEDGE_SCHEMA_MD },
+                    { path: 'wiki/index.md', content: PERSONAL_KNOWLEDGE_INDEX_MD },
+                ],
+                { message: 'chore: scaffold personal knowledge base', overwrite: false },
+            );
+            return;
+        }
         await this.gitRepo.seedRepositoryFiles(
             asset,
             [
@@ -274,6 +290,60 @@ export class AssetServiceImpl implements IAssetService {
             ],
             { message: 'chore: scaffold personal knowledge base', overwrite: false },
         );
+    }
+
+    private async seedMetadataBlobContents(
+        asset: Asset,
+        files: RepositorySeedFile[],
+        options?: { message?: string; overwrite?: boolean },
+    ): Promise<void> {
+        const existingContents = { ...((asset.metadata?.blobContents ?? {}) as Record<string, string>) };
+        const existingBlobs = asset.blobs ?? [];
+        const nextBlobs = new Map(existingBlobs.map(blob => [blob.path, this.serializeBlob(blob)]));
+        let changed = false;
+
+        for (const file of files) {
+            const normalizedPath = this.normalizeBlobPath(file.path);
+            if (!normalizedPath) continue;
+            if (!options?.overwrite && existingContents[normalizedPath] !== undefined) continue;
+            const content = Buffer.isBuffer(file.content) ? file.content.toString('utf8') : file.content;
+            existingContents[normalizedPath] = content;
+            const blobSha = createHash('sha1').update(content).digest('hex');
+            nextBlobs.set(normalizedPath, {
+                id: blobSha,
+                assetId: asset.id,
+                path: normalizedPath,
+                size: Buffer.byteLength(content, 'utf8'),
+                contentSha: blobSha,
+                isBinary: false,
+            });
+            changed = true;
+        }
+
+        if (!changed) return;
+
+        const createdAt = new Date();
+        const branch = asset.defaultBranch || 'main';
+        const parentCommitSha = latestCommitShaForBranch(asset, branch);
+        const commitSha = createHash('sha1')
+            .update(`${asset.id}:seed:${createdAt.toISOString()}:${Object.keys(existingContents).sort().join('|')}`)
+            .digest('hex');
+        const commit = this.buildMetadataCommit(
+            asset.id,
+            commitSha,
+            options?.message || 'chore: scaffold knowledge base',
+            parentCommitSha,
+            createdAt,
+        );
+        const branches = upsertBranchCommit(asset, branch, commitSha);
+        asset.updateMetadata({
+            blobContents: existingContents,
+            blobs: Array.from(nextBlobs.values()),
+            commits: [commit, ...(asset.commits ?? [])],
+            branches,
+        });
+        this.refreshAssetContentFromBlobContents(asset, existingContents);
+        await this.assetRepository.save(asset);
     }
 
     async getOrCreateGlobalDocsKnowledge(): Promise<Asset> {
