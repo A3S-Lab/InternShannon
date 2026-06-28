@@ -1,8 +1,8 @@
 const STATIC_ROUTE_ALIASES: Array<{ prefix: string; key: string }> = [
   { prefix: "/settings", key: "settings" },
   { prefix: "/knowledge", key: "knowledge" },
-  { prefix: "/skills", key: "knowledge" },
-  { prefix: "/agent", key: "knowledge" },
+  { prefix: "/skills", key: "skills" },
+  { prefix: "/agent", key: "skills" },
 ];
 
 export function pathToActivityKey(

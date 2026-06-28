@@ -74,7 +74,7 @@ const FloatingAssistantMemoryTimeline = lazy(async () => {
               <div className="flex min-w-0 items-baseline gap-2">
                 <div className="shrink-0 text-sm font-semibold leading-tight text-foreground">记忆</div>
                 <div className="truncate text-[12px] leading-[1.5] text-muted-foreground">
-                  InternShannon为你沉淀的记忆时间轴
+                  书小安为你沉淀的记忆时间轴
                 </div>
               </div>
             </div>
@@ -141,7 +141,7 @@ type AssistantPanelResizeHandleConfig = {
   showGrip?: boolean;
 };
 
-function LoadingFallback({ label = "正在加载InternShannon..." }: { label?: string }) {
+function LoadingFallback({ label = "正在加载书小安..." }: { label?: string }) {
   return (
     <div className="flex h-full min-h-[160px] items-center justify-center gap-2 text-sm text-muted-foreground">
       <Loader2 className="size-4 animate-spin" />
@@ -288,49 +288,49 @@ function resizePanelRectFromHandle(
 const PANEL_RESIZE_HANDLES = [
   {
     handle: "top",
-    ariaLabel: "从上边调整InternShannon窗口高度",
+    ariaLabel: "从上边调整书小安窗口高度",
     title: "拖动上边调整高度",
     className:
       "absolute left-4 right-20 top-0 z-20 h-2 touch-none cursor-ns-resize bg-transparent transition-colors hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none",
   },
   {
     handle: "right",
-    ariaLabel: "从右边调整InternShannon窗口宽度",
+    ariaLabel: "从右边调整书小安窗口宽度",
     title: "拖动右边调整宽度",
     className:
       "absolute bottom-4 right-0 top-8 z-20 w-2 touch-none cursor-ew-resize bg-transparent transition-colors hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none",
   },
   {
     handle: "bottom",
-    ariaLabel: "从下边调整InternShannon窗口高度",
+    ariaLabel: "从下边调整书小安窗口高度",
     title: "拖动下边调整高度",
     className:
       "absolute bottom-0 left-4 right-4 z-20 h-2 touch-none cursor-ns-resize bg-transparent transition-colors hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none",
   },
   {
     handle: "left",
-    ariaLabel: "从左边调整InternShannon窗口宽度",
+    ariaLabel: "从左边调整书小安窗口宽度",
     title: "拖动左边调整宽度",
     className:
       "absolute bottom-4 left-0 top-8 z-20 w-2 touch-none cursor-ew-resize bg-transparent transition-colors hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none",
   },
   {
     handle: "top-left",
-    ariaLabel: "从左上角调整InternShannon窗口大小",
+    ariaLabel: "从左上角调整书小安窗口大小",
     title: "拖动左上角调整大小",
     className:
       "absolute left-0 top-0 z-30 size-4 touch-none cursor-nwse-resize rounded-br-[4px] bg-transparent transition-colors hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none",
   },
   {
     handle: "top-right",
-    ariaLabel: "从右上角调整InternShannon窗口大小",
+    ariaLabel: "从右上角调整书小安窗口大小",
     title: "拖动右上角调整大小",
     className:
       "absolute right-0 top-0 z-30 size-2 touch-none cursor-nesw-resize rounded-bl-[4px] bg-transparent transition-colors hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none",
   },
   {
     handle: "bottom-right",
-    ariaLabel: "从右下角调整InternShannon窗口大小",
+    ariaLabel: "从右下角调整书小安窗口大小",
     title: "拖动右下角调整大小",
     className:
       "absolute bottom-0 right-0 z-30 flex size-8 touch-none cursor-nwse-resize items-end justify-end rounded-tl-[4px] bg-transparent p-1.5 text-muted-foreground/70 transition-colors hover:bg-muted hover:text-foreground focus-visible:bg-muted focus-visible:text-foreground focus-visible:outline-none",
@@ -338,7 +338,7 @@ const PANEL_RESIZE_HANDLES = [
   },
   {
     handle: "bottom-left",
-    ariaLabel: "从左下角调整InternShannon窗口大小",
+    ariaLabel: "从左下角调整书小安窗口大小",
     title: "拖动左下角调整大小",
     className:
       "absolute bottom-0 left-0 z-30 size-4 touch-none cursor-nesw-resize rounded-tr-[4px] bg-transparent transition-colors hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none",
@@ -385,7 +385,7 @@ function resolvePanelMotionStyle(motionMode: AssistantPanelMotionMode) {
 // 首屏/空状态欢迎页:介绍InternShannon能力 + 示例提示词一键开聊 + 「开始新对话」,
 // 把「还没有会话,请去侧栏新建」的死胡同换成可直接上手的生产级首屏。
 const INTERNSHANNON_WELCOME_PROMPTS = [
-  "InternShannon 都能帮我做什么?",
+  "书小安都能帮我做什么?",
   "在我的知识库里检索关于「部署流程」的内容",
   "帮我整理一份本地知识库摘要",
   "基于上一轮对话继续分析",
@@ -398,7 +398,7 @@ function InternShannonWelcome({ starting, onStart }: { starting: boolean; onStar
         <Sparkles className="size-6" aria-hidden="true" />
       </div>
       <div>
-        <p className="text-base font-semibold text-foreground">你好,我是InternShannon</p>
+        <p className="text-base font-semibold text-foreground">你好,我是书小安</p>
         <p className="mt-1 max-w-sm text-xs leading-5 text-muted-foreground">
           我能与你进行智能体对话，也能结合你的「我的知识库」与本地文档检索作答。
         </p>
@@ -1145,7 +1145,7 @@ export function FloatingInternShannonAssistant() {
   const panelTransform = resolvePanelTransform(bubblePosition, activeRect);
   const panelMotionStyle = resolvePanelMotionStyle(panelMotionMode);
   const panelInteractive = panelAnimationPhase === "open";
-  const assistantTitle = agent?.name ?? "InternShannon";
+  const assistantTitle = agent?.name ?? "书小安";
   const panelPortal =
     typeof document === "undefined"
       ? null
@@ -1211,8 +1211,8 @@ export function FloatingInternShannonAssistant() {
                 <button
                   type="button"
                   data-internshannon-window-control
-                  aria-label="关闭InternShannon"
-                  title="关闭InternShannon"
+                  aria-label="关闭书小安"
+                  title="关闭书小安"
                   onClick={() => handleOpenChange(false)}
                   className="flex size-6 shrink-0 items-center justify-center rounded-[4px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
                 >
@@ -1254,12 +1254,12 @@ export function FloatingInternShannonAssistant() {
         type="button"
         aria-label={
           panelVisible
-            ? "隐藏InternShannon"
+            ? "隐藏书小安"
             : internShannonUnread > 0
-              ? `打开InternShannon,有 ${internShannonUnread} 条未读消息`
-              : "打开InternShannon"
+              ? `打开书小安,有 ${internShannonUnread} 条未读消息`
+              : "打开书小安"
         }
-        title={`${panelVisible ? "隐藏InternShannon" : "打开InternShannon"} · ${statusLabel}  (⌘/Ctrl + J)`}
+        title={`${panelVisible ? "隐藏书小安" : "打开书小安"} · ${statusLabel}  (⌘/Ctrl + J)`}
         onPointerDown={startBubbleDrag}
         onDragStart={(event) => event.preventDefault()}
         onClick={handleBubbleClick}
@@ -1279,7 +1279,7 @@ export function FloatingInternShannonAssistant() {
         {logoUrl ? (
           <img
             src={logoUrl}
-            alt="InternShannon"
+            alt="书小安"
             draggable={false}
             className="size-11 rounded-full object-contain ring-1 ring-primary/10"
           />
@@ -1307,11 +1307,11 @@ export function FloatingInternShannonAssistant() {
       </button>
       {/* 屏幕阅读器播报:面板关闭期间收到InternShannon新消息时,通过 live region 通知(气泡角标的无障碍补充)。 */}
       <span className="sr-only" aria-live="polite">
-        {!panelVisible && internShannonUnread > 0 ? `InternShannon有 ${internShannonUnread} 条未读消息` : ""}
+        {!panelVisible && internShannonUnread > 0 ? `书小安有 ${internShannonUnread} 条未读消息` : ""}
       </span>
       {/* 状态播报:任务刚完成时无障碍提示(忙碌/空闲来回切换不播报,避免噪声)。 */}
       <span className="sr-only" aria-live="polite">
-        {assistantStatus === "done" ? `InternShannon已完成${doneTask ? `:${doneTask}` : "任务"}` : ""}
+        {assistantStatus === "done" ? `书小安已完成${doneTask ? `:${doneTask}` : "任务"}` : ""}
       </span>
       {panelPortal}
     </>

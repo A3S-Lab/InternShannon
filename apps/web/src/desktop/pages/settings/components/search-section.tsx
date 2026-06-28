@@ -284,7 +284,7 @@ export function SearchSection() {
 
         <SettingsCard
           title="浏览器后端"
-          description="Lightpanda 可由InternShannon自动下载，Chrome 会检测本机安装。"
+          description="Lightpanda 可由书小安自动下载，Chrome 会检测本机安装。"
           icon={Download}
           accentColor="emerald"
         >

@@ -24,6 +24,14 @@ function normalizeText(value?: string | null) {
   return value?.trim() || "";
 }
 
+function normalizeAssistantDisplayName(value?: string | null) {
+  const candidate = normalizeText(value);
+  if (!candidate) return "";
+  return /^(?:internShannon|shu\s*xiao\s*an|shuxiaoan|xiaoan|书小安)(?:\s*OS)?$/i.test(candidate)
+    ? "书小安"
+    : candidate;
+}
+
 function normalizeAvatarUrl(value?: string | null) {
   const url = normalizeText(value);
   if (!url) return "";
@@ -40,7 +48,7 @@ function readCached(): Pick<AssistantIdentityState, "name" | "avatar" | "descrip
     if (!raw) return { name: "", avatar: "", description: "" };
     const parsed = JSON.parse(raw) as Partial<AssistantSettings>;
     return {
-      name: normalizeText(parsed.name),
+      name: normalizeAssistantDisplayName(parsed.name),
       avatar: normalizeAvatarUrl(parsed.avatar),
       description: normalizeText(parsed.description),
     };
@@ -70,7 +78,7 @@ const state = proxy<AssistantIdentityState>({
 
 function applySettings(input: AssistantSettings | null) {
   const next = input ?? {};
-  state.name = normalizeText(next.name);
+  state.name = normalizeAssistantDisplayName(next.name);
   state.avatar = normalizeAvatarUrl(next.avatar);
   state.description = normalizeText(next.description);
   state.hydrated = true;
@@ -94,7 +102,7 @@ async function seedFromBackend(): Promise<boolean> {
 
 /** 配置的名称(空 = 未配置,调用方回退内置默认)。 */
 function effectiveName(): string {
-  return normalizeText(state.name);
+  return normalizeAssistantDisplayName(state.name);
 }
 
 /** 配置的头像 URL(空 = 未配置,调用方回退内置 nice-avatar)。 */

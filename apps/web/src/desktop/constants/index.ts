@@ -6,7 +6,7 @@ const desktopGatewayEnv = {
 };
 const isDev = (import.meta.env?.MODE || processEnv.NODE_ENV) === "development";
 const gatewayUrl = resolveDesktopGatewayUrl(desktopGatewayEnv, processEnv);
-const appName = import.meta.env?.PUBLIC_DESKTOP_APP_NAME || processEnv.PUBLIC_DESKTOP_APP_NAME || "InternShannon";
+const appName = import.meta.env?.PUBLIC_DESKTOP_APP_NAME || processEnv.PUBLIC_DESKTOP_APP_NAME || "书小安";
 const runtimeMode = import.meta.env?.PUBLIC_DESKTOP_RUNTIME || processEnv.PUBLIC_DESKTOP_RUNTIME || "web";
 const localStorageKeyPrefix =
   import.meta.env?.PUBLIC_DESKTOP_STORAGE_PREFIX || processEnv.PUBLIC_DESKTOP_STORAGE_PREFIX || "internshannon";

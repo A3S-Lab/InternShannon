@@ -25,8 +25,8 @@ async function main() {
   await expectData("agents", `${apiBase}/open/kernel/agents?limit=1`, (data) => Array.isArray(data) && data.length > 0);
   await expectData(
     "default agent metadata",
-    `${apiBase}/open/kernel/agents?keyword=${encodeURIComponent("InternShannon")}&limit=1`,
-    (data) => Array.isArray(data) && data[0]?.id === "default" && data[0]?.name === "InternShannon",
+    `${apiBase}/open/kernel/agents?keyword=${encodeURIComponent("书小安")}&limit=1`,
+    (data) => Array.isArray(data) && data[0]?.id === "default" && data[0]?.name === "书小安",
   );
   const workspace = await expectWorkspacePrerequisites();
   await expectSettingsPrerequisites();
@@ -375,7 +375,7 @@ async function resolveWebUrl() {
         continue;
       }
       const html = await response.text();
-      if (html.includes("<title>InternShannon</title>") || html.includes("internshannon-bootstrap")) {
+      if (html.includes("<title>书小安</title>") || html.includes("internshannon-bootstrap")) {
         return candidate;
       }
       if (html.trim()) {
@@ -448,7 +448,7 @@ async function expectDesktopDeepLinkShells(webUrl) {
 export function assertDesktopShellHtml(label, response, html) {
   assert(response.ok, `${label} returned HTTP ${response.status}: ${html.slice(0, 500)}`);
   const missing = [
-    html.includes("<title>InternShannon</title>") ? null : "desktop title",
+    html.includes("<title>书小安</title>") ? null : "desktop title",
     html.includes('id="internshannon-bootstrap"') ? null : "bootstrap guard",
     html.includes('id="root"') ? null : "React root",
   ].filter(Boolean);

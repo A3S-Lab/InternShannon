@@ -58,6 +58,7 @@ const desktopStateSpecs = [
   "src/desktop/layouts/chat/components/user-profile-trigger-state.spec.ts",
   "src/desktop/layouts/sidebar-layout-state.spec.ts",
   "src/desktop/pages/agent/agent-page-session-state.spec.ts",
+  "src/desktop/pages/agent/skills-page-state.spec.ts",
   "src/desktop/pages/settings/components/ai-section-state.spec.ts",
   "src/desktop/pages/settings/components/mcp-section-state.spec.ts",
   "src/desktop/pages/settings/components/search-section-state.spec.ts",

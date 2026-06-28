@@ -42,8 +42,8 @@ test("labels the mobile agent sheet and keeps its close button clear of the new-
     "<SheetContent",
     'side="left"',
     '[&>button]:right-12',
-    '<SheetTitle className="sr-only">InternShannon会话列表</SheetTitle>',
-    '<SheetDescription className="sr-only">查看、切换和管理InternShannon会话。</SheetDescription>',
+    '<SheetTitle className="sr-only">书小安会话列表</SheetTitle>',
+    '<SheetDescription className="sr-only">查看、切换和管理书小安会话。</SheetDescription>',
   ]);
 });
 

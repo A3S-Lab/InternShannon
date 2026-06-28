@@ -86,7 +86,7 @@ function ExplorerHeader(props: { health: WikiHealth | null; sources: number }) {
           <BookOpenText className="size-4" />
         </div>
         <div className="min-w-0">
-          <div className="truncate text-xs font-semibold text-foreground">InternShannon Vault</div>
+          <div className="truncate text-xs font-semibold text-foreground">书小安知识库</div>
           <div className="truncate text-[10px] text-muted-foreground">
             {props.health ? formatRelativeTime(props.health.lastIngestedAt) : `${props.sources} 个来源`}
           </div>
@@ -458,7 +458,7 @@ export default function KnowledgePage() {
             <div className="truncate text-[11px] text-muted-foreground">
               {health
                 ? `${health.pageCount} 页面 / ${health.sourceCount} 来源 / ${formatRelativeTime(health.lastIngestedAt)}`
-                : "InternShannon Vault"}
+                : "书小安知识库"}
             </div>
           </div>
         </div>

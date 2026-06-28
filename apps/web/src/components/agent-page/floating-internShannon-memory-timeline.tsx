@@ -101,7 +101,7 @@ function formatTimestamp(timestamp: number) {
 
 function roleLabel(role?: InternShannonMemoryConversationRef["role"]) {
   if (role === "user") return "用户";
-  if (role === "assistant") return "InternShannon";
+  if (role === "assistant") return "书小安";
   if (role === "system") return "系统";
   return "对话";
 }
@@ -187,7 +187,7 @@ function DurableMemoryIndicator({ status, serverTotal }: { status: MemorySyncSta
 
 const KNOWLEDGE_SCOPES: ReadonlyArray<{ scope: KnowledgeBaseScope; label: string; hint: string }> = [
   { scope: "personal", label: "我的知识库", hint: "你沉淀的专属知识" },
-  { scope: "docs", label: "InternShannon 文档库", hint: "本地文档" },
+  { scope: "docs", label: "书小安文档库", hint: "本地文档" },
 ];
 
 /**
@@ -232,7 +232,7 @@ function KnowledgeGroundingAffordance() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          title="InternShannon作答时可结合「我的知识库」与「InternShannon 文档库」"
+          title="书小安作答时可结合「我的知识库」与「书小安文档库」"
           className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-medium text-violet-700 transition-colors hover:border-violet-300 hover:bg-violet-100"
         >
           <Library className="size-3" />
@@ -242,10 +242,10 @@ function KnowledgeGroundingAffordance() {
       <PopoverContent align="end" className="w-[320px] rounded-[8px] p-3">
         <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
           <Library className="size-3.5 text-violet-600" />
-          InternShannon的知识支撑
+          书小安的知识支撑
         </div>
         <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-          作答时InternShannon可结合下列知识库并标注来源。在这里也能直接预检索命中。
+          作答时书小安可结合下列知识库并标注来源。在这里也能直接预检索命中。
         </p>
 
         <div className="mt-2 grid grid-cols-2 gap-1.5">
@@ -441,7 +441,7 @@ export function FloatingInternShannonMemoryTimeline({ onOpenConversation }: Floa
               <BookOpenText className="mx-auto size-8 text-muted-foreground/55" />
               <p className="mt-3 text-sm font-medium text-foreground">暂无记忆事件</p>
               <p className="mt-1 max-w-[360px] text-xs leading-5 text-muted-foreground">
-                InternShannon写入、召回或清理记忆后，会在这里沉淀为当前用户自己的时间轴。
+                书小安写入、召回或清理记忆后，会在这里沉淀为当前用户自己的时间轴。
               </p>
             </div>
           </div>

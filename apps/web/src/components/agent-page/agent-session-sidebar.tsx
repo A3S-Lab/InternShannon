@@ -312,10 +312,10 @@ export function AgentSessionSidebar({
       null;
     if (activeTool) return `正在执行工具: ${activeTool.toolName}`;
     if (agentSnap.sessionStatus[sessionId] === "running" && agentSnap.streaming[sessionId]) {
-      return `InternShannon: ${compactSessionPreviewText(agentSnap.streaming[sessionId])}`;
+      return `书小安: ${compactSessionPreviewText(agentSnap.streaming[sessionId])}`;
     }
     if (agentSnap.sessionStatus[sessionId] === "running") {
-      return "InternShannon正在处理...";
+      return "书小安正在处理...";
     }
     return resolveSessionSidebarPreview(agentSnap.messages[sessionId]);
   };
@@ -361,7 +361,7 @@ export function AgentSessionSidebar({
               </button>
             ))}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-foreground">{agent?.name ?? "InternShannon"}</p>
+            <p className="truncate text-sm font-semibold text-foreground">{agent?.name ?? "书小安"}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {sessionSummary.active} 活跃 / {sessionSummary.total} 总会话
             </p>
@@ -616,7 +616,7 @@ export function AgentSessionSidebar({
           <AlertDialogHeader>
             <AlertDialogTitle>删除这个会话？</AlertDialogTitle>
             <AlertDialogDescription>
-              「{visibleDeleteTarget?.name ?? "当前会话"}」会从InternShannon会话列表中移除，当前页面也会切换到下一个可用会话。
+              「{visibleDeleteTarget?.name ?? "当前会话"}」会从书小安会话列表中移除，当前页面也会切换到下一个可用会话。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

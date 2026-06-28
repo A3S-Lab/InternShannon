@@ -1,4 +1,4 @@
-import { BookOpenText, MessageCircle, Settings } from "lucide-react";
+import { BookOpenText, MessageCircle, Settings, Sparkles } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -12,6 +12,7 @@ const STORAGE_KEY = "internshannon-active-route";
 const NAV_ITEMS = [
   { key: "chat", label: "对话", icon: MessageCircle, path: "/" },
   { key: "knowledge", label: "知识库", icon: BookOpenText, path: "/knowledge" },
+  { key: "skills", label: "技能", icon: Sparkles, path: "/skills" },
 ] as const;
 
 const BOTTOM_ITEMS = [

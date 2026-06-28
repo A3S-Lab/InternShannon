@@ -87,7 +87,7 @@ export function AppearanceSection() {
 	return (
 		<SettingsSection
 			title="外观"
-			description="配置InternShannon的系统主题色和界面明暗模式"
+			description="配置书小安的系统主题色和界面明暗模式"
 			icon={Palette}
 			accentColor="violet"
 		>
@@ -110,7 +110,7 @@ export function AppearanceSection() {
 					))}
 				</div>
 				<div className="mt-4 text-xs text-slate-500">
-					选择"跟随系统"后，InternShannon会在系统浅色和深色主题之间自动切换。
+					选择"跟随系统"后，书小安会在系统浅色和深色主题之间自动切换。
 				</div>
 			</SettingsCard>
 		</SettingsSection>

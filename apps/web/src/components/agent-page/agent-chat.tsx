@@ -377,7 +377,7 @@ function buildConversationTranscript({
   streamingSegments?: readonly import("@/models/agent.model").StreamingSegment[];
 }): string {
   const sections = [
-    "# InternShannon Conversation Transcript",
+    "# 书小安 Conversation Transcript",
     `SESSION_ID: ${sessionId}`,
     ...(cwd ? [`WORKSPACE: ${cwd}`] : []),
     `EXPORTED_AT: ${dayjs().format("YYYY-MM-DD HH:mm:ss")}`,

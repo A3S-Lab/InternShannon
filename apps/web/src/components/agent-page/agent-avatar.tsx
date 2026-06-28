@@ -34,7 +34,7 @@ export function AgentAvatar({ agent, className, ...avatarConfigOverrides }: Agen
     return (
       <img
         src={configuredAvatarUrl}
-        alt={agent.name ?? "InternShannon"}
+        alt={agent.name ?? "书小安"}
         className={cn(className, "object-cover")}
       />
     );

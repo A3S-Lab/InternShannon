@@ -13,7 +13,7 @@ test("detects ready desktop-local web and API endpoints", async () => {
         return jsonResponse({ data: { status: "ok" } });
       }
       return textResponse(
-        '<html><head><title>InternShannon</title></head><body id="internshannon-bootstrap"><div id="root"></div></body></html>',
+        '<html><head><title>书小安</title></head><body id="internshannon-bootstrap"><div id="root"></div></body></html>',
       );
     },
     gatewayUrl: " http://127.0.0.1:29653/ ",

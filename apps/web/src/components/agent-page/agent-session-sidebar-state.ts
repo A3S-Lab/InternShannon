@@ -160,7 +160,7 @@ export function resolveSessionMessagePreview(message: unknown): string {
   const text = compactSessionPreviewText(rawText);
   if (!text) return "";
   if (role === "user") return `你: ${text}`;
-  if (role === "assistant") return `InternShannon: ${text}`;
+  if (role === "assistant") return `书小安: ${text}`;
   return text;
 }
 
@@ -218,7 +218,7 @@ export function resolveSessionSidebarEmptyState(
 
   return {
     title: "暂无会话",
-    description: "新建一段会话后，InternShannon会在这里保留最近的上下文。",
+    description: "新建一段会话后，书小安会在这里保留最近的上下文。",
     showClearSearch: false,
     clearSearchLabel: "清空搜索",
     createLabel: "新会话",

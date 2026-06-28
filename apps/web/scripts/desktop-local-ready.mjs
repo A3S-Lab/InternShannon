@@ -54,7 +54,7 @@ async function probeWebShell(webUrl, fetchImpl) {
     }
 
     const missing = [
-      html.includes("<title>InternShannon</title>") ? null : "title",
+      html.includes("<title>书小安</title>") ? null : "title",
       html.includes('id="internshannon-bootstrap"') ? null : "bootstrap",
       html.includes('id="root"') ? null : "root",
     ].filter(Boolean);

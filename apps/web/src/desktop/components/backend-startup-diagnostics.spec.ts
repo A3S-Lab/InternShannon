@@ -109,7 +109,7 @@ test("suggests a concrete recovery action when the backend port is occupied", ()
 		{
 			title: "端口被占用",
 			description:
-				"端口 29653 正被 pid=5678 ControlCenter 占用。请停止该进程，或确认它是健康的InternShannon sidecar 后再重新检测。",
+				"端口 29653 正被 pid=5678 ControlCenter 占用。请停止该进程，或确认它是健康的书小安 sidecar 后再重新检测。",
 		},
 	);
 });

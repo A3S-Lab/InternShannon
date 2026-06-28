@@ -152,7 +152,7 @@ function RuntimeErrorScreen({
 }) {
 	return (
 		<BootstrapScreen
-			title="InternShannon 界面出错"
+			title="书小安界面出错"
 			message="界面运行时发生异常，当前页面已被保护起来。你可以先重试；如果仍然失败，请刷新页面。"
 			details={[
 				formatStartupReason(error),
@@ -186,7 +186,7 @@ function renderStartupFatal(root: ReactDOM.Root, reason: unknown) {
 	bootOverlay()?.fail?.("react-bootstrap", reason);
 	root.render(
 		<BootstrapScreen
-			title="InternShannon 启动失败"
+			title="书小安启动失败"
 			message="界面在初始化阶段发生异常，当前会话无法继续。请重新打开页面或重启应用；如果问题持续出现，请收集下面的错误信息。"
 			details={formatStartupReason(reason)}
 		/>,
@@ -306,7 +306,7 @@ if (rootEl) {
 										<Suspense
 											fallback={
 												<BootstrapScreen
-													title="InternShannon 正在启动"
+													title="书小安正在启动"
 													message="界面资源与本地运行时正在加载。首次启动、杀毒软件实时扫描或磁盘较慢时，这个阶段可能会持续几十秒。"
 													busy
 												/>

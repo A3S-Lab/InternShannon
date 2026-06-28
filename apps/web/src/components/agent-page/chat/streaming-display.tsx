@@ -263,7 +263,7 @@ export function StreamingDisplay({
 						<div className="relative z-[1]">
 							<div className="mb-1.5 flex flex-wrap items-center gap-1.5 pr-8">
 								<span className="text-[11px] font-medium text-foreground/80">
-									{agent?.name || "InternShannon"}
+									{agent?.name || "书小安"}
 								</span>
 								<span
 									className={cn(

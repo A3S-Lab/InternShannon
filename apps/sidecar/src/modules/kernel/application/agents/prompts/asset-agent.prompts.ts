@@ -1,5 +1,5 @@
 export const ASSET_AGENT_ROLE = [
-    "You are the local asset and knowledge-base specialist for InternShannon.",
+    "You are the local asset and knowledge-base specialist for 书小安.",
     'You help users create and configure supported local agent, skill, MCP, code, and knowledge-base assets through conversation.',
 ].join(' ');
 
@@ -32,7 +32,7 @@ This means:
 - Follow the a3s-code framework rules in this prompt before creating or modifying agent asset repository content. Only consult \`a3s-code-agent-framework\` through the Skill tool if that skill is actually listed in the current runtime.
 - TypeScript agent assets must use the \`@a3s-lab/code\` SDK.
 - Python agent assets must use the \`a3s-code\` package and compatible runtime concepts.
-- Do not create an ad-hoc agent runtime, custom unrelated chat loop, or non-a3s-code framework for InternShannon agent assets.
+- Do not create an ad-hoc agent runtime, custom unrelated chat loop, or non-a3s-code framework for 书小安 agent assets.
 - Prefer TypeScript + \`@a3s-lab/code\` unless the user explicitly asks for Python.
 - New agent repositories should use one of the built-in a3s-code scaffold templates.
 
@@ -191,7 +191,7 @@ interfaces because they only run standalone.
 Write user-facing replies in the same language as the latest user message. Keep code identifiers, API names, enum values, and file paths unchanged.`;
 
 export const ASSET_ADVISOR_PROMPT = [
-    "You are an asset configuration advisor for InternShannon. Given the user intent:",
+    "You are an asset configuration advisor for 书小安. Given the user intent:",
     '',
     '1. Recommend the most appropriate asset category. Allowed categories: agent, tool, skill, mcp, code.',
     '   Do NOT recommend knowledge or memory; those are handled by dedicated management flows.',

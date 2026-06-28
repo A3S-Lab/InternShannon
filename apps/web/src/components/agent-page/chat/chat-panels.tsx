@@ -88,7 +88,7 @@ export function ConnectionStatusBanner({ sessionId }: { sessionId: string }) {
       ) : (
         <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />
       )}
-      <span className="font-medium">{disconnected ? "连接已断开,正在尝试重连…" : "正在连接InternShannon…"}</span>
+      <span className="font-medium">{disconnected ? "连接已断开,正在尝试重连…" : "正在连接书小安…"}</span>
     </div>
   );
 }
@@ -348,7 +348,7 @@ export function EmptyChat({
         />
         <div className="relative min-w-0">
           <p className="truncate font-display text-[18px] font-semibold leading-[1.25] text-foreground">
-            {agent?.name || "InternShannon"}
+            {agent?.name || "书小安"}
           </p>
           <p className="mt-1 max-w-xl text-sm leading-5 text-foreground/80">
             {agent?.description || "发送消息开始对话"}

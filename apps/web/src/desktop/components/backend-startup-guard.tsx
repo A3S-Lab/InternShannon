@@ -96,7 +96,7 @@ export function BackendStartupGuard(props: { children?: ReactNode }) {
     }
   >({
     phase: "checking",
-    message: "正在等待InternShannon本地 API 启动。",
+    message: "正在等待书小安本地 API 启动。",
     retryToken: 0,
     appVersion: "",
     showDiagnostics: false,
@@ -130,7 +130,7 @@ export function BackendStartupGuard(props: { children?: ReactNode }) {
     const run = async () => {
       ui.showDiagnostics = false;
       ui.phase = "checking";
-      ui.message = "正在等待InternShannon本地 API 启动。";
+      ui.message = "正在等待书小安本地 API 启动。";
       ui.details = undefined;
       ui.healthEndpoint = primaryHealthEndpoint();
       ui.lastProbe = undefined;
@@ -154,7 +154,7 @@ export function BackendStartupGuard(props: { children?: ReactNode }) {
             const readyGateway = health.url || embeddedGateway?.configuredUrl || getGatewayUrl();
             markBackendReady();
             ui.phase = "ready";
-            ui.message = "InternShannon本地后端已经就绪。";
+            ui.message = "书小安本地后端已经就绪。";
             ui.healthUrl = readyGateway;
             ui.healthEndpoint = `${readyGateway}/api/v1/health`;
             ui.lastProbe = health.attempts.at(-1);
@@ -184,7 +184,7 @@ export function BackendStartupGuard(props: { children?: ReactNode }) {
         if (startupError) {
           if (!cancelled) {
             ui.phase = "error";
-            ui.message = "InternShannon本地后端启动失败，依赖 API 的功能暂时不可用。";
+            ui.message = "书小安本地后端启动失败，依赖 API 的功能暂时不可用。";
             ui.healthUrl = health.url;
             ui.details = buildFailureDetails(embeddedGateway, lastHealthError, lastHealthAttempts);
             ui.embeddedGateway = embeddedGateway;
@@ -195,7 +195,7 @@ export function BackendStartupGuard(props: { children?: ReactNode }) {
         if (Date.now() - startedAt >= STARTUP_WAIT_MS) {
           if (!cancelled) {
             ui.phase = "error";
-            ui.message = "InternShannon本地后端启动超时，依赖 API 的功能暂时不可用。";
+            ui.message = "书小安本地后端启动超时，依赖 API 的功能暂时不可用。";
             ui.healthUrl = health.url;
             ui.details = buildFailureDetails(embeddedGateway, lastHealthError, lastHealthAttempts);
             ui.embeddedGateway = embeddedGateway;
@@ -259,7 +259,7 @@ export function BackendStartupGuard(props: { children?: ReactNode }) {
             </div>
             <div className="min-w-0 flex-1">
               <div id={BACKEND_STARTUP_DIALOG_TITLE_ID} className="text-base font-semibold text-slate-950">
-                {isChecking ? "InternShannon正在启动" : "本地 API 暂不可用"}
+                {isChecking ? "书小安正在启动" : "本地 API 暂不可用"}
               </div>
               <output
                 id={BACKEND_STARTUP_DIALOG_DESCRIPTION_ID}

@@ -31,12 +31,12 @@ export function AboutSection() {
 				{/* Logo */}
 				<img
 					src={workspaceAssetPath("logo.png")}
-					alt="InternShannon"
+					alt="书小安"
 					className="mb-3 size-16 rounded-[10px] object-contain shadow-[0_12px_16px_-4px_rgba(36,36,36,0.08)]"
 				/>
 
 				{/* App Name */}
-				<h1 className="text-xl font-bold text-slate-800">InternShannon</h1>
+				<h1 className="text-xl font-bold text-slate-800">书小安</h1>
 
 				{/* Version */}
 				<div className="inline-flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-slate-100 text-slate-600">

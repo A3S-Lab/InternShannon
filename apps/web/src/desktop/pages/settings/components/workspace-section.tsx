@@ -145,7 +145,7 @@ export function WorkspaceSection() {
 
         <SettingsCard
           title="约定式目录结构"
-          description="这些目录会作为InternShannon的约定式工作区组织方式。"
+          description="这些目录会作为书小安的约定式工作区组织方式。"
           icon={FolderOpen}
           accentColor="slate"
         >

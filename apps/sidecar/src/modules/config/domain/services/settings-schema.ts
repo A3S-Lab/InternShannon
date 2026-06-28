@@ -550,7 +550,7 @@ const EXAMPLE_PLUGIN_HTML = `<!doctype html>
 
 export const DEFAULT_SETTINGS: AppSettings = {
     platform: {
-        appName: 'InternShannon',
+        appName: '书小安',
         logoUrl: '',
         language: 'zh-CN',
         publicBaseUrl: '',
@@ -611,7 +611,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
         imagePullPolicy: 'IfNotPresent',
     },
     general: {
-        appName: 'InternShannon',
+        appName: '书小安',
         language: 'zh-CN',
         splashScreen: true,
         restoreWorkspace: true,

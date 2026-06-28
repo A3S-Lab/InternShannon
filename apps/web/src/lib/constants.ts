@@ -142,8 +142,8 @@ const gatewayUrl =
 
 const appName =
   typeof process !== "undefined"
-    ? process.env.PUBLIC_DESKTOP_APP_NAME || "InternShannon"
-    : import.meta.env?.PUBLIC_DESKTOP_APP_NAME || "InternShannon";
+    ? process.env.PUBLIC_DESKTOP_APP_NAME || "书小安"
+    : import.meta.env?.PUBLIC_DESKTOP_APP_NAME || "书小安";
 
 const runtimeMode =
   typeof process !== "undefined"

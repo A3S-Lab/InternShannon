@@ -9,11 +9,11 @@ export const CORE_AGENT_SKILLS: CoreAgentSkill[] = [
   {
     name: PROGRESSIVE_API_SKILL_NAME,
     description:
-      "Discover and use InternShannon local APIs: list modules, search operations, describe schemas, then execute authorized operations.",
+      "Discover and use 书小安 local APIs: list modules, search operations, describe schemas, then execute authorized operations.",
   },
   {
     name: "a3s-code-agent-framework",
-    description: "Build InternShannon agent assets with the a3s-code framework and @a3s-lab/code SDK.",
+    description: "Build 书小安 agent assets with the a3s-code framework and @a3s-lab/code SDK.",
   },
   {
     name: "mermaid",

@@ -85,7 +85,7 @@ test("clears a non-empty search query after creating a session", () => {
 test("describes an empty session list with a create affordance", () => {
   assert.deepEqual(resolveSessionSidebarEmptyState({ totalSessions: 0, query: "" }), {
     title: "暂无会话",
-    description: "新建一段会话后，InternShannon会在这里保留最近的上下文。",
+    description: "新建一段会话后，书小安会在这里保留最近的上下文。",
     showClearSearch: false,
     clearSearchLabel: "清空搜索",
     createLabel: "新会话",
@@ -261,7 +261,7 @@ test("previews malformed legacy chat messages without throwing", () => {
       role: "assistant",
       content: [{ type: "text", text: "legacy answer from content array" }],
     }),
-    "InternShannon: legacy answer from content array",
+    "书小安: legacy answer from content array",
   );
 
   assert.equal(
@@ -277,7 +277,7 @@ test("previews malformed legacy chat messages without throwing", () => {
       role: "assistant",
       contentBlocks: [{ type: "tool_result", isError: true }],
     }),
-    "InternShannon: 工具执行失败",
+    "书小安: 工具执行失败",
   );
 });
 
@@ -287,7 +287,7 @@ test("previews legacy chat text blocks that lost their type before InternShannon
       role: "assistant",
       content: [{ text: "legacy block without type" }],
     }),
-    "InternShannon: legacy block without type",
+    "书小安: legacy block without type",
   );
 
   assert.equal(
@@ -323,7 +323,7 @@ test("uses a new-session prompt when no sidebar preview can be rendered", () => 
       { role: "assistant", content: [{ type: "thinking", text: "internal notes" }] },
       { role: "assistant", content: [{ type: "text", text: "visible answer" }] },
     ]),
-    "InternShannon: visible answer",
+    "书小安: visible answer",
   );
   assert.equal(
     resolveSessionSidebarPreview([

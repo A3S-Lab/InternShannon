@@ -67,6 +67,14 @@ export type {
 
 export { SEARCH_ENGINES };
 
+function normalizeDisplayAppName(value?: string | null): string {
+  const candidate = value?.trim() || "";
+  if (!candidate) return "";
+  return /^(?:internShannon|shu\s*xiao\s*an|shuxiaoan|xiaoan|书小安)(?:\s*OS)?$/i.test(candidate)
+    ? "书小安"
+    : candidate;
+}
+
 /** Headless browser backend */
 export type BrowserBackend = "chrome" | "lightpanda";
 
@@ -221,7 +229,7 @@ const DEFAULT_SENSITIVE_TOOLS = [
 ];
 
 const DEFAULTS: SettingsState = {
-  appName: "InternShannon",
+  appName: "书小安",
   defaultProvider: "",
   defaultModel: "",
   providers: [],
@@ -691,7 +699,7 @@ async function seedFromBackend(options?: { retries?: number; retryDelayMs?: numb
       // Apply general settings (workspacePath, appName)
       if (appSettings.general) {
         if (appSettings.general.appName) {
-          state.appName = appSettings.general.appName;
+          state.appName = normalizeDisplayAppName(appSettings.general.appName);
         }
         if (appSettings.general.workspacePath) {
           state.agentDefaults.workspaceRoot = appSettings.general.workspacePath;

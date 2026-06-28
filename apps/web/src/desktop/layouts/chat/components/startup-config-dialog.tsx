@@ -317,7 +317,7 @@ export function StartupConfigDialog() {
             }
           >
             {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-            开始使用InternShannon
+            开始使用书小安
           </Button>
         </DialogFooter>
       </DialogContent>

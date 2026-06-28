@@ -73,7 +73,7 @@ function LoadingFallback() {
     <div className="flex h-full items-center justify-center bg-[#f7f9fc]">
       <div className="flex items-center gap-2 rounded-full border border-border-light bg-white px-3 py-2 text-xs text-muted-foreground shadow-sm">
         <Loader2 className="size-4 animate-spin text-primary" />
-        正在恢复InternShannon会话
+        正在恢复书小安会话
       </div>
     </div>
   );
@@ -91,7 +91,7 @@ function EmptyAgentWorkspace(props: {
         <div className="flex size-12 items-center justify-center rounded-[14px] border border-primary/10 bg-primary/[0.08] text-primary">
           <MessageCirclePlus className="size-6" />
         </div>
-        <h1 className="mt-4 text-lg font-semibold text-foreground">开始一段InternShannon会话</h1>
+        <h1 className="mt-4 text-lg font-semibold text-foreground">开始一段书小安会话</h1>
         <p className="mt-2 max-w-[420px] text-sm leading-6 text-muted-foreground">
           新会话会连接本地 sidecar，并使用当前工作区与默认智能体配置。
         </p>
@@ -129,7 +129,7 @@ function BootstrapErrorWorkspace(props: {
         </div>
         <h1 className="mt-4 text-lg font-semibold text-foreground">会话恢复失败</h1>
         <p className="mt-2 max-w-[440px] text-sm leading-6 text-muted-foreground">
-          未能从本地 sidecar 加载InternShannon会话。可以重试恢复，或检查当前工作区与智能体配置。
+          未能从本地 sidecar 加载书小安会话。可以重试恢复，或检查当前工作区与智能体配置。
         </p>
         <p className="mt-3 max-w-[440px] rounded-[8px] border border-red-500/10 bg-red-500/[0.04] px-3 py-2 text-xs leading-5 text-red-700">
           {props.error}
@@ -273,7 +273,7 @@ export default function AgentPage() {
     ? sessionNames[activeSession.sessionId] || activeSession.name || defaultSessionTitle(activeSession.sessionId)
     : isRestoringSessions
       ? "正在恢复"
-      : "InternShannon";
+      : "书小安";
 
   useEffect(() => {
     if (!ready) return;
@@ -366,8 +366,8 @@ export default function AgentPage() {
         <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-white">
           <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
             <SheetContent side="left" className="w-[min(320px,calc(100vw-44px))] max-w-none p-0 [&>button]:right-12">
-              <SheetTitle className="sr-only">InternShannon会话列表</SheetTitle>
-              <SheetDescription className="sr-only">查看、切换和管理InternShannon会话。</SheetDescription>
+              <SheetTitle className="sr-only">书小安会话列表</SheetTitle>
+              <SheetDescription className="sr-only">查看、切换和管理书小安会话。</SheetDescription>
               <Suspense fallback={<LoadingFallback />}>
                 <AgentSessionSidebar
                   currentSessionId={activeSessionId}

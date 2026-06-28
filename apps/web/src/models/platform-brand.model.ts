@@ -2,8 +2,10 @@ import { configApi, type PlatformSettings, type SystemInfo } from "@/lib/api/con
 import constants from "@/lib/constants";
 import { proxy } from "valtio";
 
+const DEFAULT_DISPLAY_APP_NAME = "书小安";
 const fallbackName =
-  (typeof document !== "undefined" ? document.title.trim() : "") || constants.name?.trim() || "InternShannon";
+  normalizeDisplayAppName((typeof document !== "undefined" ? document.title.trim() : "") || constants.name?.trim()) ||
+  DEFAULT_DISPLAY_APP_NAME;
 const fallbackLogoUrl = "/logo.png";
 const BRAND_CACHE_KEY = "platform-brand:v1";
 
@@ -31,6 +33,14 @@ function normalizeText(value?: string | null) {
   return value?.trim() || "";
 }
 
+function normalizeDisplayAppName(value?: string | null) {
+  const candidate = normalizeText(value);
+  if (!candidate) return "";
+  return /^(?:internShannon|shu\s*xiao\s*an|shuxiaoan|xiaoan|书小安)(?:\s*OS)?$/i.test(candidate)
+    ? DEFAULT_DISPLAY_APP_NAME
+    : candidate;
+}
+
 function normalizeLogoUrl(value?: string | null) {
   const logoUrl = normalizeText(value);
   if (!logoUrl) return "";
@@ -47,7 +57,7 @@ function readCachedBrand(): Pick<SystemInfo, "appName" | "logoUrl"> {
     if (!raw) return { appName: "", logoUrl: "" };
     const parsed = JSON.parse(raw) as Partial<SystemInfo>;
     return {
-      appName: normalizeText(parsed.appName),
+      appName: normalizeDisplayAppName(parsed.appName),
       logoUrl: normalizeLogoUrl(parsed.logoUrl),
     };
   } catch {
@@ -65,7 +75,7 @@ function writeCachedBrand(input: Pick<SystemInfo, "appName" | "logoUrl">) {
 }
 
 function applyBrand(input: Pick<SystemInfo, "appName" | "logoUrl"> & Partial<Pick<SystemInfo, "version">>) {
-  const appName = normalizeText(input.appName);
+  const appName = normalizeDisplayAppName(input.appName);
   const logoUrl = normalizeLogoUrl(input.logoUrl);
 
   state.appName = appName || fallbackName;
@@ -100,7 +110,7 @@ async function seedFromBackend(): Promise<boolean> {
 }
 
 function effectiveName(fallback = fallbackName) {
-  return normalizeText(state.appName) || fallback;
+  return normalizeDisplayAppName(state.appName) || fallback;
 }
 
 function effectiveLogoUrl(fallback = fallbackLogoUrl) {

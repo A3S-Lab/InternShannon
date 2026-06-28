@@ -72,7 +72,7 @@ export function SidebarLayout<T extends string>({
   current,
   onChange,
   badge,
-  footer = "InternShannon · a3s-code v0.9.0",
+  footer = "书小安 · a3s-code v0.9.0",
   hideFooter = false,
   contentMaxWidth = "max-w-3xl",
   contentClassName,

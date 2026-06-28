@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="./logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>InternShannon</title>
+    <title>书小安</title>
     <style>
       #internshannon-bootstrap {
         position: fixed;
@@ -187,7 +187,7 @@
         window.__internshannonBoot = {
           setStage(stage, message) {
             boot.stage = stage;
-            render("InternShannon 正在启动", message || "前端资源与本地运行时正在初始化。");
+            render("书小安正在启动", message || "前端资源与本地运行时正在初始化。");
           },
           markRootMounted() {
             boot.rootMounted = true;
@@ -195,7 +195,7 @@
           fail(stage, reason) {
             boot.stage = stage || boot.stage;
             render(
-              "InternShannon 启动失败",
+              "书小安启动失败",
               "界面没有成功完成初始化。下面是浏览器侧捕获到的首个错误。",
               `stage=${boot.stage}\n${formatReason(reason)}`,
             );
@@ -263,7 +263,7 @@
 
         window.addEventListener("DOMContentLoaded", () => {
           render(
-            "InternShannon 正在启动",
+            "书小安正在启动",
             "HTML 已加载，正在等待前端脚本执行。",
           );
         });
@@ -287,7 +287,7 @@
     <div id="internshannon-bootstrap">
       <div class="panel">
         <div class="logo">书</div>
-        <h1 id="internshannon-bootstrap-title" class="title">InternShannon 正在启动</h1>
+        <h1 id="internshannon-bootstrap-title" class="title">书小安正在启动</h1>
         <div id="internshannon-bootstrap-message" class="message">正在加载页面模板。</div>
         <div class="spinner"></div>
         <pre id="internshannon-bootstrap-details" class="details" style="display: none"></pre>
