@@ -1,6 +1,6 @@
 /**
  * FileTreeEditor — resizable file-tree + multi-format editor.
- * Used by SkillsPage (text-only) and KnowledgePage (all formats).
+ * Used by KnowledgePage for local knowledge-base file management.
  */
 import "@/desktop/lib/monaco-env";
 import CodeEditor from "@/desktop/components/code-editor/CodeEditor";

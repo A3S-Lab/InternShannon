@@ -5,7 +5,7 @@ import NotFoundError from "@/desktop/pages/errors/not-found-error";
 import RouteErrorPage from "@/desktop/pages/errors/route-error";
 import UnauthorisedError from "@/desktop/pages/errors/unauthorised-error";
 import { Loader2 } from "lucide-react";
-import { createHashRouter } from "react-router-dom";
+import { createHashRouter, Navigate } from "react-router-dom";
 
 function RouteHydrateFallback() {
   return (
@@ -45,15 +45,11 @@ const router = createHashRouter([
       },
       {
         path: "skills",
-        lazy: async () => ({
-          Component: (await import("./pages/agent/SkillsPage")).default,
-        }),
+        element: <Navigate to="/knowledge" replace />,
       },
       {
         path: "agent/:agentId/config",
-        lazy: async () => ({
-          Component: (await import("./pages/agent/SkillsPage")).default,
-        }),
+        element: <Navigate to="/knowledge" replace />,
       },
     ],
   },
