@@ -65,12 +65,6 @@ export class LlmSettings {
     maxConsecutiveToolErrors?: number;
     /** Auto-retry budget for the "model thinking" stall (event_stream_stalled with activeTools=0 and !outputStarted); 0 disables retry. */
     maxStreamRetries?: number;
-    clawSentry?: {
-        enabled?: boolean;
-        mode?: string;
-        failClosed?: boolean;
-        permissionPolicy?: string;
-    };
 }
 
 /**
@@ -672,11 +666,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
         streamStallActiveToolHardMs: undefined,
         maxConsecutiveToolErrors: undefined,
         maxStreamRetries: undefined,
-        clawSentry: {
-            mode: 'managed-gateway',
-            failClosed: true,
-            permissionPolicy: 'allow',
-        },
     },
     ocr: createDefaultOcrSettings(),
     search: {

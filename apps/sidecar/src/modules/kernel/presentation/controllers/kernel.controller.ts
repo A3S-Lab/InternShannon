@@ -276,7 +276,6 @@ export class KernelController {
             temperature: dto.temperature,
             thinkingBudget: dto.thinkingBudget,
             searchConfig: dto.searchConfig,
-            clawSentry: dto.clawSentry,
             workerAgents: dto.workerAgents,
             inlineSkills: dto.inlineSkills,
             autoDelegation: dto.autoDelegation,

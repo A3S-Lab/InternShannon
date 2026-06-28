@@ -242,11 +242,6 @@ export class LlmSettingsRequestDto {
     @IsNumber()
     maxStreamRetries?: number;
 
-    @ApiPropertyOptional({ type: Object })
-    @IsOptional()
-    @IsObject()
-    clawSentry?: Record<string, unknown>;
-
     // a3s-code runtime / OCR 设置对齐时由运行时写入 config/app/llm,DTO 必须声明,否则
     // GET 回来的整份配置带着它们 PUT 回去会被 forbidNonWhitelisted 打回(连切默认模型都存不了)。
     @ApiPropertyOptional({ type: Object, isArray: true })

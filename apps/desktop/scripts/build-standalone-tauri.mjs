@@ -240,81 +240,6 @@ function resetSourceNodeRuntime() {
     run(process.execPath, ['scripts/stage-node-runtime.mjs', '--clean']);
 }
 
-function findPythonRuntimeExecutable(rootDir) {
-    const candidates = [
-        path.join(rootDir, 'bin', 'python3'),
-        path.join(rootDir, 'bin', 'python'),
-        path.join(rootDir, 'install', 'bin', 'python3'),
-        path.join(rootDir, 'install', 'bin', 'python'),
-        path.join(rootDir, 'python.exe'),
-        path.join(rootDir, 'install', 'python.exe'),
-    ];
-    return candidates.find(candidate => fs.existsSync(candidate));
-}
-
-function findClawSentryLauncher(rootDir) {
-    const candidates = [
-        path.join(rootDir, 'bin', 'clawsentry'),
-        path.join(rootDir, 'bin', 'clawsentry.cmd'),
-        path.join(rootDir, 'bin', 'clawsentry.exe'),
-    ];
-    return candidates.find(candidate => fs.existsSync(candidate));
-}
-
-function hasClawSentryRuntime() {
-    const resourcesDir = path.join(DESKTOP_DIR, 'src-tauri', 'resources');
-    const pythonDir = path.join(resourcesDir, 'python');
-    const clawsentryDir = path.join(resourcesDir, 'clawsentry');
-    return (
-        Boolean(findPythonRuntimeExecutable(pythonDir)) &&
-        Boolean(findClawSentryLauncher(clawsentryDir)) &&
-        fs.existsSync(path.join(clawsentryDir, 'entrypoints', 'clawsentry.py')) &&
-        fs.existsSync(path.join(clawsentryDir, 'site-packages'))
-    );
-}
-
-function findCachedPythonRuntime() {
-    const cacheRoot = path.join(DESKTOP_DIR, '.cache', 'python-runtime');
-    const queue = [cacheRoot];
-    const matches = [];
-    while (queue.length > 0) {
-        const current = queue.shift();
-        let entries = [];
-        try {
-            entries = fs.readdirSync(current, { withFileTypes: true });
-        } catch {
-            continue;
-        }
-        for (const entry of entries) {
-            const entryPath = path.join(current, entry.name);
-            if (!entry.isDirectory()) continue;
-            if (findPythonRuntimeExecutable(entryPath)) {
-                matches.push(entryPath);
-                continue;
-            }
-            queue.push(entryPath);
-        }
-    }
-    return matches.sort().at(-1);
-}
-
-function stageClawSentryRuntimeIfNeeded() {
-    if (hasClawSentryRuntime()) return;
-
-    const args = ['scripts/stage-clawsentry-runtime.mjs'];
-    const bundledPython = findPythonRuntimeExecutable(path.join(DESKTOP_DIR, 'src-tauri', 'resources', 'python'));
-    if (!bundledPython || !fs.existsSync(bundledPython)) {
-        const runtimeDir = findCachedPythonRuntime();
-        if (!runtimeDir) {
-            throw new Error(
-                'ClawSentry runtime is missing and no cached Python runtime was found under apps/desktop/.cache/python-runtime.',
-            );
-        }
-        args.push('--python-runtime-dir', path.relative(DESKTOP_DIR, runtimeDir));
-    }
-    run(process.execPath, args);
-}
-
 function resetSourceSidecarToDistOnly() {
     if (!fs.existsSync(API_ENTRYPOINT)) {
         console.warn(
@@ -456,7 +381,6 @@ function main() {
         shouldResetSourceSidecar = true;
         shouldResetSourceNodeRuntime = true;
         stageNodeRuntime(tauriArgs, options);
-        stageClawSentryRuntimeIfNeeded();
         run(commandForLocalBin('tauri'), [...baseTauriArgs, ...tauriArgs], {
             env: { INTERNSHANNON_SIDECAR_STAGE_MODE: 'standalone' },
         });

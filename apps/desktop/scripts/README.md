@@ -7,8 +7,6 @@ Core skill sync utilities live here.
   or stage a standalone runtime with `--standalone`
 - `stage-node-runtime.mjs`: download, checksum, cache, and stage an official
   Node.js runtime into `src-tauri/resources/node`
-- `stage-clawsentry-runtime.mjs`: stage a bundled Python runtime and install
-  ClawSentry into `src-tauri/resources/clawsentry`
 - `build-standalone-tauri.mjs`: build a standalone verification `.app` or release
   bundle, validate the bundled sidecar, then reset source resources back to
   dist-only and clear staged Node runtime files
@@ -56,21 +54,12 @@ Core skill sync utilities live here.
   `INTERNSHANNON_NODE_VERSION`, `INTERNSHANNON_NODE_PLATFORM`, or
   `INTERNSHANNON_NODE_ARCH` to pin or cross-stage a specific runtime.
 
-`stage-clawsentry-runtime.mjs`
-- Stages a relocatable Python runtime into `src-tauri/resources/python`, installs
-  `clawsentry` into `src-tauri/resources/clawsentry/site-packages`, and generates
-  the `clawsentry/bin/clawsentry` launcher used by the desktop sidecar.
-- Use `--python-runtime-dir <dir>` for a previously downloaded
-  python-build-standalone `python/` directory. Use `--skip-install` to regenerate
-  launchers from existing site-packages without downloading packages again.
-- Offline package builds can pass `--no-index --find-links <wheelhouse>`.
-
 `verify-sidecar-resources.mjs`
 - Checks that a built `.app` Resources directory contains the sidecar entrypoint
   and required compiled API files.
 - Use `--require-standalone` for release validation that must include resolvable
-  external Node.js dependencies, a bundled Node.js runtime, bundled ClawSentry
-  resources, and portable sidecar resources.
+  external Node.js dependencies, a bundled Node.js runtime, and portable sidecar
+  resources.
 
 `smoke-standalone-sidecar.mjs`
 - Copies the target Resources/sidecar directory into `/tmp`, starts `main.js`

@@ -98,7 +98,6 @@ export interface KernelRuntimeModelsConfig {
     /** Auto-retry budget for the "model thinking" stall; 0 disables retry. */
     maxStreamRetries?: number | null;
     search?: KernelRuntimeSearchConfig | null;
-    clawSentry?: KernelRuntimeClawSentryConfig | null;
 }
 
 export interface KernelRuntimeSearchConfig {
@@ -107,16 +106,6 @@ export interface KernelRuntimeSearchConfig {
     safesearch?: 'off' | 'moderate' | 'strict';
     timeout?: number | null;
     limit?: number | null;
-}
-
-export interface KernelRuntimeClawSentryConfig {
-    enabled?: boolean;
-    mode?: 'managed-gateway' | 'external-gateway' | string;
-    failClosed?: boolean;
-    permissionPolicy?: 'allow' | 'default' | string;
-    ignoreSkillToolRestrictions?: boolean;
-    gatewayUrl?: string;
-    token?: string;
 }
 
 export interface IKernelRuntimeConfigService {

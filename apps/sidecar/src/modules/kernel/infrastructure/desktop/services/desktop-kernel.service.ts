@@ -212,7 +212,6 @@ export class DesktopKernelService implements IKernelService {
             'maxParallelTasks',
             'artifactStoreLimits',
             'searchConfig',
-            'clawSentry',
             'purpose',
             'visibility',
             'ownerType',

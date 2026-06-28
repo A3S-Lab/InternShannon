@@ -40,9 +40,7 @@
     ],
     "resources": {
       "resources/sidecar/": "",
-      "resources/node/": "node/",
-      "resources/python/": "python/",
-      "resources/clawsentry/": "clawsentry/"
+      "resources/node/": "node/"
     }
   },
   "plugins": {

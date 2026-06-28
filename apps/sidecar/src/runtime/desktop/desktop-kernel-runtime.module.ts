@@ -11,7 +11,6 @@ import { AgentRegistry, AssetAgent, DefaultAgent, DevOpsAgent, OrchestrationAgen
 import { LockedAgentSessionStore } from '@/modules/kernel/application/agents/locked-agent-session.store';
 import { ApiOperationExecutor } from '@/modules/kernel/application/api-operation-executor.service';
 import { CapabilitiesToolService } from '@/modules/kernel/application/capabilities-tool.service';
-import { ClawSentrySupervisorService } from '@/modules/kernel/application/clawsentry-supervisor.service';
 import { CreateSessionHandler } from '@/modules/kernel/application/commands/create-session';
 import { EndSessionHandler } from '@/modules/kernel/application/commands/end-session';
 import { KernelBtwQueryService } from '@/modules/kernel/application/kernel-btw-query.service';
@@ -51,7 +50,6 @@ import { DesktopKernelRuntimeConfigService } from '@/modules/kernel/infrastructu
 import { DesktopOpenKernelController } from '@/modules/kernel/presentation/controllers/desktop-open-kernel.controller';
 import { KernelController } from '@/modules/kernel/presentation/controllers/kernel.controller';
 import { KernelRuntimeAdminController } from '@/modules/kernel/presentation/controllers/kernel-runtime-admin.controller';
-import { KernelSecurityController } from '@/modules/kernel/presentation/controllers/kernel-security.controller';
 import { KernelSessionRuntimeController } from '@/modules/kernel/presentation/controllers/kernel-session-runtime.controller';
 import { KernelSessionRuntimeInspectionController } from '@/modules/kernel/presentation/controllers/kernel-session-runtime-inspection.controller';
 import { KernelSessionWorkspaceController } from '@/modules/kernel/presentation/controllers/kernel-session-workspace.controller';
@@ -79,7 +77,6 @@ const QueryHandlers = [GetSessionHandler, ListSessionsHandler, CountSessionsHand
         KernelSessionRuntimeController,
         KernelSessionRuntimeInspectionController,
         KernelRuntimeAdminController,
-        KernelSecurityController,
         WorkspaceController,
         DesktopOpenKernelController,
     ],
@@ -139,7 +136,6 @@ const QueryHandlers = [GetSessionHandler, ListSessionsHandler, CountSessionsHand
         KernelSessionConnectionService,
         KernelSessionRuntimeAccessService,
         KernelSessionRuntimeFactory,
-        ClawSentrySupervisorService,
         KernelSessionRuntimeStateService,
         KernelSessionSnapshotService,
         KernelSessionStatusService,
@@ -171,7 +167,6 @@ const QueryHandlers = [GetSessionHandler, ListSessionsHandler, CountSessionsHand
         KernelSessionStatusService,
         KernelSessionRuntimeAccessService,
         KernelSessionRuntimeStateService,
-        ClawSentrySupervisorService,
         SessionWorkspaceFileUploadService,
         WorkspaceGitService,
     ],

@@ -46,15 +46,6 @@ export interface ModelsConfig {
   maxConsecutiveToolErrors?: number | null;
   maxStreamRetries?: number | null;
   mcpServers: unknown[];
-  clawSentry?: {
-    enabled?: boolean;
-    mode?: string;
-    failClosed?: boolean;
-    permissionPolicy?: string;
-    ignoreSkillToolRestrictions?: boolean;
-    gatewayUrl?: string;
-    token?: string;
-  } | null;
 }
 
 @Injectable()
@@ -93,7 +84,6 @@ export class AppConfigService {
     maxConsecutiveToolErrors?: number | null;
     maxStreamRetries?: number | null;
     mcpServers?: unknown[];
-    clawSentry?: ModelsConfig['clawSentry'];
   }): Promise<void> {
     const current = await this.getModelsConfig();
     const updated: ModelsConfig = {
@@ -114,7 +104,6 @@ export class AppConfigService {
       maxConsecutiveToolErrors: patch.maxConsecutiveToolErrors ?? current?.maxConsecutiveToolErrors ?? null,
       maxStreamRetries: patch.maxStreamRetries ?? current?.maxStreamRetries ?? null,
       mcpServers: patch.mcpServers ?? current?.mcpServers ?? [],
-      clawSentry: patch.clawSentry ?? current?.clawSentry ?? null,
     };
     await this.setModelsConfig(updated);
   }

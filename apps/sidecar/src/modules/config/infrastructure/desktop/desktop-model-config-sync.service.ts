@@ -29,7 +29,6 @@ export class DesktopModelConfigSyncService implements IDesktopModelConfigSync {
             maxConsecutiveToolErrors: settings.llm.maxConsecutiveToolErrors ?? null,
             maxStreamRetries: settings.llm.maxStreamRetries ?? null,
             mcpServers: settings.llm.mcpServers || [],
-            clawSentry: settings.llm.clawSentry ?? null,
         });
     }
 }

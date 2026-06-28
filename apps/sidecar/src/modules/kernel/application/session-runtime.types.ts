@@ -5,7 +5,6 @@ import type { Session } from '@a3s-lab/code';
 export type {
     RuntimeArtifactStoreLimits,
     RuntimeAutoDelegationOptions,
-    RuntimeClawSentryConfig,
     RuntimeMcpServerConfig,
     RuntimeRetentionLimits,
     RuntimeSearchConfig,

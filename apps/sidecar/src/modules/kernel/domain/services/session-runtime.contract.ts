@@ -67,22 +67,6 @@ export interface RuntimeRetentionLimits {
     maxTerminalSubagentTasks?: number;
 }
 
-export interface RuntimeClawSentryConfig {
-    enabled?: boolean;
-    mode?: 'managed-gateway' | 'external-gateway' | string;
-    failClosed?: boolean;
-    permissionPolicy?: 'allow' | 'default' | string;
-    /**
-     * Desktop default-mode safety is delegated to ClawSentry/AHP. When true,
-     * file-based skills are loaded from a temporary copy whose `allowed-tools`
-     * grant is widened to `*`, so active skills cannot preempt the normal
-     * permission/AHP/HITL pipeline.
-     */
-    ignoreSkillToolRestrictions?: boolean;
-    gatewayUrl?: string;
-    token?: string;
-}
-
 export interface SessionRuntimeOverrides {
     model?: string;
     /**
@@ -229,10 +213,4 @@ export interface SessionRuntimeOverrides {
      * fields keep a3s-code's unbounded default.
      */
     retentionLimits?: RuntimeRetentionLimits;
-    /**
-     * Desktop security gateway runtime configuration. `token` and
-     * `gatewayUrl` are internal-only connection hints; public status endpoints
-     * must redact them.
-     */
-    clawSentry?: RuntimeClawSentryConfig;
 }

@@ -7,24 +7,19 @@ import {
     type SessionOptions,
 } from '@a3s-lab/code';
 import { Inject, Injectable, Logger, type OnModuleInit, Optional } from '@nestjs/common';
-import { existsSync, promises as fs } from 'fs';
+import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { isDesktop } from '@/shared/constants';
 import { MetricsService } from '@/shared/observability/metrics';
 import { IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
 import { AgentRegistry } from './agents/agent-registry';
-import { ClawSentrySupervisorService } from './clawsentry-supervisor.service';
 import { classifyWebSearchReadiness, verifyBrowserBinary } from './kernel-browser-binary-check';
 import {
-    isReadOnlyToolName,
     permissionPolicyForMode,
     planningModeForRuntime,
     planReadonlyToolBlockReason,
-    toolNameFromHookEvent,
 } from './kernel-session-policies';
 import { KernelSessionRuntimeStateService } from './kernel-session-runtime-state.service';
-import { safeRuntimePathSegment } from './kernel-tool-confirmation.helpers';
 import {
     type ActiveSession,
     DEFAULT_MAX_EXECUTION_TIME_MS,
@@ -44,19 +39,6 @@ export interface KernelSessionRuntimeFactoryInput {
     emit: (message: unknown) => void;
 }
 
-interface ResolvedClawSentryRuntime {
-    enabled: boolean;
-    failClosed: boolean;
-    allowPermissionPolicy: boolean;
-    connection?: {
-        ahpUrl: string;
-        authToken: string;
-    };
-}
-
-const CLAWSENTRY_FAIL_CLOSED_BLOCK_REASON =
-    'ClawSentry 安全网关不可用，fail-closed 已阻断该工具调用。请等待安全网关恢复后重试。';
-
 @Injectable()
 export class KernelSessionRuntimeFactory implements OnModuleInit {
     private readonly logger = new Logger(KernelSessionRuntimeFactory.name);
@@ -69,8 +51,6 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         private readonly agentRegistry: AgentRegistry,
         @Optional()
         private readonly metrics?: MetricsService,
-        @Optional()
-        private readonly clawSentry?: ClawSentrySupervisorService,
     ) {}
 
     async onModuleInit(): Promise<void> {
@@ -158,7 +138,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
             this.resolveRuntimeWorkspace(sessionId, input.cwd || kernelSession.cwd),
             this.createAgent(agentConfig),
         ]);
-        const runtimeSkillDirs = await this.desktopSkillDirsForRuntime(sessionId, finalOverrides, workspace);
+        const runtimeSkillDirs = finalOverrides.skillDirs;
         const nativeConfirmationEnabled =
             finalOverrides.permissionMode !== 'auto' && finalOverrides.permissionMode !== 'plan';
 
@@ -170,23 +150,13 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
 
         const resolvedModel = runtimeConfig.resolveDefaultModel(finalOverrides);
         const modelApiKeyMissing = runtimeConfig.resolvedModelApiKeyMissing(resolvedModel);
-        const clawSentryRuntime = await this.resolveClawSentryRuntime(finalOverrides);
         const basePermissionPolicy = permissionPolicyForMode(finalOverrides.permissionMode, nativeConfirmationEnabled);
 
         const sessionOptions: SessionOptions = {
             sessionId,
             model: resolvedModel,
             ...localRuntimeStores,
-            permissionPolicy: clawSentryRuntime.allowPermissionPolicy
-                ? { defaultDecision: 'allow' }
-                : basePermissionPolicy,
-            ahpTransport: clawSentryRuntime.connection
-                ? {
-                      kind: 'http',
-                      url: clawSentryRuntime.connection.ahpUrl,
-                      authToken: clawSentryRuntime.connection.authToken,
-                  }
-                : undefined,
+            permissionPolicy: basePermissionPolicy,
             confirmationPolicy: nativeConfirmationEnabled
                 ? { enabled: true, defaultTimeoutMs: 60_000, timeoutAction: 'reject' }
                 : undefined,
@@ -245,9 +215,6 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         };
 
         const session = this.createOrResumeSdkSession(agent, workspace, sessionId, sessionOptions);
-        if (clawSentryRuntime.enabled && clawSentryRuntime.failClosed) {
-            this.registerClawSentryHealthGuard(session);
-        }
         const allMcpServers = [...(finalOverrides.mcpServers ?? []), ...profileMcpServers];
         const mcpInitErrors = await this.applyMcpServers(session, allMcpServers);
 
@@ -315,48 +282,6 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         return Math.floor(value);
     }
 
-    private async resolveClawSentryRuntime(overrides: SessionRuntimeOverrides): Promise<ResolvedClawSentryRuntime> {
-        const enabled = this.shouldEnableClawSentry(overrides);
-        const failClosed = overrides.clawSentry?.failClosed !== false;
-        if (!enabled) {
-            return { enabled: false, failClosed, allowPermissionPolicy: false };
-        }
-        if (!this.clawSentry) {
-            if (failClosed) {
-                throw new Error('ClawSentry security gateway is enabled, but no supervisor is registered.');
-            }
-            return { enabled: true, failClosed, allowPermissionPolicy: false };
-        }
-
-        const status = await this.clawSentry.ensureReady(overrides.clawSentry);
-        const connection = this.clawSentry.internalConnection();
-        if (status.state !== 'healthy' || !connection) {
-            const reason = status.lastError || 'gateway is not healthy';
-            if (status.failClosed) {
-                throw new Error(
-                    `ClawSentry security gateway is not healthy; fail-closed blocks session creation: ${reason}`,
-                );
-            }
-            return { enabled: true, failClosed: status.failClosed, allowPermissionPolicy: false };
-        }
-
-        return {
-            enabled: true,
-            failClosed: status.failClosed,
-            allowPermissionPolicy: status.permissionPolicy === 'allow',
-            connection,
-        };
-    }
-
-    private shouldEnableClawSentry(overrides: SessionRuntimeOverrides): boolean {
-        if (!isDesktop() || overrides.permissionMode === 'plan') return false;
-        if (overrides.clawSentry?.enabled === false) return false;
-        if (overrides.clawSentry?.enabled === true) return true;
-        if (process.env.CLAWSENTRY_ENABLED === 'true') return true;
-        if (process.env.CLAWSENTRY_ENABLED === 'false') return false;
-        return false;
-    }
-
     private async createAgent(agentConfig: string): Promise<Agent> {
         try {
             const agent = await Agent.create(agentConfig);
@@ -370,102 +295,6 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
 
     private effectiveRuntimeOverrides(overrides: SessionRuntimeOverrides): SessionRuntimeOverrides {
         return overrides;
-    }
-
-    private async desktopSkillDirsForRuntime(
-        sessionId: string,
-        overrides: SessionRuntimeOverrides,
-        workspace: string,
-    ): Promise<string[] | undefined> {
-        if (!this.shouldIgnoreSkillToolRestrictions(overrides)) return overrides.skillDirs;
-        return this.desktopUnrestrictedSkillDirs(sessionId, overrides.skillDirs, workspace);
-    }
-
-    private shouldIgnoreSkillToolRestrictions(overrides: SessionRuntimeOverrides): boolean {
-        if (!isDesktop()) return false;
-        if (overrides.clawSentry?.ignoreSkillToolRestrictions !== undefined) {
-            return overrides.clawSentry.ignoreSkillToolRestrictions;
-        }
-        return overrides.clawSentry?.enabled !== false;
-    }
-
-    private async desktopUnrestrictedSkillDirs(
-        sessionId: string,
-        skillDirs: string[] | undefined,
-        workspace: string,
-    ): Promise<string[] | undefined> {
-        if (!skillDirs?.length) return skillDirs;
-        const unrestrictedRoot = path.join(
-            os.tmpdir(),
-            'a3s-runtime-unrestricted-skilldirs',
-            safeRuntimePathSegment(sessionId),
-        );
-        await fs.rm(unrestrictedRoot, { recursive: true, force: true });
-        await fs.mkdir(unrestrictedRoot, { recursive: true });
-
-        const copiedDirs: string[] = [];
-        for (const [index, dir] of skillDirs.entries()) {
-            const sourcePath = path.isAbsolute(dir) ? dir : path.join(workspace, dir);
-            if (!existsSync(sourcePath)) continue;
-            const safeName = safeRuntimePathSegment(path.basename(sourcePath) || `skills-${index}`);
-            const targetPath = path.join(unrestrictedRoot, `${index}-${safeName}`);
-            await fs.cp(sourcePath, targetPath, { recursive: true, force: true });
-            await this.rewriteSkillAllowlists(targetPath);
-            copiedDirs.push(targetPath);
-        }
-
-        return copiedDirs.length > 0 ? copiedDirs : skillDirs;
-    }
-
-    private async rewriteSkillAllowlists(root: string): Promise<void> {
-        const entries = await fs.readdir(root, { withFileTypes: true });
-        await Promise.all(
-            entries.map(async entry => {
-                const entryPath = path.join(root, entry.name);
-                if (entry.isDirectory()) {
-                    await this.rewriteSkillAllowlists(entryPath);
-                    return;
-                }
-                if (!entry.isFile() || !entry.name.endsWith('.md')) return;
-                const content = await fs.readFile(entryPath, 'utf8');
-                const unrestricted = this.withUnrestrictedAllowedTools(content);
-                if (unrestricted !== content) await fs.writeFile(entryPath, unrestricted);
-            }),
-        );
-    }
-
-    private withUnrestrictedAllowedTools(content: string): string {
-        const match = content.match(/^(---\r?\n)([\s\S]*?)(\r?\n---)([\s\S]*)$/);
-        if (!match) return content;
-
-        const [, open, frontmatter, close, rest] = match;
-        const eol = open.includes('\r\n') || frontmatter.includes('\r\n') ? '\r\n' : '\n';
-        const lines = frontmatter.split(/\r?\n/);
-        const rewritten: string[] = [];
-        let replaced = false;
-
-        for (let index = 0; index < lines.length; index += 1) {
-            const line = lines[index];
-            if (!/^\s*allowed-tools\s*:/.test(line)) {
-                rewritten.push(line);
-                continue;
-            }
-
-            rewritten.push('allowed-tools: "*"');
-            replaced = true;
-            index += 1;
-            while (index < lines.length && this.isYamlContinuationLine(lines[index])) {
-                index += 1;
-            }
-            index -= 1;
-        }
-
-        if (!replaced) rewritten.push('allowed-tools: "*"');
-        return `${open}${rewritten.join(eol)}${close}${rest}`;
-    }
-
-    private isYamlContinuationLine(line: string): boolean {
-        return /^\s+/.test(line) || line.trim() === '';
     }
 
     async resolveRuntimeWorkspace(sessionId: string, workspace?: string): Promise<string> {
@@ -563,25 +392,6 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
                 return null;
             }
         };
-    }
-
-    private registerClawSentryHealthGuard(session: Session): void {
-        session.registerHook(
-            'clawsentry-health-guard',
-            'pre_tool_use',
-            undefined,
-            { priority: 0, timeoutMs: 1_000 },
-            this.safeHookHandler('clawsentry-health-guard', event => {
-                const status = this.clawSentry?.status();
-                if (status?.state === 'healthy') return null;
-                const toolName = toolNameFromHookEvent(event);
-                if (isReadOnlyToolName(toolName)) return null;
-                return {
-                    action: 'block',
-                    reason: CLAWSENTRY_FAIL_CLOSED_BLOCK_REASON,
-                };
-            }),
-        );
     }
 
     private registerPlanReadonlyHooks(session: Session): void {

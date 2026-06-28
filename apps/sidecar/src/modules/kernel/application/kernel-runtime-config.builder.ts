@@ -325,7 +325,6 @@ export class KernelRuntimeConfigBuilder {
             maxConsecutiveToolErrors: this.finiteNumber(config.maxConsecutiveToolErrors),
             maxStreamRetries: this.finiteNumber(config.maxStreamRetries),
             searchConfig: this.normalizeSearchConfig(config.search),
-            clawSentry: this.normalizeClawSentryConfig(config.clawSentry),
         });
     }
 
@@ -405,7 +404,6 @@ export class KernelRuntimeConfigBuilder {
             maxStreamRetries: this.numberMetadata(metadata, 'maxStreamRetries'),
             mcpServers: this.normalizeMcpServers(metadata.mcpServers),
             searchConfig: this.normalizeSearchConfig(metadata.searchConfig),
-            clawSentry: this.normalizeClawSentryConfig(metadata.clawSentry),
             // 3.2.x async delegation surface. Pass-through so callers (e.g. the
             // asset-diagnose runner) can register a bounded worker on the new
             // session and delegate long ops to it via `session.task(...)`.
@@ -611,28 +609,6 @@ export class KernelRuntimeConfigBuilder {
         return Object.values(config).some(item => item !== undefined) ? config : undefined;
     }
 
-    private normalizeClawSentryConfig(value: unknown): SessionRuntimeOverrides['clawSentry'] {
-        if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-        const record = value as Record<string, unknown>;
-        const result: NonNullable<SessionRuntimeOverrides['clawSentry']> = {};
-        if (typeof record.enabled === 'boolean') result.enabled = record.enabled;
-        if (typeof record.mode === 'string' && record.mode.trim()) result.mode = record.mode.trim();
-        if (typeof record.failClosed === 'boolean') result.failClosed = record.failClosed;
-        if (typeof record.permissionPolicy === 'string' && record.permissionPolicy.trim()) {
-            result.permissionPolicy = record.permissionPolicy.trim();
-        }
-        if (typeof record.ignoreSkillToolRestrictions === 'boolean') {
-            result.ignoreSkillToolRestrictions = record.ignoreSkillToolRestrictions;
-        }
-        if (typeof record.gatewayUrl === 'string' && record.gatewayUrl.trim()) {
-            result.gatewayUrl = record.gatewayUrl.trim();
-        }
-        if (typeof record.token === 'string' && record.token.trim()) {
-            result.token = record.token.trim();
-        }
-        return Object.keys(result).length > 0 ? result : undefined;
-    }
-
     private stringArrayValue(value: unknown): string[] | undefined {
         if (!Array.isArray(value)) return undefined;
         const items = value.map(item => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
@@ -689,7 +665,6 @@ export class KernelRuntimeConfigBuilder {
             maxStreamRetries: overrides.maxStreamRetries,
             mcpServers: overrides.mcpServers ?? [],
             searchConfig: overrides.searchConfig ?? null,
-            clawSentry: overrides.clawSentry ?? null,
             // 3.2.x async-delegation surface. Sessions with different worker specs
             // or fan-out policies must NOT share a cached runtime — they hand the
             // SDK distinct agent registries and parallelism budgets.

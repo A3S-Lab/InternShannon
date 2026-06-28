@@ -13,12 +13,6 @@ export const DESKTOP_DEFAULT_TOOL_TIMEOUT_MS = 300_000;
 export const DESKTOP_DEFAULT_QUEUE_TIMEOUT_MS = 300_000;
 export const DESKTOP_DEFAULT_MAX_EXECUTION_TIME_MS = 1_500_000;
 export const DESKTOP_DEFAULT_MAX_STREAM_RETRIES = 0;
-export const DESKTOP_DEFAULT_CLAWSENTRY_CONFIG = {
-  mode: 'managed-gateway',
-  failClosed: true,
-  permissionPolicy: 'allow',
-  ignoreSkillToolRestrictions: true,
-} as const;
 
 @Injectable()
 export class DesktopKernelRuntimeConfigService
@@ -68,7 +62,6 @@ export class DesktopKernelRuntimeConfigService
           streamStallActiveToolHardMs: llm.streamStallActiveToolHardMs ?? null,
           maxConsecutiveToolErrors: llm.maxConsecutiveToolErrors ?? null,
           maxStreamRetries: llm.maxStreamRetries ?? null,
-          clawSentry: llm.clawSentry ?? null,
         }
       : null;
     return this.withDesktopRuntimeDefaults(config);
@@ -97,10 +90,6 @@ export class DesktopKernelRuntimeConfigService
         DESKTOP_DEFAULT_STREAM_STALL_ACTIVE_TOOL_HARD_MS,
       maxStreamRetries:
         config?.maxStreamRetries ?? DESKTOP_DEFAULT_MAX_STREAM_RETRIES,
-      clawSentry: {
-        ...DESKTOP_DEFAULT_CLAWSENTRY_CONFIG,
-        ...(config?.clawSentry ?? {}),
-      },
     };
   }
 }

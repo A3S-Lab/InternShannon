@@ -68,14 +68,6 @@ function isFile(p) {
     }
 }
 
-function isDirectory(p) {
-    try {
-        return fs.statSync(p).isDirectory();
-    } catch {
-        return false;
-    }
-}
-
 function findSidecarDir(startDir) {
     const resolved = path.resolve(startDir);
     if (isFile(path.join(resolved, 'main.js'))) {
@@ -110,47 +102,6 @@ function findResourcesDir(startDir, sidecarDir) {
 function findBundledNode(resourcesDir) {
     const candidates = [path.join(resourcesDir, 'node', 'bin', 'node'), path.join(resourcesDir, 'node', 'node.exe')];
     return candidates.find(isFile);
-}
-
-function findBundledPython(resourcesDir) {
-    const candidates = [
-        path.join(resourcesDir, 'python', 'bin', 'python3'),
-        path.join(resourcesDir, 'python', 'bin', 'python'),
-        path.join(resourcesDir, 'python', 'install', 'bin', 'python3'),
-        path.join(resourcesDir, 'python', 'install', 'bin', 'python'),
-        path.join(resourcesDir, 'python', 'python.exe'),
-        path.join(resourcesDir, 'python', 'install', 'python.exe'),
-    ];
-    return candidates.find(isFile);
-}
-
-function findClawSentryLauncher(resourcesDir) {
-    const candidates = [
-        path.join(resourcesDir, 'clawsentry', 'bin', 'clawsentry'),
-        path.join(resourcesDir, 'clawsentry', 'bin', 'clawsentry.cmd'),
-        path.join(resourcesDir, 'clawsentry', 'bin', 'clawsentry.exe'),
-    ];
-    return candidates.find(isFile);
-}
-
-function inspectClawSentryBundle(resourcesDir) {
-    const python = findBundledPython(resourcesDir);
-    const launcher = findClawSentryLauncher(resourcesDir);
-    const entrypoint = path.join(resourcesDir, 'clawsentry', 'entrypoints', 'clawsentry.py');
-    const sitePackages = path.join(resourcesDir, 'clawsentry', 'site-packages');
-    const pythonRuntimeStats = collectFileStats(path.join(resourcesDir, 'python'));
-    const clawsentryStats = collectFileStats(path.join(resourcesDir, 'clawsentry'));
-    return {
-        python,
-        launcher,
-        entrypoint: isFile(entrypoint) ? entrypoint : undefined,
-        sitePackages: isDirectory(sitePackages) ? sitePackages : undefined,
-        sitePackagesFiles: isDirectory(sitePackages) ? collectFileStats(sitePackages).files : 0,
-        pythonRuntimeFiles: pythonRuntimeStats.files,
-        pythonRuntimeBytes: pythonRuntimeStats.bytes,
-        clawsentryFiles: clawsentryStats.files,
-        clawsentryBytes: clawsentryStats.bytes,
-    };
 }
 
 function walkFiles(dir) {
@@ -323,7 +274,6 @@ function missingExternalRequires(sidecarDir, specifiers) {
 function validateSidecarDir(sidecarDir, resourcesDir, requireStandalone) {
     const issues = [];
     const bundledNode = findBundledNode(resourcesDir);
-    const clawsentryBundle = inspectClawSentryBundle(resourcesDir);
     for (const relativePath of REQUIRED_FILES) {
         const absolutePath = path.join(sidecarDir, relativePath);
         if (!isFile(absolutePath)) {
@@ -346,24 +296,6 @@ function validateSidecarDir(sidecarDir, resourcesDir, requireStandalone) {
     if (requireStandalone) {
         if (!bundledNode) {
             issues.push('missing bundled Node.js runtime: expected node/bin/node or node/node.exe in Resources.');
-        }
-        if (!clawsentryBundle.python) {
-            issues.push(
-                'missing bundled Python runtime for ClawSentry: expected python/bin/python3, python/install/bin/python3, or python/python.exe in Resources.',
-            );
-        }
-        if (!clawsentryBundle.sitePackages || clawsentryBundle.sitePackagesFiles === 0) {
-            issues.push('missing bundled ClawSentry site-packages: expected clawsentry/site-packages in Resources.');
-        }
-        if (!clawsentryBundle.entrypoint) {
-            issues.push(
-                'missing bundled ClawSentry Python entrypoint: expected clawsentry/entrypoints/clawsentry.py in Resources.',
-            );
-        }
-        if (!clawsentryBundle.launcher) {
-            issues.push(
-                'missing bundled ClawSentry launcher: expected clawsentry/bin/clawsentry or clawsentry/bin/clawsentry.cmd in Resources.',
-            );
         }
         if (exists(path.join(sidecarDir, 'node_modules', '.modules.yaml'))) {
             issues.push(
@@ -412,7 +344,6 @@ function validateSidecarDir(sidecarDir, resourcesDir, requireStandalone) {
         nodeRuntimeFiles: nodeRuntimeStats.files,
         nodeRuntimeBytes: nodeRuntimeStats.bytes,
         bundledNode,
-        clawsentryBundle,
         externalRequires,
         issues,
     };
@@ -437,7 +368,6 @@ function main() {
         nodeRuntimeFiles,
         nodeRuntimeBytes,
         bundledNode,
-        clawsentryBundle,
         externalRequires,
         issues,
     } = validateSidecarDir(sidecarDir, resourcesDir, args.requireStandalone);
@@ -454,17 +384,9 @@ function main() {
         nodeRuntimeFiles,
         nodeRuntimeBytes,
         bundledNode,
-        clawsentryBundle,
         externalPackages: externalRequires.packages,
         hasNodeModules: externalRequires.hasNodeModules,
         hasBundledNode: Boolean(bundledNode),
-        hasBundledClawSentry: Boolean(
-            clawsentryBundle.python &&
-                clawsentryBundle.sitePackages &&
-                clawsentryBundle.sitePackagesFiles > 0 &&
-                clawsentryBundle.entrypoint &&
-                clawsentryBundle.launcher,
-        ),
         standaloneRequired: args.requireStandalone,
         ok: issues.length === 0,
         issues,
@@ -488,20 +410,6 @@ function main() {
     );
     console.log(
         `Bundled Node.js runtime: ${bundledNode ? `yes (${nodeRuntimeFiles} files, ${formatBytes(nodeRuntimeBytes)}, ${bundledNode})` : 'no'}`,
-    );
-    console.log(
-        `Bundled ClawSentry runtime: ${
-            report.hasBundledClawSentry
-                ? `yes (${clawsentryBundle.clawsentryFiles} files, ${formatBytes(clawsentryBundle.clawsentryBytes)}, ${clawsentryBundle.launcher})`
-                : 'no'
-        }`,
-    );
-    console.log(
-        `Bundled Python runtime: ${
-            clawsentryBundle.python
-                ? `yes (${clawsentryBundle.pythonRuntimeFiles} files, ${formatBytes(clawsentryBundle.pythonRuntimeBytes)}, ${clawsentryBundle.python})`
-                : 'no'
-        }`,
     );
     console.log(`Total sidecar files: ${totalFiles}`);
     console.log(`Total sidecar bytes: ${formatBytes(totalBytes)}`);

@@ -110,11 +110,6 @@ export class CreateSessionRequestDto {
     @IsOptional()
     searchConfig?: Record<string, unknown>;
 
-    @ApiPropertyOptional({ description: '桌面 ClawSentry 安全网关运行配置' })
-    @IsObject()
-    @IsOptional()
-    clawSentry?: Record<string, unknown>;
-
     @ApiPropertyOptional({ description: '一次性 worker agent 配置，注册后可通过 task / parallel_task 调用' })
     @IsArray()
     @IsOptional()

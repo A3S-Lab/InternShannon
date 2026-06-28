@@ -28,7 +28,6 @@ const SESSION_METADATA_KEYS = [
     'temperature',
     'thinkingBudget',
     'searchConfig',
-    'clawSentry',
     'workerAgents',
     'inlineSkills',
     'autoDelegation',
@@ -111,14 +110,6 @@ function redactNestedCredentials(key: string, value: unknown): unknown {
         if (Array.isArray(record.proxyPool) && record.proxyPool.length > 0) {
             result.proxyPool = record.proxyPool.map(() => '[REDACTED]');
         }
-        return result;
-    }
-    if (key === 'clawSentry' && value && typeof value === 'object' && !Array.isArray(value)) {
-        const record = value as Record<string, unknown>;
-        const result: Record<string, unknown> = { ...record };
-        delete result.token;
-        delete result.gatewayUrl;
-        delete result.ahpUrl;
         return result;
     }
     return value;
