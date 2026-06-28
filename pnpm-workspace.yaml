@@ -4,7 +4,6 @@ packages:
   - packages/lark
   - packages/ocr
   - packages/ooxml
-  - packages/wechat
 verifyDepsBeforeRun: false
 shamefullyHoist: true
 strictPeerDependencies: false

@@ -114,7 +114,7 @@ export class SessionWorkspaceUploadFileResponseDto {
     message!: string;
 
     @ApiProperty({
-        description: '本次上传事件 ID，可与编排资产 `timeline.jsonl` 中的 `file_attached` 事件对齐审计。',
+        description: '本次上传事件 ID，可与会话事件中的 `file_attached` 记录对齐审计。',
         example: 'wup-1715846400000-a1b2c3',
     })
     uploadId!: string;

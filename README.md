@@ -35,8 +35,8 @@ The codebase is shaped by these constraints:
 - Small trusted surface: sidecar APIs should be understandable as local desktop
   APIs, not a general multi-tenant backend.
 - Product focus: keep the desktop path centered on agent chat and
-  knowledge-base management; optional integrations such as WeChat, OCR, and
-  planning packages sit at boundaries rather than inside the domain model.
+  knowledge-base management; supporting OCR and planning libraries stay at
+  explicit package boundaries.
 
 ## Architecture
 
@@ -51,7 +51,6 @@ apps/sidecar/src
       infrastructure/
       presentation/
     config/
-    integrations/
     kernel/
     loop/
   runtime/
@@ -91,7 +90,6 @@ pnpm sidecar:ddd:check
     lark/
     ocr/
     ooxml/
-    wechat/
   pnpm-workspace.yaml
 ```
 

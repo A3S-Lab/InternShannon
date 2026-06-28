@@ -1,0 +1,2 @@
+export const SETTINGS_CONTENT_MAX_WIDTH_CLASS = "max-w-7xl";
+export const SETTINGS_LEGACY_NARROW_CONTENT_MAX_WIDTH_CLASS = "max-w-3xl";

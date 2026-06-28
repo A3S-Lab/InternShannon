@@ -30,7 +30,7 @@ export interface IKernelService {
 		conversationalOnly?: boolean,
 	): Promise<Session[]>;
 	/** Total session count for accurate pagination — scoped to the user, or all users for platform-bypass callers.
-	 * conversationalOnly excludes feature-internal runtime sessions (asset/devops/system). */
+	 * conversationalOnly excludes feature-internal runtime sessions (asset/system). */
 	countUserSessions(userId: string, includeAllUsers?: boolean, conversationalOnly?: boolean): Promise<number>;
 	getSessionMessages(sessionId: string, limit?: number, offset?: number): Promise<Message[]>;
 	getLatestSessionMessageByRole(sessionId: string, role: Message['role']): Promise<Message | null>;

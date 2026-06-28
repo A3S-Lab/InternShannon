@@ -1,0 +1,125 @@
+/*
+ * InternShannon OS 终端统一主题。
+ *
+ * @wterm/react 通过给 .wterm 容器附加 .theme-<name> 类来切换主题，
+ * 类里的 --term-* CSS variable 会覆盖默认值。
+ *
+ * 这里注册 a3s-dark / a3s-light 两套。当前 TERMINAL_THEME 常量固定指向
+ * a3s-dark；a3s-light 暂留作未来开关，未在任何调用点引用。
+ */
+
+.wterm.theme-a3s-dark,
+.wterm.theme-a3s-light {
+	/* 终端统一用 Fira Code 编程字体（@font-face 见 fira_code.css），
+	   回落到 --font-mono / 系统等宽。 */
+	--term-font-family: "Fira Code",
+		var(
+			--font-mono,
+			ui-monospace,
+			SFMono-Regular,
+			Menlo,
+			Monaco,
+			Consolas,
+			"Liberation Mono",
+			"Courier New",
+			monospace
+		);
+	--term-font-size: 13px;
+	--term-line-height: 1.45;
+	--term-row-height: 19px;
+
+	padding: 14px 16px;
+	border-radius: 6px;
+	box-shadow: none;
+}
+
+/* Dark — 与 app dark 背景 (#080b14) 协调的深蓝灰，比 monokai 的橄榄绿更克制 */
+.wterm.theme-a3s-dark {
+	--term-fg: #e5e7eb;
+	--term-bg: #0b1020;
+	--term-cursor: #60a5fa;
+
+	--term-color-0: #1f2937;
+	--term-color-1: #ef4444;
+	--term-color-2: #10b981;
+	--term-color-3: #f59e0b;
+	--term-color-4: #3b82f6;
+	--term-color-5: #a855f7;
+	--term-color-6: #06b6d4;
+	--term-color-7: #e5e7eb;
+
+	--term-color-8: #64748b;
+	--term-color-9: #f87171;
+	--term-color-10: #34d399;
+	--term-color-11: #fbbf24;
+	--term-color-12: #60a5fa;
+	--term-color-13: #c084fc;
+	--term-color-14: #22d3ee;
+	--term-color-15: #ffffff;
+}
+
+/* Light — One Light 风格，对比度足够、低饱和度避免视觉疲劳 */
+.wterm.theme-a3s-light {
+	--term-fg: #1f2937;
+	--term-bg: #fafafa;
+	--term-cursor: #2563eb;
+
+	--term-color-0: #ffffff;
+	--term-color-1: #dc2626;
+	--term-color-2: #059669;
+	--term-color-3: #b45309;
+	--term-color-4: #2563eb;
+	--term-color-5: #9333ea;
+	--term-color-6: #0891b2;
+	--term-color-7: #1f2937;
+
+	--term-color-8: #94a3b8;
+	--term-color-9: #ef4444;
+	--term-color-10: #10b981;
+	--term-color-11: #d97706;
+	--term-color-12: #3b82f6;
+	--term-color-13: #a855f7;
+	--term-color-14: #06b6d4;
+	--term-color-15: #0f172a;
+}
+
+/* Selection 用 primary 蓝带透明，盖住默认的 VS Code 蓝 */
+.wterm.theme-a3s-dark ::selection {
+	background: rgba(96, 165, 250, 0.32);
+}
+.wterm.theme-a3s-light ::selection {
+	background: rgba(37, 99, 235, 0.22);
+}
+
+/* 滚动条美化（仅 has-scrollback 状态生效） */
+.wterm.theme-a3s-dark.has-scrollback::-webkit-scrollbar,
+.wterm.theme-a3s-light.has-scrollback::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+.wterm.theme-a3s-dark.has-scrollback::-webkit-scrollbar-track,
+.wterm.theme-a3s-light.has-scrollback::-webkit-scrollbar-track {
+	background: transparent;
+}
+.wterm.theme-a3s-dark.has-scrollback::-webkit-scrollbar-thumb {
+	background: rgba(148, 163, 184, 0.24);
+	border-radius: 6px;
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+.wterm.theme-a3s-dark.has-scrollback::-webkit-scrollbar-thumb:hover {
+	background: rgba(148, 163, 184, 0.4);
+	background-clip: padding-box;
+	border: 2px solid transparent;
+}
+.wterm.theme-a3s-light.has-scrollback::-webkit-scrollbar-thumb {
+	background: rgba(100, 116, 139, 0.28);
+	border-radius: 6px;
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+.wterm.theme-a3s-light.has-scrollback::-webkit-scrollbar-thumb:hover {
+	background: rgba(100, 116, 139, 0.45);
+	background-clip: padding-box;
+	border: 2px solid transparent;
+}

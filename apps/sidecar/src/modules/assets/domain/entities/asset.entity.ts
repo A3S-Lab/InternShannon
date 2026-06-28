@@ -42,7 +42,7 @@ export interface AssetProps {
     metadata?: Record<string, unknown>;
     enabled: boolean;
     /**
-     * 仅当 category=agent 时有意义：'tool' 可被工作流编排，'application' 只能独立部署。
+     * 仅当 category=agent 时有意义：'tool' 可被本地工具化调用，'application' 只能独立运行。
      * 非 agent 资产恒为 undefined。
      */
     agentKind?: AgentKind;

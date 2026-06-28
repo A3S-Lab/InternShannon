@@ -1,6 +1,5 @@
 import { execSync, spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import net from 'net';
 import path from 'path';
@@ -17,7 +16,6 @@ const __dirname = path.dirname(__filename);
 const appRoot = path.resolve(__dirname, '..');
 const debugDir = path.join(appRoot, 'src-tauri', 'target', 'debug');
 const boxLibDir = path.join(debugDir, 'box', 'lib');
-const frontendDir = path.join(appRoot, 'frontend');
 const sidecarResourceEntrypoint = path.join(appRoot, 'src-tauri', 'resources', 'sidecar', 'main.js');
 
 // Resolve pnpm to full path (fixes Windows spawn issue)
@@ -43,52 +41,6 @@ function canListen(port) {
             server.close(() => resolve(true));
         });
         server.listen(port, '127.0.0.1');
-    });
-}
-
-function contentType(filePath) {
-    const ext = path.extname(filePath).toLowerCase();
-    if (ext === '.html') return 'text/html; charset=utf-8';
-    if (ext === '.js') return 'text/javascript; charset=utf-8';
-    if (ext === '.css') return 'text/css; charset=utf-8';
-    if (ext === '.svg') return 'image/svg+xml';
-    if (ext === '.json') return 'application/json; charset=utf-8';
-    return 'application/octet-stream';
-}
-
-function fileForRequest(url = '/') {
-    const parsed = new URL(url, 'http://127.0.0.1');
-    const decodedPath = decodeURIComponent(parsed.pathname);
-    const normalizedPath = decodedPath === '/' ? '/index.html' : decodedPath;
-    const candidate = path.normalize(path.join(frontendDir, normalizedPath));
-    if (!candidate.startsWith(frontendDir + path.sep)) {
-        return path.join(frontendDir, 'index.html');
-    }
-    return candidate;
-}
-
-function startFrontendServer(port) {
-    const indexPath = path.join(frontendDir, 'index.html');
-    if (!fs.existsSync(indexPath)) {
-        throw new Error(`Desktop frontend entrypoint is missing: ${indexPath}`);
-    }
-
-    const server = http.createServer((req, res) => {
-        const filePath = fileForRequest(req.url);
-        const resolvedPath = fs.existsSync(filePath) && fs.statSync(filePath).isFile() ? filePath : indexPath;
-        res.writeHead(200, {
-            'Cache-Control': 'no-store',
-            'Content-Type': contentType(resolvedPath),
-        });
-        fs.createReadStream(resolvedPath).pipe(res);
-    });
-
-    return new Promise((resolve, reject) => {
-        server.once('error', reject);
-        server.listen(port, '127.0.0.1', () => {
-            server.off('error', reject);
-            resolve(server);
-        });
     });
 }
 
@@ -153,7 +105,6 @@ if (env.TAURI_DEV_DRY_RUN === '1') {
 }
 
 ensureSidecarResources();
-const frontendServer = await startFrontendServer(desktopPort);
 
 const tauriArgs = [
     'exec',
@@ -171,7 +122,6 @@ const child = spawn(pnpmPath, tauriArgs, {
 });
 
 child.on('exit', (code, signal) => {
-    frontendServer.close();
     if (signal) {
         process.kill(process.pid, signal);
         return;

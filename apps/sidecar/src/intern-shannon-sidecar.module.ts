@@ -3,7 +3,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule as NestConfigModule } from '@nestjs/config';
 import { DesktopAssetsRuntimeModule } from './runtime/desktop/desktop-assets-runtime.module';
 import { DesktopConfigRuntimeModule } from './runtime/desktop/desktop-config-runtime.module';
-import { DesktopIntegrationsRuntimeModule } from './runtime/desktop/desktop-integrations-runtime.module';
 import { DesktopKernelRuntimeModule } from './runtime/desktop/desktop-kernel-runtime.module';
 import { DesktopLoopRuntimeModule } from './runtime/desktop/desktop-loop-runtime.module';
 import { DesktopSharedRuntimeModule } from './runtime/desktop/desktop-shared-runtime.module';
@@ -31,7 +30,6 @@ process.env.PIPELINE_RUNNER_DRIVER = 'none';
         DesktopAssetsRuntimeModule,
         DesktopKernelRuntimeModule,
         DesktopLoopRuntimeModule,
-        DesktopIntegrationsRuntimeModule,
     ],
 })
 export class InternShannonSidecarModule {}

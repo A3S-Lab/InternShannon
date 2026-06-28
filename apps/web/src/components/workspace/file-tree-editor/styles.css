@@ -1,0 +1,3845 @@
+/* Keep populated editor tab bars visible without forcing empty Dockview groups to show scrollbars. */
+.dv-groupview:not(.dv-empty) > .dv-tabs-and-actions-container {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Hide close button on tabs - NOT USED, keeping for reference */
+.dv-close-action {
+  display: none !important;
+}
+
+.file-tree-editor-root {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dv-default-tab {
+  cursor: pointer;
+}
+
+.file-tree-editor-root .dockview-theme-light,
+.file-tree-editor-root .dv-dockview,
+.file-tree-editor-root .dv-grid-view,
+.file-tree-editor-root .dv-view-container,
+.file-tree-editor-root .dv-split-view-container,
+.file-tree-editor-root .dv-view,
+.file-tree-editor-root .dv-groupview,
+.file-tree-editor-root .dv-content-container,
+.file-tree-editor-root .dockview-react-part {
+  min-width: 0;
+  min-height: 0;
+}
+
+.file-tree-editor-root .dv-dockview,
+.file-tree-editor-root .dv-grid-view,
+.file-tree-editor-root .dv-view-container,
+.file-tree-editor-root .dv-split-view-container,
+.file-tree-editor-root .dv-view,
+.file-tree-editor-root .dv-groupview,
+.file-tree-editor-root .dv-content-container,
+.file-tree-editor-root .dockview-react-part {
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.file-tree-editor-root .dv-content-container > .dockview-react-part {
+  display: block;
+}
+
+/* Smooth tab transitions */
+.dv-default-tab {
+  transition: background-color 0.15s ease, border-radius 0.15s ease,
+    box-shadow 0.15s ease, margin 0.15s ease !important;
+}
+
+.file-tree-paneview .dv-pane-container {
+  background-color: hsl(var(--muted) / 0.03);
+}
+
+.file-tree-paneview .dv-pane {
+  border-bottom: 1px solid hsl(var(--border) / 0.45);
+}
+
+.file-tree-paneview .dv-pane-header {
+  background-color: hsl(var(--muted) / 0.42);
+  border-top: 1px solid hsl(var(--border) / 0.45) !important;
+  border-bottom: 1px solid hsl(var(--border) / 0.45);
+  backdrop-filter: blur(8px);
+}
+
+.file-tree-paneview .dv-view:first-of-type .dv-pane > .dv-pane-header {
+  border-top: none !important;
+}
+
+.file-tree-paneview .dv-default-header {
+  background-color: transparent;
+  color: hsl(var(--foreground) / 0.88);
+  padding: 0;
+}
+
+.file-tree-paneview .file-tree-pane-header {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+}
+
+.file-tree-paneview .file-tree-pane-trigger {
+  color: inherit;
+}
+
+.file-tree-paneview .file-tree-pane-header:focus-visible,
+.file-tree-paneview .file-tree-pane-trigger:focus-visible {
+  outline: 1px solid hsl(var(--primary) / 0.45);
+  outline-offset: -1px;
+}
+
+.file-tree-paneview .file-tree-pane-toggle {
+  border-radius: 4px;
+}
+
+.file-tree-paneview .dv-pane-header:has(.file-tree-pane-header):hover {
+  background-color: hsl(var(--muted) / 0.54);
+}
+
+/* Pane focused state - VSCode style with top accent border */
+.file-tree-paneview .dv-pane-header.focused {
+  background-color: hsl(var(--muted) / 0.3);
+  box-shadow: inset 0 -1px 0 0 hsl(var(--primary) / 0.5);
+}
+
+.file-tree-paneview .dv-default-header .dv-pane-header-icon {
+  color: hsl(var(--muted-foreground) / 0.9);
+}
+
+.file-tree-paneview .file-tree-pane-title {
+  color: hsl(var(--foreground) / 0.84);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.file-tree-paneview .file-tree-pane-actions {
+  border-left: 1px solid hsl(var(--border) / 0.45);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Right-side elements (badge, actions) hidden until header hover or focused */
+.file-tree-paneview .file-tree-pane-right-element {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Show right-side elements on header hover or when pane is focused */
+.file-tree-paneview .dv-pane-header:hover .file-tree-pane-actions,
+.file-tree-paneview .dv-pane-header.focused .file-tree-pane-actions,
+.file-tree-paneview .dv-pane-header:hover .file-tree-pane-right-element,
+.file-tree-paneview .dv-pane-header.focused .file-tree-pane-right-element {
+  opacity: 1;
+}
+
+.file-tree-paneview .file-tree-pane-action {
+  opacity: 1;
+  touch-action: manipulation;
+}
+
+.file-tree-paneview .file-tree-pane-action:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.42);
+  outline-offset: 1px;
+}
+
+.file-tree-paneview .dv-pane-body {
+  background-color: hsl(var(--background));
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.file-tree-paneview .dv-pane:has(.file-tree-git-pane) {
+  min-height: 0;
+}
+
+.file-tree-panel-state {
+  display: flex;
+  height: 100%;
+  min-height: 120px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+}
+
+.file-tree-panel-state-icon {
+  margin-bottom: 8px;
+  width: 28px;
+  height: 28px;
+  color: hsl(var(--muted-foreground) / 0.42);
+}
+
+.file-tree-panel-state-title {
+  max-width: 220px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  color: hsl(var(--muted-foreground));
+  text-wrap: balance;
+}
+
+.file-tree-panel-state-description {
+  margin-top: 2px;
+  max-width: 220px;
+  font-size: 11px;
+  line-height: 16px;
+  color: hsl(var(--muted-foreground) / 0.68);
+  text-wrap: pretty;
+}
+
+.file-tree-panel-state-error {
+  color: hsl(var(--destructive));
+}
+
+.file-tree-panel-state-error .file-tree-panel-state-icon,
+.file-tree-panel-state-error .file-tree-panel-state-title {
+  color: hsl(var(--destructive));
+}
+
+.file-tree-panel-state-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.file-tree-panel-state-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  border: 1px solid hsl(var(--border) / 0.7);
+  background: hsl(var(--background));
+  padding: 5px 10px;
+  font-size: 12px;
+  color: hsl(var(--foreground) / 0.82);
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+  touch-action: manipulation;
+}
+
+.file-tree-panel-state > .file-tree-panel-state-action {
+  margin-top: 12px;
+}
+
+.file-tree-panel-state-action:hover {
+  border-color: hsl(var(--primary) / 0.45);
+  background: hsl(var(--muted) / 0.6);
+}
+
+.file-tree-panel-state-action:focus-visible,
+.file-tree-explorer-search-clear:focus-visible,
+.file-tree-editor-iconbutton:focus-visible,
+.file-tree-editor-toolbutton:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.48);
+  outline-offset: 2px;
+}
+
+.file-tree-panel-state-action.is-primary {
+  border-color: hsl(var(--primary) / 0.36);
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+}
+
+.file-tree-panel-state-action.is-primary:hover {
+  border-color: hsl(var(--primary) / 0.55);
+  background: hsl(var(--primary) / 0.14);
+}
+
+.file-tree-explorer-search {
+  position: relative;
+  display: flex;
+  height: 32px;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 4px 8px 4px 8px;
+}
+
+.file-tree-explorer-search-icon {
+  pointer-events: none;
+  position: absolute;
+  left: 16px;
+  width: 13px;
+  height: 13px;
+  color: hsl(var(--muted-foreground) / 0.72);
+}
+
+.file-tree-explorer-search-input {
+  height: 24px;
+  width: 100%;
+  border: 1px solid hsl(var(--border) / 0.58);
+  border-radius: 5px;
+  background-color: hsl(var(--background));
+  padding: 0 26px 0 26px;
+  font-size: 12px;
+  color: hsl(var(--foreground));
+  outline: none;
+  transition: border-color 0.1s ease, box-shadow 0.1s ease,
+    background-color 0.1s ease;
+}
+
+.file-tree-explorer-search-input::placeholder {
+  color: hsl(var(--muted-foreground) / 0.72);
+}
+
+.file-tree-explorer-search-input:focus {
+  border-color: hsl(var(--primary) / 0.5);
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.08);
+}
+
+.file-tree-explorer-search-input::-webkit-search-cancel-button {
+  appearance: none;
+}
+
+.file-tree-explorer-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  display: flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: hsl(var(--muted-foreground));
+  transform: translateY(-50%);
+  transition: background-color 0.1s ease, color 0.1s ease;
+  touch-action: manipulation;
+}
+
+.file-tree-explorer-search-clear:hover {
+  background-color: hsl(var(--muted) / 0.72);
+  color: hsl(var(--foreground));
+}
+
+.file-tree-explorer-footer {
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid hsl(var(--border) / 0.45);
+  background-color: hsl(var(--muted) / 0.2);
+  padding: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+
+.file-tree-explorer-footer .is-dirty {
+  color: hsl(var(--primary));
+}
+
+.file-tree-explorer-footer .is-warning {
+  color: hsl(38 92% 50%);
+}
+
+.file-tree-explorer-tree {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.file-tree-explorer-tree:focus-visible {
+  outline: 1px solid hsl(var(--primary) / 0.36);
+  outline-offset: -1px;
+}
+
+.file-tree-inline-error {
+  padding: 2px 8px 4px 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: hsl(var(--destructive) / 0.78);
+}
+
+.file-tree-inline-create-row {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 6px;
+  padding-right: 8px;
+}
+
+.file-tree-inline-create-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+}
+
+.file-tree-inline-text-input {
+  min-width: 120px;
+  outline: none;
+}
+
+.file-tree-row {
+  display: flex;
+  width: 100%;
+  min-height: 24px;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: hsl(var(--foreground) / 0.76);
+  transition: background-color 0.1s ease, color 0.1s ease, opacity 0.1s ease;
+  touch-action: manipulation;
+}
+
+@supports (content-visibility: auto) {
+  .file-tree-row {
+    content-visibility: auto;
+    contain-intrinsic-size: 24px;
+  }
+
+  .file-tree-editor-vscode .file-tree-row {
+    contain-intrinsic-size: 22px;
+  }
+}
+
+.file-tree-row:hover {
+  background-color: hsl(var(--muted) / 0.48);
+  color: hsl(var(--foreground) / 0.92);
+}
+
+.file-tree-row:focus {
+  outline: none;
+}
+
+.file-tree-row:focus-visible {
+  outline: 1px solid hsl(var(--primary) / 0.55);
+  outline-offset: -1px;
+}
+
+.file-tree-row.is-selected {
+  background-color: hsl(var(--primary) / 0.1);
+  color: hsl(var(--foreground));
+}
+
+.file-tree-row.is-selected:hover {
+  background-color: hsl(var(--primary) / 0.13);
+}
+
+.file-tree-row.is-active {
+  background-color: hsl(var(--primary) / 0.14);
+  box-shadow: inset 2px 0 0 hsl(var(--primary) / 0.78);
+  color: hsl(var(--foreground));
+}
+
+.file-tree-row.is-active:hover {
+  background-color: hsl(var(--primary) / 0.17);
+}
+
+.file-tree-row.is-drop-target {
+  background-color: hsl(var(--primary) / 0.18);
+  box-shadow: inset 0 0 0 1px hsl(var(--primary) / 0.46);
+}
+
+.file-tree-row.is-dragging {
+  opacity: 0.42;
+}
+
+.file-tree-row.is-cut {
+  opacity: 0.52;
+}
+
+.file-tree-row-content {
+  position: relative;
+  display: flex;
+  contain: layout paint;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px 2px 4px;
+}
+
+.file-tree-row-content.is-file {
+  gap: 6px;
+}
+
+.file-tree-row-disclosure {
+  display: inline-flex;
+  width: 14px;
+  height: 18px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-tree-row-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.file-tree-row-label.is-directory {
+  font-weight: 500;
+  color: hsl(var(--foreground) / 0.88);
+}
+
+.file-tree-row-label.is-active {
+  font-weight: 500;
+  color: hsl(var(--primary));
+}
+
+.file-tree-dirty-dot {
+  display: inline-flex;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--background));
+}
+
+.file-tree-editor-loading {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background-color: hsl(var(--background));
+}
+
+.file-tree-editor-breadcrumbs,
+.file-tree-editor-toolbar,
+.file-tree-editor-statusbar {
+  display: flex;
+  height: 24px;
+  min-height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.file-tree-editor-breadcrumbs {
+  gap: 2px;
+  container-type: inline-size;
+  border-bottom: 1px solid hsl(var(--border) / 0.5);
+  background-color: hsl(var(--muted) / 0.28);
+  padding: 0 4px 0 8px;
+  color: hsl(var(--muted-foreground));
+}
+
+.file-tree-editor-breadcrumb-path {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  overflow: hidden;
+}
+
+.file-tree-editor-breadcrumb-actions {
+  display: inline-flex;
+  height: 100%;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  padding-left: 8px;
+}
+
+.file-tree-editor-breadcrumb-item {
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.file-tree-editor-breadcrumb-item.is-current {
+  color: hsl(var(--foreground) / 0.9);
+  font-weight: 500;
+}
+
+.file-tree-editor-breadcrumb-separator {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  color: hsl(var(--muted-foreground) / 0.62);
+}
+
+.file-tree-editor-toolbar {
+  gap: 4px;
+  border-bottom: 1px solid hsl(var(--border) / 0.45);
+  background-color: hsl(var(--muted) / 0.1);
+  padding: 0 8px;
+}
+
+.file-tree-editor-toolbutton {
+  display: inline-flex;
+  height: 20px;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-size: 11px;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.file-tree-editor-toolbutton:hover {
+  background-color: hsl(var(--muted) / 0.5);
+}
+
+.file-tree-editor-toolbutton.is-active {
+  background-color: hsl(var(--primary) / 0.14);
+  color: hsl(var(--primary));
+}
+
+.file-tree-editor-toolbutton.is-primary {
+  background-color: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
+
+.file-tree-editor-iconbutton {
+  position: relative;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: hsl(var(--muted-foreground));
+  transition: background-color 0.1s ease, color 0.1s ease;
+  touch-action: manipulation;
+}
+
+.file-tree-editor-iconbutton:hover {
+  background-color: hsl(var(--muted) / 0.62);
+  color: hsl(var(--foreground));
+}
+
+.file-tree-editor-iconbutton.is-active {
+  background-color: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
+
+.file-tree-editor-iconbutton.is-primary {
+  background-color: hsl(var(--primary) / 0.14);
+  color: hsl(var(--primary));
+}
+
+.file-tree-editor-iconbutton.is-error {
+  background-color: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+}
+
+.file-tree-editor-iconbutton:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.file-tree-editor-button-dot {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background-color: currentColor;
+  box-shadow: 0 0 0 1px hsl(var(--background));
+}
+
+.file-tree-editor-toolbar-filename {
+  min-width: 0;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.file-tree-editor-statusbar {
+  container-type: inline-size;
+  border-top: 1px solid hsl(var(--border));
+  background-color: hsl(var(--muted) / 0.86);
+  color: hsl(var(--muted-foreground));
+}
+
+.file-tree-ide-statusbar {
+  display: flex;
+  height: 24px;
+  min-height: 24px;
+  width: 100%;
+  flex: 0 0 24px;
+  align-items: center;
+  overflow: hidden;
+  border-top: 1px solid hsl(var(--border));
+  background-color: hsl(var(--muted) / 0.86);
+  color: hsl(var(--muted-foreground));
+  container-type: inline-size;
+  font-size: 12px;
+}
+
+.file-tree-ide-statusbutton {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.file-tree-ide-statusbutton:hover,
+.file-tree-ide-statusbutton:focus-visible {
+  background: hsl(var(--muted) / 0.62);
+  color: hsl(var(--foreground));
+  outline: none;
+}
+
+.file-tree-ide-statusfile {
+  max-width: min(42vw, 520px);
+}
+
+.file-tree-editor-statusgroup {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+
+.file-tree-editor-statusitem {
+  display: inline-flex;
+  height: 100%;
+  min-width: 0;
+  align-items: center;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-tree-editor-statusitem.is-dirty {
+  color: hsl(var(--primary));
+}
+
+.file-tree-editor-statusitem.is-error {
+  color: hsl(var(--destructive));
+}
+
+.file-tree-editor-status-divider {
+  height: 14px;
+  width: 1px;
+  flex: 0 0 auto;
+  background-color: hsl(var(--border));
+}
+
+@container (max-width: 560px) {
+  .file-tree-editor-statusbar .file-tree-editor-statusitem.is-secondary,
+  .file-tree-editor-statusbar .file-tree-editor-status-divider,
+  .file-tree-ide-statusbar .file-tree-editor-statusitem.is-secondary,
+  .file-tree-ide-statusbar .file-tree-editor-status-divider {
+    display: none;
+  }
+
+  .file-tree-editor-statusbar .file-tree-editor-statusitem,
+  .file-tree-ide-statusbar .file-tree-editor-statusitem {
+    padding: 0 6px;
+  }
+}
+
+@container (max-width: 420px) {
+  .file-tree-editor-breadcrumb-actions {
+    gap: 1px;
+    padding-left: 4px;
+  }
+
+  .file-tree-editor-breadcrumb-item:not(.is-current),
+  .file-tree-editor-breadcrumb-separator {
+    display: none;
+  }
+}
+
+.file-tree-editor-watermark {
+  display: flex;
+  height: 100%;
+  min-height: 320px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+  color: hsl(var(--muted-foreground));
+}
+
+.file-tree-editor-watermark-mark {
+  display: flex;
+  width: 56px;
+  height: 56px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--border) / 0.65);
+  border-radius: 12px;
+  background: linear-gradient(
+      135deg,
+      hsl(var(--primary) / 0.08),
+      transparent 60%
+    ),
+    hsl(var(--muted) / 0.18);
+  color: hsl(var(--primary) / 0.9);
+}
+
+.file-tree-editor-watermark-title {
+  margin-top: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: hsl(var(--foreground) / 0.88);
+}
+
+.file-tree-editor-watermark-description {
+  margin-top: 6px;
+  max-width: 420px;
+  font-size: 12px;
+  line-height: 18px;
+  color: hsl(var(--muted-foreground));
+}
+
+.file-tree-editor-watermark-actions {
+  margin-top: 18px;
+  display: flex;
+  max-width: 520px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.file-tree-editor-watermark-action {
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: 6px;
+  background-color: hsl(var(--background));
+  padding: 0 10px;
+  font-size: 12px;
+  color: hsl(var(--foreground) / 0.82);
+  box-shadow: 0 1px 1px hsl(var(--foreground) / 0.04);
+  transition: border-color 0.1s ease, background-color 0.1s ease,
+    color 0.1s ease;
+}
+
+.file-tree-editor-watermark-action:hover {
+  border-color: hsl(var(--primary) / 0.45);
+  background-color: hsl(var(--primary) / 0.06);
+  color: hsl(var(--foreground));
+}
+
+.file-tree-editor-watermark-action:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.42);
+  outline-offset: 2px;
+}
+
+.file-tree-git-graph {
+  position: relative;
+  display: flex;
+  width: 14px;
+  min-width: 14px;
+  flex-direction: column;
+  align-items: center;
+  align-self: stretch;
+}
+
+.file-tree-git-graph-node {
+  margin-top: 4px;
+  display: inline-flex;
+  height: 8px;
+  width: 8px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border));
+  background-color: hsl(var(--muted-foreground) / 0.65);
+  box-shadow: 0 0 0 2px hsl(var(--background));
+}
+
+.file-tree-git-graph-node.is-latest {
+  background-color: hsl(var(--primary));
+  border-color: hsl(var(--primary));
+}
+
+.file-tree-git-graph-node.is-fresh {
+  background-color: hsl(var(--primary) / 0.92);
+  border-color: hsl(var(--primary) / 0.92);
+}
+
+.file-tree-git-graph-node.is-recent {
+  background-color: hsl(200 90% 55% / 0.85);
+  border-color: hsl(200 90% 55% / 0.85);
+}
+
+.file-tree-git-graph-node.is-warm {
+  background-color: hsl(35 92% 58% / 0.82);
+  border-color: hsl(35 92% 58% / 0.82);
+}
+
+.file-tree-git-graph-node.is-older {
+  background-color: hsl(var(--muted-foreground) / 0.72);
+  border-color: hsl(var(--muted-foreground) / 0.72);
+}
+
+.file-tree-git-graph-node.is-hovered {
+  background-color: hsl(var(--primary) / 0.82);
+  border-color: hsl(var(--primary) / 0.82);
+}
+
+.file-tree-git-graph-node.is-expanded {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 2px hsl(var(--background)),
+    0 0 0 4px hsl(var(--primary) / 0.14);
+}
+
+.file-tree-git-graph-node.is-summary {
+  height: 10px;
+  width: 10px;
+  box-shadow: 0 0 0 2px hsl(var(--background)),
+    0 0 0 5px hsl(var(--primary) / 0.12);
+}
+
+.file-tree-git-graph-line {
+  margin-top: 2px;
+  width: 1px;
+  flex: 1 1 auto;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--border) / 0.75) 0%,
+    hsl(var(--border) / 0.45) 100%
+  );
+}
+
+.file-tree-git-graph-line.is-expanded {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 0.65) 0%,
+    hsl(var(--border) / 0.35) 100%
+  );
+}
+
+.file-tree-git-graph-line.is-fresh {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 0.75) 0%,
+    hsl(var(--primary) / 0.24) 100%
+  );
+}
+
+.file-tree-git-graph-line.is-recent {
+  background: linear-gradient(
+    180deg,
+    hsl(200 90% 55% / 0.72) 0%,
+    hsl(200 90% 55% / 0.18) 100%
+  );
+}
+
+.file-tree-git-graph-line.is-warm {
+  background: linear-gradient(
+    180deg,
+    hsl(35 92% 58% / 0.68) 0%,
+    hsl(35 92% 58% / 0.16) 100%
+  );
+}
+
+.file-tree-git-graph-line.is-older {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--muted-foreground) / 0.55) 0%,
+    hsl(var(--border) / 0.3) 100%
+  );
+}
+
+.file-tree-git-graph-line.is-hovered {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 0.72) 0%,
+    hsl(var(--primary) / 0.24) 100%
+  );
+}
+
+.file-tree-git-graph-line.is-summary {
+  background: linear-gradient(
+    180deg,
+    hsl(var(--primary) / 0.7) 0%,
+    hsl(var(--primary) / 0.16) 100%
+  );
+}
+
+.file-tree-git-summary {
+  box-shadow: inset 0 1px 0 hsl(var(--background) / 0.55);
+}
+
+.file-tree-git-summary.is-hovered {
+  border-color: hsl(var(--primary) / 0.2);
+  background-color: hsl(var(--primary) / 0.04);
+}
+
+.file-tree-git-summary.is-active {
+  border-color: hsl(var(--primary) / 0.25);
+  background-color: hsl(var(--primary) / 0.06);
+}
+
+/* Editor status bar - VSCode style */
+.bg-editor-statusbar {
+  background-color: hsl(var(--vscode-statusBar-background, 220 14% 12%) / 1);
+}
+
+.dark .bg-editor-statusbar-dark,
+.bg-editor-statusbar-dark {
+  background-color: hsl(var(--vscode-statusBar-background, 220 14% 96%) / 1);
+}
+
+.text-editor-statusbar-foreground {
+  color: hsl(var(--vscode-statusBar-foreground, 0 0% 80%) / 1);
+}
+
+.dark .text-editor-statusbar-foreground-dark,
+.text-editor-statusbar-foreground-dark {
+  color: hsl(var(--vscode-statusBar-foreground, 220 14% 12%) / 1);
+}
+
+/* Border color for dark mode */
+.border-editor-border {
+  border-color: hsl(var(--border) / 1);
+}
+
+.dark .border-editor-border-dark,
+.border-editor-border-dark {
+  border-color: hsl(var(--border) / 0.3);
+}
+
+/* Resizable panel handles - optimize for smooth resize */
+[data-panel-resize-handle-id] {
+  position: relative;
+  width: 4px;
+  background: transparent;
+  transition: background-color 0.15s ease;
+  will-change: transform;
+}
+
+[data-panel-resize-handle-id]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 4px;
+  background: hsl(var(--border) / 0.4);
+  transition: background-color 0.15s ease;
+}
+
+[data-panel-resize-handle-id]:hover::before,
+[data-panel-resize-handle-id][data-resize-handle-active]::before {
+  background: hsl(var(--primary) / 0.5);
+}
+
+[data-panel-resize-handle-id][data-panel-group-direction="horizontal"] {
+  cursor: col-resize;
+}
+
+[data-panel-resize-handle-id][data-panel-group-direction="vertical"] {
+  cursor: row-resize;
+}
+
+/* ── Editor Tab Styling (VS Code / SideX style) ──────────────────────────────── */
+
+/* Tab bar container */
+.dv-tabs-and-actions-container {
+  height: 35px !important;
+  background-color: hsl(var(--muted) / 0.15) !important;
+  border-bottom: 1px solid hsl(var(--border) / 0.5) !important;
+}
+
+/* Tab container */
+.dv-tabs-container {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  height: 35px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  white-space: nowrap !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+}
+
+/* Keep tab strip scrollable while hiding the native horizontal scrollbar. */
+.dv-tabs-container::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.dv-tabs-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dv-tabs-container::-webkit-scrollbar-thumb {
+  background: hsl(var(--border) / 0.5);
+  border-radius: 2px;
+}
+
+.dv-tabs-container::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--border));
+}
+
+/* Tab - flat style, no stepped margin */
+.dv-tab {
+  min-width: 80px !important;
+  max-width: 180px !important;
+  height: 35px !important;
+  padding: 0 8px !important;
+  margin-top: 0 !important;
+  border-radius: 6px 6px 0 0 !important;
+  background-color: transparent !important;
+  transition: background-color 0.1s ease !important;
+}
+
+.dv-tab::before {
+  display: none !important;
+}
+
+/* Inactive tab */
+.dv-tab.dv-inactive-tab .dv-default-tab {
+  background-color: transparent !important;
+  border-radius: 6px 6px 0 0 !important;
+  margin-top: 0 !important;
+}
+
+.dv-tab.dv-inactive-tab .dv-default-tab:hover {
+  background-color: hsl(var(--muted) / 0.3) !important;
+}
+
+/* Active tab */
+.dv-tab.dv-active-tab .dv-default-tab {
+  background-color: hsl(var(--background)) !important;
+  border-radius: 6px 6px 0 0 !important;
+  margin-top: 0 !important;
+  box-shadow: 0 -1px 0 0 hsl(var(--border)) inset !important;
+}
+
+/* Tab content layout */
+.dv-default-tab {
+  display: flex !important;
+  align-items: center !important;
+  height: calc(100% - 1px) !important;
+  padding: 0 4px !important;
+  gap: 6px !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+/* File icon in tab */
+.dv-default-tab-icon {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  width: 16px !important;
+  height: 16px !important;
+  margin-right: 0 !important;
+}
+
+.dv-default-tab-icon svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* Tab label */
+.dv-default-tab-content {
+  flex: 1 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: hsl(var(--muted-foreground)) !important;
+  padding: 0 !important;
+}
+
+.dv-tab.dv-active-tab .dv-default-tab-content {
+  color: hsl(var(--foreground)) !important;
+}
+
+.dv-default-tab.is-preview-tab .dv-default-tab-content {
+  font-style: italic !important;
+  font-weight: 450 !important;
+}
+
+.dv-default-tab-preview {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 14px !important;
+  height: 14px !important;
+  color: hsl(var(--muted-foreground) / 0.75) !important;
+  flex-shrink: 0 !important;
+}
+
+.dv-default-tab-dirty {
+  display: inline-flex !important;
+  width: 8px !important;
+  height: 8px !important;
+  flex: 0 0 auto !important;
+  border-radius: 999px !important;
+  background: currentColor !important;
+  opacity: 0.72 !important;
+}
+
+/* Close button */
+.dv-default-tab-action {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 20px !important;
+  height: 20px !important;
+  border: 0 !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: inherit !important;
+  flex-shrink: 0 !important;
+  opacity: 0.5 !important;
+  transition: opacity 0.1s ease, background-color 0.1s ease !important;
+  padding: 0 !important;
+  margin-left: auto !important;
+}
+
+.dv-default-tab:hover .dv-default-tab-action,
+.dv-tab.dv-active-tab .dv-default-tab-action {
+  opacity: 1 !important;
+}
+
+.dv-default-tab-action:hover {
+  background-color: hsl(var(--muted) / 0.4) !important;
+  opacity: 1 !important;
+}
+
+.dv-default-tab-action:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.45) !important;
+  outline-offset: -1px !important;
+  opacity: 1 !important;
+}
+
+.dv-default-tab-action:active {
+  background-color: hsl(var(--muted) / 0.6) !important;
+}
+
+/* Dark mode adjustments */
+.dark .dv-tabs-and-actions-container {
+  background-color: hsl(var(--muted) / 0.08) !important;
+}
+
+.dark .dv-tab.dv-inactive-tab .dv-default-tab:hover {
+  background-color: hsl(var(--muted) / 0.2) !important;
+}
+
+/* ── Drag & Drop Visual Feedback ──────────────────────────────────────────────── */
+
+/* Drop indicator line - appears above/below items during drag */
+.file-tree-drop-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: hsl(var(--primary));
+  pointer-events: none;
+  z-index: 10;
+  border-radius: 1px;
+}
+
+.file-tree-drop-indicator-before {
+  top: -3px;
+}
+
+.file-tree-drop-indicator-after {
+  bottom: -3px;
+}
+
+/* Drop target highlight for folders during drag */
+.file-tree-drop-target {
+  background-color: hsl(var(--primary) / 0.15) !important;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.3);
+  animation: drop-target-pulse 1s ease-in-out infinite;
+}
+
+@keyframes drop-target-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 3px hsl(var(--primary) / 0.5);
+  }
+}
+
+/* Drag ghost opacity */
+.file-tree-drag-ghost {
+  opacity: 0.85;
+  cursor: grabbing;
+}
+
+/* ── Indent Guides ────────────────────────────────────────────────────────────── */
+
+.file-tree-indent-guide {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: hsl(var(--border) / 0.35);
+  pointer-events: none;
+}
+
+.file-tree-indent-guides {
+  position: relative;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ── Search Filter ────────────────────────────────────────────────────────────── */
+
+.file-tree-search-highlight {
+  background-color: hsl(var(--primary) / 0.25);
+  border-radius: 2px;
+  color: inherit;
+  font-weight: 600;
+  padding: 0 1px;
+}
+
+/* ── Tree Item Refinements ────────────────────────────────────────────────────── */
+
+/* Keyboard focus indicator - clear visual feedback */
+.file-tree-item:focus {
+  outline: none;
+}
+
+.file-tree-item:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.6);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+/* Tree item hover state - smoother transition */
+.file-tree-item {
+  transition: background-color 0.1s ease;
+}
+
+/* Selected item - more refined styling */
+.file-tree-item.selected {
+  background-color: hsl(var(--primary) / 0.12);
+}
+
+/* Active file in editor - distinct from selected */
+.file-tree-item.active {
+  background-color: hsl(var(--primary) / 0.16);
+  border-left: 2px solid hsl(var(--primary));
+}
+
+/* Refined hover state */
+.file-tree-item:not(.selected):not(.active):hover {
+  background-color: hsl(var(--muted) / 0.5);
+}
+
+/* Smooth icon color transitions */
+.file-tree-item svg {
+  transition: color 0.1s ease, transform 0.1s ease;
+}
+
+/* Better spacing for tree content */
+.file-tree-content {
+  padding: 2px 8px;
+  gap: 6px;
+}
+
+/* ── Pane Header Refinements ──────────────────────────────────────────────────── */
+
+/* More refined pane header */
+.file-tree-paneview .dv-pane-header {
+  transition: background-color 0.15s ease;
+}
+
+/* Subtle top accent for focused pane */
+.file-tree-paneview .dv-pane-header.focused::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--primary) / 0.5) 50%,
+    transparent 100%
+  );
+}
+
+/* ── Tab Drop Zone ───────────────────────────────────────────────────────────── */
+
+.file-tree-tab-drop-zone {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 35px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  background-color: hsl(var(--primary) / 0.1);
+  border-left: 1px solid hsl(var(--primary) / 0.3);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.file-tree-tab-drop-zone.is-active {
+  opacity: 1;
+}
+
+.file-tree-tab-drop-indicator {
+  position: absolute;
+  top: 0;
+  height: 35px;
+  width: 2px;
+  background-color: hsl(var(--primary));
+}
+
+/* ── Context Menu ───────────────────────────────────────────────────────────── */
+
+.file-tree-context-menu {
+  min-width: 184px;
+  max-width: min(320px, calc(100vw - 16px));
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  background: hsl(var(--popover));
+  color: hsl(var(--popover-foreground));
+  box-shadow: 0 8px 28px rgb(15 23 42 / 0.18);
+  padding: 4px 0;
+}
+
+.file-tree-context-menu:focus {
+  outline: none;
+}
+
+.file-tree-context-menu-separator {
+  margin: 4px 0;
+  height: 0;
+  border: 0;
+  border-top: 1px solid hsl(var(--border) / 0.55);
+}
+
+.file-tree-context-menu-item {
+  display: flex;
+  width: 100%;
+  height: 27px;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0 12px;
+  text-align: left;
+  font-size: 12px;
+  color: inherit;
+  transition: background-color 0.08s ease, color 0.08s ease;
+}
+
+.file-tree-context-menu-item:hover,
+.file-tree-context-menu-item.is-keyboard-active {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.file-tree-context-menu-item.is-danger {
+  color: hsl(var(--destructive));
+}
+
+.file-tree-context-menu-item.is-danger:hover,
+.file-tree-context-menu-item.is-danger.is-keyboard-active {
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+}
+
+.file-tree-context-menu-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: hsl(var(--muted-foreground));
+}
+
+.file-tree-context-menu-item:hover .file-tree-context-menu-icon,
+.file-tree-context-menu-item.is-keyboard-active .file-tree-context-menu-icon {
+  color: currentColor;
+}
+
+.file-tree-context-menu-shortcut {
+  margin-left: 24px;
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+}
+
+.file-tree-context-menu-item:hover .file-tree-context-menu-shortcut,
+.file-tree-context-menu-item.is-keyboard-active
+  .file-tree-context-menu-shortcut {
+  color: color-mix(in srgb, currentColor 70%, transparent);
+}
+
+.file-tree-context-menu.is-vscode {
+  min-width: 220px;
+  border-color: #c8c8c8;
+  border-radius: 0;
+  background: #f3f3f3;
+  color: #3c3c3c;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.18);
+  padding: 4px 0;
+}
+
+.dark .file-tree-context-menu.is-vscode {
+  border-color: #454545;
+  background: #252526;
+  color: #cccccc;
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.55);
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-item {
+  height: 26px;
+  padding: 0 16px;
+  font-size: 12px;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-item:hover,
+.file-tree-context-menu.is-vscode
+  .file-tree-context-menu-item.is-keyboard-active {
+  background: #0078d4;
+  color: #ffffff;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-item.is-danger {
+  color: #a1260d;
+}
+
+.dark .file-tree-context-menu.is-vscode .file-tree-context-menu-item.is-danger {
+  color: #f48771;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-item.is-danger:hover,
+.file-tree-context-menu.is-vscode
+  .file-tree-context-menu-item.is-danger.is-keyboard-active {
+  background: #0078d4;
+  color: #ffffff;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-icon {
+  display: inline-flex;
+}
+
+.dark .file-tree-context-menu.is-vscode .file-tree-context-menu-icon {
+  display: inline-flex;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-shortcut {
+  color: #6a6a6a;
+}
+
+.dark .file-tree-context-menu.is-vscode .file-tree-context-menu-shortcut {
+  color: #9d9d9d;
+}
+
+.file-tree-context-menu.is-vscode
+  .file-tree-context-menu-item:hover
+  .file-tree-context-menu-icon,
+.file-tree-context-menu.is-vscode
+  .file-tree-context-menu-item:hover
+  .file-tree-context-menu-shortcut,
+.file-tree-context-menu.is-vscode
+  .file-tree-context-menu-item.is-keyboard-active
+  .file-tree-context-menu-icon,
+.file-tree-context-menu.is-vscode
+  .file-tree-context-menu-item.is-keyboard-active
+  .file-tree-context-menu-shortcut {
+  color: currentColor;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-separator {
+  margin: 4px 0;
+  border-top-color: #d8d8d8;
+}
+
+.dark .file-tree-context-menu.is-vscode .file-tree-context-menu-separator {
+  border-top-color: #454545;
+}
+
+/* ── VS Code Workbench Variant ──────────────────────────────────────────────── */
+
+.file-tree-editor-vscode {
+  --shuan-vscode-editor-bg: #ffffff;
+  --shuan-vscode-side-bg: #f3f3f3;
+  --shuan-vscode-side-fg: #3b3b3b;
+  --shuan-vscode-side-muted: #6b6b6b;
+  --shuan-vscode-activity-bg: #2c2c2c;
+  --shuan-vscode-activity-fg: #c5c5c5;
+  --shuan-vscode-activity-active: #ffffff;
+  --shuan-vscode-border: #d6d6d6;
+  --shuan-vscode-row-hover: #e8e8e8;
+  --shuan-vscode-row-selected: #e4e6f1;
+  --shuan-vscode-row-active: #cce8ff;
+  --shuan-vscode-focus: #007acc;
+  --shuan-vscode-tabbar: #f3f3f3;
+  --shuan-vscode-tab-inactive: #ececec;
+  --shuan-vscode-tab-active: #ffffff;
+  --shuan-vscode-tab-fg: #616161;
+  --shuan-vscode-title-bg: #f3f3f3;
+  --shuan-vscode-title-fg: #383838;
+  --shuan-vscode-title-hover: #e5e5e5;
+  background: var(--shuan-vscode-editor-bg);
+  color: var(--shuan-vscode-title-fg);
+}
+
+.dark .file-tree-editor-vscode {
+  --shuan-vscode-editor-bg: #1f1f1f;
+  --shuan-vscode-side-bg: #181818;
+  --shuan-vscode-side-fg: #cccccc;
+  --shuan-vscode-side-muted: #8a8a8a;
+  --shuan-vscode-activity-bg: #181818;
+  --shuan-vscode-activity-fg: #858585;
+  --shuan-vscode-activity-active: #ffffff;
+  --shuan-vscode-border: #2b2b2b;
+  --shuan-vscode-row-hover: #2a2d2e;
+  --shuan-vscode-row-selected: #37373d;
+  --shuan-vscode-row-active: #04395e;
+  --shuan-vscode-focus: #007fd4;
+  --shuan-vscode-tabbar: #181818;
+  --shuan-vscode-tab-inactive: #2d2d2d;
+  --shuan-vscode-tab-active: #1f1f1f;
+  --shuan-vscode-tab-fg: #969696;
+  --shuan-vscode-title-bg: #181818;
+  --shuan-vscode-title-fg: #cccccc;
+  --shuan-vscode-title-hover: #2a2d2e;
+}
+
+.file-tree-vscode-sidebar-shell {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--shuan-vscode-side-bg);
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-editor-vscode .file-tree-vscode-resize-handle::before {
+  background: var(--shuan-vscode-border) !important;
+}
+
+.file-tree-editor-vscode .file-tree-vscode-resize-handle:hover::before,
+.file-tree-editor-vscode
+  .file-tree-vscode-resize-handle[data-resize-handle-state="drag"]::before,
+.file-tree-editor-vscode .file-tree-vscode-resize-handle:focus-visible::before {
+  background: var(--shuan-vscode-focus) !important;
+}
+
+.file-tree-vscode-activitybar {
+  display: flex;
+  width: 48px;
+  flex: 0 0 48px;
+  flex-direction: column;
+  align-items: center;
+  border-right: 1px solid var(--shuan-vscode-border);
+  background: var(--shuan-vscode-activity-bg);
+  padding-top: 6px;
+}
+
+.file-tree-vscode-activity-button {
+  position: relative;
+  display: inline-flex;
+  width: 48px;
+  height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--shuan-vscode-activity-fg);
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.file-tree-vscode-activity-button:hover,
+.file-tree-vscode-activity-button:focus-visible,
+.file-tree-vscode-activity-button.is-active {
+  color: var(--shuan-vscode-activity-active);
+}
+
+.file-tree-vscode-activity-button:focus-visible {
+  outline: 1px solid var(--shuan-vscode-focus);
+  outline-offset: -1px;
+}
+
+.file-tree-vscode-activity-button.is-active::before {
+  content: "";
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 0;
+  width: 2px;
+  background: var(--shuan-vscode-activity-active);
+}
+
+.file-tree-vscode-activity-badge {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  display: inline-flex;
+  min-width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #1456f0;
+  padding: 0 4px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  box-shadow: 0 0 0 1px var(--shuan-vscode-activity-bg);
+}
+
+.file-tree-vscode-sidebar-panel {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  border-right: 1px solid var(--shuan-vscode-border);
+  background: var(--shuan-vscode-side-bg);
+}
+
+.file-tree-editor-compact-workbench.file-tree-editor-vscode
+	.file-tree-vscode-sidebar-panel {
+	min-width: 144px;
+}
+
+.file-tree-vscode-sidebar-titlebar {
+  display: flex;
+  height: 35px;
+  min-height: 35px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 20px;
+  border-bottom: 1px solid var(--shuan-vscode-border);
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-vscode-sidebar-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.file-tree-vscode-sidebar-meta {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-tree-vscode-sidebar-chip {
+  display: inline-flex;
+  height: 18px;
+  max-width: 74px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 4px;
+  background: color-mix(
+    in srgb,
+    var(--shuan-vscode-row-hover) 76%,
+    transparent
+  );
+  padding: 0 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--shuan-vscode-tab-fg) 82%, transparent);
+}
+
+.file-tree-vscode-sidebar-chip.is-dirty {
+  background: color-mix(in srgb, var(--shuan-vscode-focus) 18%, transparent);
+  color: var(--shuan-vscode-title-fg);
+}
+
+.file-tree-vscode-sidebar-chip.is-warning {
+  background: rgb(245 158 11 / 0.14);
+  color: #b45309;
+}
+
+.file-tree-vscode-sidebar-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.file-tree-vscode-sidebar-panel:hover .file-tree-vscode-sidebar-actions,
+.file-tree-vscode-sidebar-actions:focus-within {
+  opacity: 1;
+}
+
+.file-tree-vscode-title-action {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-vscode-title-action:hover,
+.file-tree-vscode-title-action:focus-visible,
+.file-tree-vscode-title-action.is-active {
+  background: var(--shuan-vscode-row-hover);
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-vscode-title-action:focus-visible {
+  outline: 1px solid var(--shuan-vscode-focus);
+  outline-offset: -1px;
+}
+
+.file-tree-vscode-search-panel {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: var(--shuan-vscode-side-bg);
+}
+
+.file-tree-source-control-panel {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--shuan-vscode-side-bg);
+  color: var(--shuan-vscode-side-fg);
+  font-size: 12px;
+}
+
+.file-tree-vscode-overview-panel {
+  background: var(--shuan-vscode-side-bg);
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-asset-overview {
+  min-height: 100%;
+  color: var(--shuan-vscode-side-fg);
+  font-size: 12px;
+}
+
+.file-tree-asset-overview-hero,
+.file-tree-asset-overview-section {
+  border-bottom: 1px solid var(--shuan-vscode-border);
+  padding: 12px 14px;
+}
+
+.file-tree-asset-overview-title {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file-tree-asset-overview-title span {
+  overflow: hidden;
+  color: var(--shuan-vscode-side-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-asset-overview-title strong {
+  overflow: hidden;
+  color: var(--shuan-vscode-side-fg);
+  font-size: 14px;
+  line-height: 20px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-asset-overview-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.file-tree-asset-overview-description {
+  display: block;
+  margin-top: 9px;
+  color: var(--shuan-vscode-side-muted);
+  line-height: 18px;
+}
+
+.file-tree-asset-overview-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 10px;
+  border: 1px solid var(--shuan-vscode-border);
+}
+
+.file-tree-asset-overview-stats div {
+  min-width: 0;
+  background: color-mix(
+    in srgb,
+    var(--shuan-vscode-row-hover) 58%,
+    transparent
+  );
+  padding: 7px 6px;
+}
+
+.file-tree-asset-overview-stats dt {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  color: var(--shuan-vscode-side-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.file-tree-asset-overview-stats dd {
+  margin: 3px 0 0;
+  text-align: center;
+  color: var(--shuan-vscode-side-fg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-tree-asset-overview-section h3,
+.file-tree-asset-overview-section-header h3 {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  margin: 0;
+  color: var(--shuan-vscode-side-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.file-tree-asset-overview-section-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.file-tree-asset-overview-section-header span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--shuan-vscode-side-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.file-tree-asset-overview-meta {
+  display: grid;
+  gap: 7px;
+  margin: 9px 0 0;
+}
+
+.file-tree-asset-overview-meta div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.file-tree-asset-overview-meta dt {
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-asset-overview-meta dd {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  margin: 0;
+  color: var(--shuan-vscode-side-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.file-tree-asset-overview-readme {
+  margin-top: 9px;
+  max-height: 360px;
+  overflow: auto;
+  color: var(--shuan-vscode-side-fg);
+  line-height: 18px;
+}
+
+.file-tree-asset-overview-readme p {
+  margin: 0;
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-asset-overview-readme code {
+  border-radius: 2px;
+  background: var(--shuan-vscode-row-hover);
+  padding: 1px 4px;
+}
+
+.file-tree-asset-overview-readme :where(h1, h2, h3) {
+  margin-top: 0.8em;
+  margin-bottom: 0.45em;
+  font-size: 13px;
+}
+
+.file-tree-asset-overview-readme :where(ul, ol) {
+  padding-left: 18px;
+}
+
+.file-tree-asset-overview-empty {
+  padding: 10px 0 2px;
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-asset-overview-commit-list {
+  display: grid;
+  gap: 0;
+  margin: 8px -14px -12px;
+  padding: 0;
+  list-style: none;
+}
+
+.file-tree-asset-overview-commit {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  border-top: 1px solid var(--shuan-vscode-border);
+  padding: 9px 14px;
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-asset-overview-commit p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--shuan-vscode-side-fg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-asset-overview-commit span {
+  display: block;
+  overflow: hidden;
+  margin-top: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.file-tree-asset-overview-commit code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+.file-tree-source-toolbar {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--shuan-vscode-border);
+  padding: 5px 8px;
+}
+
+.file-tree-source-branch {
+  display: inline-flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  color: var(--shuan-vscode-side-fg);
+  font-size: 12px;
+}
+
+.file-tree-source-branch span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-source-toolbar-button,
+.file-tree-source-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-source-toolbar-button {
+  height: 22px;
+  gap: 4px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.file-tree-source-icon-button {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+.file-tree-source-toolbar-button:hover:not(:disabled),
+.file-tree-source-toolbar-button:focus-visible,
+.file-tree-source-icon-button:hover:not(:disabled),
+.file-tree-source-icon-button:focus-visible {
+  background: var(--shuan-vscode-row-hover);
+  color: var(--shuan-vscode-side-fg);
+  outline: none;
+}
+
+.file-tree-source-toolbar-button:disabled,
+.file-tree-source-icon-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.file-tree-source-alert {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--shuan-vscode-border);
+  padding: 5px 10px;
+  color: #dc2626;
+  line-height: 16px;
+}
+
+.file-tree-source-alert.is-warning {
+  color: #b45309;
+}
+
+.file-tree-source-state {
+  display: flex;
+  min-height: 180px;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(--shuan-vscode-side-muted);
+  text-align: center;
+}
+
+.file-tree-source-state p {
+  margin: 0;
+  line-height: 18px;
+}
+
+.file-tree-source-section {
+  min-height: 0;
+  border-bottom: 1px solid var(--shuan-vscode-border);
+}
+
+.file-tree-source-section-title {
+  display: flex;
+  height: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px;
+  color: var(--shuan-vscode-side-fg);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.file-tree-source-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px 12px;
+  color: var(--shuan-vscode-side-muted);
+  line-height: 18px;
+}
+
+.file-tree-source-empty.is-error {
+  color: #dc2626;
+}
+
+.file-tree-source-change-list,
+.file-tree-source-branch-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 6px;
+}
+
+.file-tree-source-change {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 10px 0 16px;
+  color: inherit;
+  text-align: left;
+}
+
+.file-tree-source-change:hover,
+.file-tree-source-change:focus-visible,
+.file-tree-source-branch-row:hover,
+.file-tree-source-branch-row:focus-within {
+  background: var(--shuan-vscode-row-hover);
+  outline: none;
+}
+
+.file-tree-source-change-status {
+  display: inline-flex;
+  width: 48px;
+  flex: 0 0 48px;
+  justify-content: flex-start;
+  overflow: hidden;
+  color: #3b82f6;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-source-change-status.is-dirty {
+  color: #b45309;
+}
+
+.file-tree-source-change-status.is-staged {
+  color: #16a34a;
+}
+
+.file-tree-source-change-path {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-source-branch-create {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 8px;
+}
+
+.file-tree-source-input {
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  border: 1px solid var(--shuan-vscode-border);
+  border-radius: 0;
+  background: var(--shuan-vscode-editor-bg);
+  padding: 2px 6px;
+  color: var(--shuan-vscode-side-fg);
+  font-size: 12px;
+  outline: none;
+}
+
+.file-tree-source-input:focus {
+  border-color: var(--shuan-vscode-focus);
+  box-shadow: 0 0 0 1px var(--shuan-vscode-focus);
+}
+
+.file-tree-source-input::placeholder {
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-source-branch-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto 24px;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 2px 8px 2px 16px;
+}
+
+.file-tree-source-branch-row.is-active {
+  background: var(--shuan-vscode-row-selected);
+}
+
+.file-tree-source-branch-main,
+.file-tree-source-branch-meta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.file-tree-source-branch-main {
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-source-branch-meta {
+  color: var(--shuan-vscode-side-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.file-tree-source-branch-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-explorer-pane-vscode {
+  background: var(--shuan-vscode-side-bg) !important;
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-vscode-section-header {
+  display: flex;
+  width: 100%;
+  height: 22px;
+  min-height: 22px;
+  align-items: center;
+  gap: 3px;
+  border-right: 0;
+  border-left: 0;
+  border-top: 1px solid var(--shuan-vscode-border);
+  border-bottom: 1px solid var(--shuan-vscode-border);
+  background: var(--shuan-vscode-side-bg);
+  padding: 0 8px;
+  color: var(--shuan-vscode-side-fg);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+button.file-tree-vscode-section-header:hover,
+button.file-tree-vscode-section-header:focus-visible {
+  background: var(--shuan-vscode-row-hover);
+}
+
+button.file-tree-vscode-section-header:focus-visible {
+  outline: 1px solid var(--shuan-vscode-focus);
+  outline-offset: -1px;
+}
+
+.file-tree-vscode-section-header:first-child {
+  border-top: 0;
+}
+
+.file-tree-vscode-section-chevron {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+  color: var(--shuan-vscode-side-muted);
+  transition: transform 0.08s ease;
+}
+
+.file-tree-vscode-section-chevron.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+.file-tree-vscode-section-title {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-vscode-section-meta {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-editor-vscode .file-tree-dirty-dot {
+  background: #cca700;
+}
+
+.file-tree-vscode-search {
+  background: var(--shuan-vscode-side-bg) !important;
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-vscode-search-controls {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  border-bottom: 1px solid var(--shuan-vscode-border);
+  padding: 8px 8px 7px;
+}
+
+.file-tree-vscode-search-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.file-tree-vscode-search-toggle,
+.file-tree-vscode-search-toggle-spacer,
+.file-tree-vscode-search-command,
+.file-tree-vscode-search-option,
+.file-tree-vscode-search-replace-file {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-vscode-search-toggle,
+.file-tree-vscode-search-toggle-spacer {
+  width: 18px;
+  height: 24px;
+}
+
+.file-tree-vscode-search-toggle svg {
+  transition: transform 0.08s ease;
+}
+
+.file-tree-vscode-search-command {
+  width: 24px;
+  height: 24px;
+}
+
+.file-tree-vscode-search-command:disabled {
+  opacity: 0.35;
+}
+
+.file-tree-vscode-search-toggle:hover,
+.file-tree-vscode-search-command:hover:not(:disabled),
+.file-tree-vscode-search-option:hover,
+.file-tree-vscode-search-replace-file:hover:not(:disabled) {
+  background: var(--shuan-vscode-row-hover);
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-vscode-search-toggle:focus-visible,
+.file-tree-vscode-search-command:focus-visible,
+.file-tree-vscode-search-option:focus-visible,
+.file-tree-vscode-search-replace-file:focus-visible {
+  outline: 1px solid var(--shuan-vscode-focus);
+  outline-offset: -1px;
+}
+
+.file-tree-vscode-search-inputbox {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+}
+
+.file-tree-vscode-search-input {
+  width: 100%;
+  height: 24px;
+  border: 1px solid var(--shuan-vscode-border);
+  border-radius: 0;
+  background: var(--shuan-vscode-editor-bg);
+  padding: 2px 70px 2px 6px;
+  color: var(--shuan-vscode-side-fg);
+  font-size: 12px;
+  line-height: 18px;
+  outline: none;
+}
+
+.file-tree-vscode-search-input:focus {
+  border-color: var(--shuan-vscode-focus);
+  box-shadow: 0 0 0 1px var(--shuan-vscode-focus);
+}
+
+.file-tree-vscode-search-input::placeholder {
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-vscode-search-input.is-replace-input {
+  padding-right: 6px;
+}
+
+.file-tree-vscode-search-input.is-pattern-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-right: 6px;
+}
+
+.file-tree-vscode-search-pattern-row {
+  gap: 4px;
+}
+
+.file-tree-vscode-search-input-actions {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  gap: 1px;
+}
+
+.file-tree-vscode-search-option {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 3px;
+  font-size: 10px;
+  line-height: 18px;
+  text-decoration-thickness: 1px;
+}
+
+.file-tree-vscode-search-option.is-active {
+  background: var(--shuan-vscode-row-selected);
+  color: var(--shuan-vscode-side-fg);
+  box-shadow: inset 0 -1px 0 var(--shuan-vscode-focus);
+}
+
+.file-tree-vscode-search-results {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 0 8px;
+}
+
+.file-tree-vscode-search-state {
+  padding: 10px 20px;
+  color: var(--shuan-vscode-side-muted);
+  font-size: 12px;
+}
+
+.file-tree-vscode-search-summary {
+  padding: 2px 20px 6px;
+  color: var(--shuan-vscode-side-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.file-tree-vscode-search-result-file {
+  min-width: 0;
+}
+
+.file-tree-vscode-search-file-row {
+  display: flex;
+  min-width: 0;
+  height: 22px;
+  align-items: center;
+}
+
+.file-tree-vscode-search-file-main,
+.file-tree-vscode-search-match-row {
+  display: flex;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.file-tree-vscode-search-file-main {
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px 0 14px;
+}
+
+.file-tree-vscode-search-file-main:hover,
+.file-tree-vscode-search-file-main:focus-visible,
+.file-tree-vscode-search-match-row:hover,
+.file-tree-vscode-search-match-row:focus-visible {
+  background: var(--shuan-vscode-row-hover);
+  outline: none;
+}
+
+.file-tree-vscode-search-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.file-tree-vscode-search-file-path,
+.file-tree-vscode-search-file-count {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--shuan-vscode-side-muted);
+  font-size: 11px;
+}
+
+.file-tree-vscode-search-file-path {
+  flex: 1 1 auto;
+}
+
+.file-tree-vscode-search-file-count {
+  flex: 0 0 auto;
+}
+
+.file-tree-vscode-search-replace-file {
+  width: 22px;
+  height: 22px;
+  margin-right: 4px;
+  opacity: 0;
+}
+
+.file-tree-vscode-search-file-row:hover .file-tree-vscode-search-replace-file,
+.file-tree-vscode-search-replace-file:focus-visible {
+  opacity: 1;
+}
+
+.file-tree-vscode-search-matches {
+  min-width: 0;
+}
+
+.file-tree-vscode-search-match-row {
+  width: 100%;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 2px 8px 2px 42px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.file-tree-vscode-search-match-line {
+  width: 34px;
+  flex: 0 0 auto;
+  color: var(--shuan-vscode-side-muted);
+  text-align: right;
+}
+
+.file-tree-vscode-search-match-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", monospace;
+}
+
+.file-tree-vscode-search-match-hit {
+  background: #ea5c0052;
+  color: inherit;
+}
+
+.file-tree-editor-vscode .file-tree-explorer-tree {
+  padding: 4px 0 8px;
+  background: var(--shuan-vscode-side-bg);
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-editor-vscode .file-tree-explorer-tree:focus-visible {
+  outline: 1px solid var(--shuan-vscode-focus);
+  outline-offset: -1px;
+}
+
+.file-tree-editor-vscode .file-tree-row {
+  min-height: 22px;
+  border-radius: 0;
+  color: var(--shuan-vscode-side-fg);
+  transition: background-color 0.08s ease, color 0.08s ease, opacity 0.08s ease;
+}
+
+.file-tree-editor-vscode .file-tree-row:hover {
+  background: var(--shuan-vscode-row-hover);
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-editor-vscode .file-tree-row:focus-visible {
+  outline: 1px solid var(--shuan-vscode-focus);
+  outline-offset: -1px;
+}
+
+.file-tree-editor-vscode .file-tree-row.is-selected {
+  background: var(--shuan-vscode-row-selected);
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-editor-vscode .file-tree-row.is-active {
+  background: var(--shuan-vscode-row-active);
+  box-shadow: none;
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-editor-vscode .file-tree-row.is-drop-target {
+  background: color-mix(in srgb, var(--shuan-vscode-focus) 16%, transparent);
+  box-shadow: inset 0 0 0 1px var(--shuan-vscode-focus);
+}
+
+.file-tree-editor-vscode .file-tree-row-content {
+  min-height: 22px;
+  gap: 4px;
+  padding: 1px 8px 1px 2px;
+}
+
+.file-tree-editor-vscode .file-tree-row-content.is-file {
+  gap: 4px;
+}
+
+.file-tree-editor-vscode .file-tree-row-disclosure {
+  width: 16px;
+  height: 20px;
+}
+
+.file-tree-editor-vscode .file-tree-row-label,
+.file-tree-editor-vscode .file-tree-row-label.is-directory,
+.file-tree-editor-vscode .file-tree-row-label.is-active {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  color: inherit;
+}
+
+.file-tree-editor-vscode .file-tree-inline-create-row {
+  min-height: 22px;
+  gap: 4px;
+}
+
+.file-tree-editor-vscode .file-tree-inline-create-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.file-tree-editor-vscode .file-tree-inline-text-input {
+  height: 20px !important;
+  max-width: 220px !important;
+  border: 1px solid var(--shuan-vscode-focus) !important;
+  border-radius: 0 !important;
+  background: var(--shuan-vscode-editor-bg) !important;
+  box-shadow: 0 0 0 1px var(--shuan-vscode-focus);
+  color: var(--shuan-vscode-title-fg) !important;
+  font-size: 12px !important;
+}
+
+.file-tree-editor-vscode .file-tree-icon-badge {
+  width: 16px !important;
+  height: 20px !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+.file-tree-editor-vscode .file-tree-icon-badge svg {
+  width: 15px;
+  height: 15px;
+}
+
+.file-tree-editor-vscode .file-tree-search-highlight {
+  background: #ea5c0052;
+  border-radius: 0;
+  font-weight: 500;
+}
+
+.file-tree-editor-vscode .file-tree-panel-state {
+  background: var(--shuan-vscode-side-bg);
+  color: var(--shuan-vscode-side-muted);
+}
+
+.file-tree-editor-vscode .file-tree-panel-state-title {
+  color: var(--shuan-vscode-side-fg);
+}
+
+.file-tree-editor-vscode .file-tree-editor-breadcrumbs {
+  height: 24px;
+  min-height: 24px;
+  border-bottom: 1px solid var(--shuan-vscode-border);
+  background: var(--shuan-vscode-editor-bg);
+  color: var(--shuan-vscode-tab-fg);
+}
+
+.file-tree-editor-vscode .file-tree-editor-toolbar {
+  border-bottom: 1px solid var(--shuan-vscode-border);
+  background: var(--shuan-vscode-editor-bg);
+}
+
+.file-tree-editor-vscode .file-tree-editor-statusbar {
+  height: 22px;
+  min-height: 22px;
+  border-top: 0;
+  background: #007acc;
+  color: #ffffff;
+}
+
+.file-tree-editor-vscode .file-tree-ide-statusbar {
+  height: 22px;
+  min-height: 22px;
+  flex-basis: 22px;
+  border-top: 0;
+  background: #007acc;
+  color: #ffffff;
+}
+
+.file-tree-editor-vscode .file-tree-editor-statusitem {
+  padding: 0 8px;
+  font-size: 11px;
+  color: inherit;
+}
+
+.file-tree-editor-vscode .file-tree-ide-statusbutton:hover,
+.file-tree-editor-vscode .file-tree-ide-statusbutton:focus-visible {
+  background: rgb(255 255 255 / 0.16);
+  color: #ffffff;
+}
+
+.file-tree-editor-vscode .file-tree-editor-status-divider {
+  background: rgb(255 255 255 / 0.28);
+}
+
+.file-tree-editor-vscode .file-tree-editor-iconbutton {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  color: var(--shuan-vscode-tab-fg);
+}
+
+.file-tree-editor-vscode .file-tree-editor-iconbutton:hover,
+.file-tree-editor-vscode .file-tree-editor-iconbutton.is-active {
+  background: var(--shuan-vscode-row-hover);
+  color: var(--shuan-vscode-title-fg);
+}
+
+.file-tree-editor-vscode .file-tree-editor-watermark {
+  background: var(--shuan-vscode-editor-bg);
+  color: var(--shuan-vscode-tab-fg);
+}
+
+.file-tree-editor-vscode .file-tree-editor-watermark.is-vscode-watermark {
+  position: relative;
+  gap: 28px;
+  min-height: 100%;
+  padding: 40px;
+}
+
+.file-tree-editor-vscode .file-tree-editor-watermark-mark {
+  border: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--shuan-vscode-tab-fg) 55%, transparent);
+}
+
+.file-tree-editor-vscode .file-tree-editor-vscode-watermark-mark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  width: 180px;
+  height: 180px;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -56%);
+  color: color-mix(in srgb, var(--shuan-vscode-tab-fg) 11%, transparent);
+  pointer-events: none;
+}
+
+.file-tree-editor-vscode .file-tree-editor-vscode-watermark-mark svg {
+  width: 150px;
+  height: 150px;
+  stroke-width: 1.25;
+}
+
+.file-tree-editor-vscode .file-tree-editor-vscode-watermark-shortcuts {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-width: 310px;
+  gap: 10px;
+  color: color-mix(in srgb, var(--shuan-vscode-tab-fg) 64%, transparent);
+  font-size: 13px;
+}
+
+.file-tree-editor-compact-workbench.file-tree-editor-vscode
+	.file-tree-editor-watermark.is-vscode-watermark {
+	padding: 24px 16px;
+}
+
+.file-tree-editor-compact-workbench.file-tree-editor-vscode
+	.file-tree-editor-vscode-watermark-mark {
+	width: 120px;
+	height: 120px;
+}
+
+.file-tree-editor-compact-workbench.file-tree-editor-vscode
+	.file-tree-editor-vscode-watermark-mark
+	svg {
+	width: 108px;
+	height: 108px;
+}
+
+.file-tree-editor-vscode .file-tree-editor-vscode-watermark-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 28px;
+}
+
+.file-tree-editor-compact-workbench.file-tree-editor-vscode
+	.file-tree-editor-vscode-watermark-row {
+	gap: 12px;
+}
+
+.file-tree-editor-vscode .file-tree-editor-vscode-watermark-row kbd {
+  min-width: 78px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: color-mix(in srgb, var(--shuan-vscode-tab-fg) 72%, transparent);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: right;
+}
+
+.file-tree-editor-compact-workbench.file-tree-editor-vscode
+	.file-tree-editor-vscode-watermark-row
+	kbd {
+	min-width: 58px;
+}
+
+.file-tree-editor-vscode .file-tree-editor-watermark-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--shuan-vscode-title-fg);
+}
+
+.file-tree-editor-vscode .file-tree-editor-watermark-action {
+  height: 28px;
+  border-color: var(--shuan-vscode-border);
+  border-radius: 3px;
+  background: var(--shuan-vscode-tab-inactive);
+  box-shadow: none;
+  color: var(--shuan-vscode-title-fg);
+}
+
+.file-tree-editor-vscode .file-tree-editor-watermark-action:hover {
+  border-color: var(--shuan-vscode-focus);
+  background: var(--shuan-vscode-row-hover);
+}
+
+.file-tree-editor-vscode .dv-tabs-and-actions-container {
+  height: 35px !important;
+  border-bottom: 1px solid var(--shuan-vscode-border) !important;
+  background: var(--shuan-vscode-tabbar) !important;
+}
+
+.file-tree-editor-vscode .dv-tabs-container {
+  height: 35px !important;
+}
+
+.file-tree-editor-vscode .dv-tab {
+  height: 35px !important;
+  min-width: 92px !important;
+  max-width: 220px !important;
+  padding: 0 !important;
+  border-right: 1px solid var(--shuan-vscode-border) !important;
+  border-radius: 0 !important;
+}
+
+.file-tree-editor-vscode .dv-tab.dv-inactive-tab .dv-default-tab,
+.file-tree-editor-vscode .dv-tab.dv-active-tab .dv-default-tab {
+  border-radius: 0 !important;
+}
+
+.file-tree-editor-vscode .dv-tab.dv-inactive-tab .dv-default-tab {
+  background: var(--shuan-vscode-tab-inactive) !important;
+}
+
+.file-tree-editor-vscode .dv-tab.dv-inactive-tab .dv-default-tab:hover {
+  background: var(--shuan-vscode-row-hover) !important;
+}
+
+.file-tree-editor-vscode .dv-tab.dv-active-tab .dv-default-tab {
+  background: var(--shuan-vscode-tab-active) !important;
+  box-shadow: inset 0 1px 0 0 var(--shuan-vscode-focus) !important;
+}
+
+.file-tree-editor-vscode .dv-default-tab {
+  height: 34px !important;
+  gap: 5px !important;
+  padding: 0 8px !important;
+}
+
+.file-tree-editor-vscode .dv-default-tab-content {
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  color: var(--shuan-vscode-tab-fg) !important;
+}
+
+.file-tree-editor-vscode .dv-tab.dv-active-tab .dv-default-tab-content {
+  color: var(--shuan-vscode-title-fg) !important;
+}
+
+.file-tree-editor-vscode .dv-default-tab-action {
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 3px !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.file-tree-editor-vscode .dv-default-tab:hover .dv-default-tab-action,
+.file-tree-editor-vscode
+  .dv-tab.dv-active-tab
+  .dv-default-tab:hover
+  .dv-default-tab-action,
+.file-tree-editor-vscode .dv-default-tab-action:focus-visible {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.file-tree-editor-vscode
+  .dv-tab.dv-active-tab
+  .dv-default-tab:not(.is-dirty)
+  .dv-default-tab-action {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.file-tree-editor-vscode
+  .dv-tab.dv-active-tab
+  .dv-default-tab.is-dirty
+  .dv-default-tab-action {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.file-tree-editor-vscode
+  .dv-tab.dv-active-tab
+  .dv-default-tab.is-dirty:hover
+  .dv-default-tab-action {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.file-tree-editor-vscode .dv-default-tab-dirty {
+  margin-left: auto !important;
+  color: var(--shuan-vscode-tab-fg);
+}
+
+.file-tree-editor-vscode .dv-tab.dv-active-tab .dv-default-tab-dirty {
+  color: var(--shuan-vscode-title-fg);
+}
+
+.file-tree-editor-vscode .dv-default-tab:hover .dv-default-tab-dirty {
+  display: none !important;
+}
+
+.file-tree-editor-vscode .dv-default-tab.is-dirty .dv-default-tab-action {
+  margin-left: 0 !important;
+}
+
+.file-tree-workspace-dialog-content {
+  font-family: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.shuan-design-file-manager {
+  --dv-active-sash-color: #1456f0;
+  background: #ffffff;
+  color: #222222;
+}
+
+.shuan-design-file-manager .file-tree-paneview .dv-pane-container,
+.shuan-design-file-manager .file-tree-paneview .dv-pane-body,
+.shuan-design-file-manager .file-tree-paneview .dv-pane,
+.shuan-design-file-manager .dv-groupview {
+  background-color: #ffffff;
+}
+
+.shuan-design-file-manager .file-tree-paneview .dv-pane {
+  border-bottom-color: #f2f3f5;
+}
+
+.shuan-design-file-manager .file-tree-paneview .dv-pane-header {
+  border-top-color: #f2f3f5 !important;
+  border-bottom-color: #f2f3f5;
+  background-color: #fafafa;
+  backdrop-filter: none;
+}
+
+.shuan-design-file-manager
+  .file-tree-paneview
+  .dv-pane-header:has(.file-tree-pane-header):hover,
+.shuan-design-file-manager .file-tree-paneview .dv-pane-header.focused {
+  background-color: #f8fafc;
+  box-shadow: inset 0 -1px 0 0 #bfdbfe;
+}
+
+.shuan-design-file-manager .file-tree-paneview .dv-pane-header.focused::before {
+  background: #1456f0;
+}
+
+.shuan-design-file-manager .file-tree-paneview .file-tree-pane-title {
+  font-family: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #222222;
+}
+
+.shuan-design-file-manager .file-tree-paneview .file-tree-pane-actions {
+  border-left-color: #f2f3f5;
+}
+
+.shuan-design-file-manager .file-tree-explorer-search {
+  height: 38px;
+  border-bottom: 1px solid #f2f3f5;
+  background: #ffffff;
+  padding: 6px 8px;
+}
+
+.shuan-design-file-manager .file-tree-explorer-search-input {
+  border-color: #e5e7eb;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #222222;
+  font-size: 12px;
+}
+
+.shuan-design-file-manager .file-tree-explorer-search-input:focus {
+  border-color: #1456f0;
+  box-shadow: 0 0 0 2px rgb(20 86 240 / 0.12);
+}
+
+.shuan-design-file-manager .file-tree-row {
+  margin: 1px 4px;
+  border-radius: 4px;
+  color: #45515e;
+}
+
+.shuan-design-file-manager .file-tree-row:hover {
+  background-color: #f8fafc;
+  color: #222222;
+}
+
+.shuan-design-file-manager .file-tree-row.is-selected {
+  background-color: #eef4ff;
+  color: #222222;
+}
+
+.shuan-design-file-manager .file-tree-row.is-active {
+  background-color: #dbeafe;
+  box-shadow: inset 2px 0 0 #1456f0;
+  color: #222222;
+}
+
+.shuan-design-file-manager .file-tree-row-label,
+.shuan-design-file-manager .file-tree-row-label.is-directory {
+  font-family: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: inherit;
+}
+
+.shuan-design-file-manager .dv-tabs-and-actions-container {
+  height: 38px !important;
+  border-bottom-color: #f2f3f5 !important;
+  background-color: #fafafa !important;
+}
+
+.shuan-design-file-manager .dv-tab {
+  height: 38px !important;
+  border-radius: 4px 4px 0 0 !important;
+}
+
+.shuan-design-file-manager .dv-tab.dv-inactive-tab .dv-default-tab,
+.shuan-design-file-manager .dv-tab.dv-active-tab .dv-default-tab {
+  border-radius: 4px 4px 0 0 !important;
+}
+
+.shuan-design-file-manager .dv-tab.dv-inactive-tab .dv-default-tab:hover {
+  background-color: #eef4ff !important;
+}
+
+.shuan-design-file-manager .dv-tab.dv-active-tab .dv-default-tab {
+  background-color: #ffffff !important;
+  box-shadow: inset 0 2px 0 0 #1456f0 !important;
+}
+
+.shuan-design-file-manager .dv-default-tab-content {
+  font-family: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  color: #45515e !important;
+}
+
+.shuan-design-file-manager .dv-tab.dv-active-tab .dv-default-tab-content {
+  color: #222222 !important;
+}
+
+.shuan-design-file-manager .file-tree-editor-breadcrumbs,
+.shuan-design-file-manager .file-tree-editor-toolbar,
+.shuan-design-file-manager .file-tree-editor-statusbar {
+  border-color: #f2f3f5;
+  background: #ffffff;
+  color: #45515e;
+}
+
+.shuan-design-file-manager .file-tree-editor-statusbar {
+  background: #181e25;
+  color: rgb(255 255 255 / 0.84);
+}
+
+.shuan-design-file-manager .file-tree-ide-statusbar {
+  background: #181e25;
+  color: rgb(255 255 255 / 0.84);
+}
+
+.shuan-design-file-manager .file-tree-editor-iconbutton,
+.shuan-design-file-manager .file-tree-editor-watermark-action,
+.shuan-design-file-manager .file-tree-pane-action,
+.shuan-design-file-manager .file-tree-panel-state-action,
+.shuan-design-file-manager .dv-default-tab-action {
+  border-radius: 4px !important;
+}
+
+.shuan-design-file-manager .file-tree-editor-watermark {
+  background: radial-gradient(
+      circle at top left,
+      rgb(20 86 240 / 0.08),
+      transparent 34%
+    ),
+    #ffffff;
+  color: #45515e;
+}
+
+.shuan-design-file-manager .file-tree-editor-watermark-mark {
+  color: #1456f0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode {
+  --dv-active-sash-color: #1456f0;
+  --shuan-vscode-editor-bg: #ffffff;
+  --shuan-vscode-side-bg: #ffffff;
+  --shuan-vscode-side-fg: #222222;
+  --shuan-vscode-side-muted: #8e8e93;
+  --shuan-vscode-activity-bg: #ffffff;
+  --shuan-vscode-activity-fg: #45515e;
+  --shuan-vscode-activity-active: #1456f0;
+  --shuan-vscode-border: #f2f3f5;
+  --shuan-vscode-row-hover: #f8fafc;
+  --shuan-vscode-row-selected: #eef4ff;
+  --shuan-vscode-row-active: #dbeafe;
+  --shuan-vscode-focus: #1456f0;
+  --shuan-vscode-tabbar: #fafafa;
+  --shuan-vscode-tab-inactive: #ffffff;
+  --shuan-vscode-tab-active: #ffffff;
+  --shuan-vscode-tab-fg: #45515e;
+  --shuan-vscode-title-bg: #ffffff;
+  --shuan-vscode-title-fg: #222222;
+  --shuan-vscode-title-hover: #f0f0f0;
+  font-family: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  background: #ffffff;
+  color: #222222;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-sidebar-shell,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-sidebar-panel,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-panel,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-explorer-pane-vscode,
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-explorer-tree,
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-panel-state {
+  background: #ffffff !important;
+  color: #45515e;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-activitybar {
+  width: 44px;
+  flex-basis: 44px;
+  gap: 2px;
+  border-right: 1px solid #f2f3f5;
+  background: #ffffff;
+  padding: 6px 4px;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-activity-button {
+  width: 36px;
+  height: 40px;
+  border-radius: 4px;
+  color: #45515e;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-activity-button:hover {
+  background: #f8fafc;
+  color: #1456f0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-activity-button.is-active {
+  background: #eef4ff;
+  color: #1456f0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-activity-button.is-active::before {
+  top: 8px;
+  bottom: 8px;
+  left: -4px;
+  width: 2px;
+  border-radius: 9999px;
+  background: #1456f0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-sidebar-titlebar {
+  height: 40px;
+  min-height: 40px;
+  border-bottom: 1px solid #f2f3f5;
+  background: #ffffff;
+  padding: 0 10px 0 14px;
+  color: #222222;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-sidebar-title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #222222;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-sidebar-chip {
+  background: #f6f8fb;
+  color: #637083;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-sidebar-chip.is-dirty {
+  background: #eef4ff;
+  color: #1456f0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-sidebar-chip.is-warning {
+  background: #fff7ed;
+  color: #b45309;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-sidebar-actions {
+  gap: 2px;
+  opacity: 1;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-title-action {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: #8e8e93;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-title-action:hover,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-title-action:focus-visible,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-title-action.is-active {
+  background: #eef4ff;
+  color: #1456f0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-title-action:focus-visible {
+  outline: 2px solid rgb(20 86 240 / 0.16);
+  outline-offset: 0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-section-header {
+  height: 28px;
+  min-height: 28px;
+  border-color: #f2f3f5;
+  background: #fafafa;
+  padding: 0 10px;
+  color: #222222;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  button.file-tree-vscode-section-header:hover,
+.shuan-design-file-manager.file-tree-editor-vscode
+  button.file-tree-vscode-section-header:focus-visible {
+  background: #f8fafc;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  button.file-tree-vscode-section-header:focus-visible,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-explorer-tree:focus-visible,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-row:focus-visible {
+  outline: 2px solid rgb(20 86 240 / 0.16);
+  outline-offset: -1px;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-section-chevron,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-section-meta {
+  color: #8e8e93;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-row-content {
+  min-height: 24px;
+  padding: 1px 8px 1px 4px;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-row-disclosure {
+  height: 22px;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-inline-text-input {
+  height: 24px !important;
+  border-color: #1456f0 !important;
+  border-radius: 4px !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 2px rgb(20 86 240 / 0.12) !important;
+  color: #222222 !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-icon-badge,
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-search-highlight,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-match-hit {
+  border-radius: 4px !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-search-highlight,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-match-hit {
+  background: #bfdbfe;
+  color: #17437d;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-vscode-search {
+  background: #ffffff !important;
+  color: #45515e;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-controls {
+  gap: 6px;
+  border-bottom: 1px solid #f2f3f5;
+  background: #ffffff;
+  padding: 10px 8px;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-row {
+  gap: 6px;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-toggle,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-toggle-spacer,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-command,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-option,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-replace-file {
+  border-radius: 4px;
+  color: #8e8e93;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-command {
+  width: 26px;
+  height: 26px;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-toggle:hover,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-command:hover:not(:disabled),
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-option:hover,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-replace-file:hover:not(:disabled) {
+  background: #eef4ff;
+  color: #1456f0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-input {
+  height: 28px;
+  border-color: #e5e7eb;
+  border-radius: 4px;
+  background: #ffffff;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  color: #222222;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-input:focus {
+  border-color: #1456f0;
+  box-shadow: 0 0 0 2px rgb(20 86 240 / 0.12);
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-input::placeholder,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-state,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-summary,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-file-path,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-file-count,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-match-line {
+  color: #8e8e93;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-option.is-active {
+  background: #eef4ff;
+  color: #1456f0;
+  box-shadow: inset 0 -2px 0 #1456f0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-file-main,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-match-row {
+  border-radius: 4px;
+  color: #45515e;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-file-main:hover,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-file-main:focus-visible,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-match-row:hover,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-vscode-search-match-row:focus-visible {
+  background: #f8fafc;
+  color: #222222;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-breadcrumbs,
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-editor-toolbar {
+  min-height: 30px;
+  border-color: #f2f3f5;
+  background: #ffffff;
+  color: #45515e;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-editor-statusbar {
+  height: 24px;
+  min-height: 24px;
+  background: #1456f0;
+  color: #ffffff;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .file-tree-ide-statusbar {
+  height: 24px;
+  min-height: 24px;
+  flex-basis: 24px;
+  background: #1456f0;
+  color: #ffffff;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-status-divider {
+  background: rgb(255 255 255 / 0.28);
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-iconbutton {
+  border-radius: 4px;
+  color: #45515e;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-iconbutton:hover,
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-iconbutton.is-active {
+  background: #eef4ff;
+  color: #1456f0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-watermark.is-vscode-watermark {
+  background: radial-gradient(
+      circle at top left,
+      rgb(20 86 240 / 0.08),
+      transparent 34%
+    ),
+    #ffffff;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-vscode-watermark-mark {
+  color: rgb(20 86 240 / 0.1);
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-vscode-watermark-shortcuts {
+  color: #8e8e93;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-vscode-watermark-row
+  kbd {
+  color: #45515e;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-watermark-action {
+  border-color: #e5e7eb;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #45515e;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .file-tree-editor-watermark-action:hover {
+  border-color: #bfdbfe;
+  background: #eef4ff;
+  color: #1456f0;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .dv-tabs-and-actions-container {
+  height: 38px !important;
+  border-bottom-color: #f2f3f5 !important;
+  background-color: #fafafa !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .dv-tabs-container,
+.shuan-design-file-manager.file-tree-editor-vscode .dv-tab {
+  height: 38px !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .dv-tabs-container {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .dv-tabs-container::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .dv-tab {
+  border-right-color: #f2f3f5 !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .dv-tab.dv-inactive-tab
+  .dv-default-tab {
+  background: #ffffff !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .dv-tab.dv-inactive-tab
+  .dv-default-tab:hover {
+  background: #eef4ff !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode
+  .dv-tab.dv-active-tab
+  .dv-default-tab {
+  background: #ffffff !important;
+  box-shadow: inset 0 2px 0 0 #1456f0 !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .dv-default-tab {
+  height: 37px !important;
+  border-radius: 4px 4px 0 0 !important;
+}
+
+.shuan-design-file-manager.file-tree-editor-vscode .dv-default-tab-action {
+  border-radius: 4px !important;
+}
+
+.file-tree-context-menu.is-vscode,
+.dark .file-tree-context-menu.is-vscode {
+  border-color: #f2f3f5;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #222222;
+  box-shadow: rgba(44, 30, 116, 0.16) 0 0 15px;
+  padding: 6px;
+  font-family: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-item {
+  height: 28px;
+  border-radius: 4px;
+  padding: 0 10px;
+  color: #45515e;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-item:hover,
+.file-tree-context-menu.is-vscode
+  .file-tree-context-menu-item.is-keyboard-active {
+  background: #eef4ff;
+  color: #1456f0;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-item.is-danger,
+.dark .file-tree-context-menu.is-vscode .file-tree-context-menu-item.is-danger {
+  color: #dc2626;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-item.is-danger:hover,
+.file-tree-context-menu.is-vscode
+  .file-tree-context-menu-item.is-danger.is-keyboard-active {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-shortcut,
+.dark .file-tree-context-menu.is-vscode .file-tree-context-menu-shortcut {
+  color: #8e8e93;
+}
+
+.file-tree-context-menu.is-vscode .file-tree-context-menu-separator,
+.dark .file-tree-context-menu.is-vscode .file-tree-context-menu-separator {
+  margin: 6px 0;
+  border-top-color: #f2f3f5;
+}
+
+@media (max-width: 760px) {
+  .file-tree-vscode-activitybar {
+    width: 40px;
+    flex-basis: 40px;
+  }
+
+  .file-tree-vscode-activity-button {
+    width: 40px;
+    height: 44px;
+  }
+
+  .file-tree-vscode-sidebar-titlebar {
+    padding-left: 12px;
+  }
+
+  .file-tree-workspace-dialog-content {
+    width: calc(100vw - 16px) !important;
+    height: calc(100vh - 16px) !important;
+  }
+
+  .shuan-design-file-manager.file-tree-editor-vscode
+    .file-tree-vscode-activitybar {
+    width: 40px;
+    flex-basis: 40px;
+    padding: 6px 2px;
+  }
+
+  .shuan-design-file-manager.file-tree-editor-vscode
+    .file-tree-vscode-activity-button {
+    width: 36px;
+    height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-tree-editor-root *,
+  .file-tree-editor-root *::before,
+  .file-tree-editor-root *::after,
+  .file-tree-context-menu *,
+  .file-tree-context-menu *::before,
+  .file-tree-context-menu *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .file-tree-drop-target {
+    animation: none !important;
+  }
+}
+
+/* Knowledge pages want NO WebIDE header (the user's standing, oft-repeated
+   requirement). The minimal knowledge IDE opts into `.ft-chromeless`
+   (AssetFileManager root) to strip ALL top chrome, leaving a clean,
+   content-first, Obsidian-like single-document editor:
+   - the editor breadcrumb path bar,
+   - the dockview open-files tab strip,
+   - the MarkdownEditor formatting toolbar (mode toggle + format buttons).
+   Formatting still works via markdown syntax / keyboard shortcuts. */
+.ft-chromeless .file-tree-editor-breadcrumbs,
+.ft-chromeless .dv-tabs-and-actions-container,
+.ft-chromeless .md-editor-toolbar {
+  display: none !important;
+}

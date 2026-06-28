@@ -99,7 +99,7 @@ export class DesktopAssetRepository implements IAssetRepository {
 
     async findCoreById(id: string): Promise<Asset | null> {
         // The blobContents bloat comes from cloud modelscope-sync; desktop reads
-        // a small local .safeclaw/assets.json fully into memory, so there is no
+        // a small local .internshannon/assets.json fully into memory, so there is no
         // detoast/transfer to save here. Delegate to findById — the returned
         // asset is a superset, and the detail/permission path ignores blobContents.
         return this.findById(id);
@@ -113,7 +113,7 @@ export class DesktopAssetRepository implements IAssetRepository {
     }
 
     async findByMetadataChildId(key: string, childId: string): Promise<Asset | null> {
-        // 桌面端读 .safeclaw/assets.json，保留旧 service 层的内存扫描语义（逐字节一致）。
+        // 桌面端读 .internshannon/assets.json，保留旧 service 层的内存扫描语义（逐字节一致）。
         const assets = await this.loadAssets();
         for (const asset of assets.values()) {
             const value = asset.metadata?.[key];

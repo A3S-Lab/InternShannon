@@ -6,7 +6,6 @@
         "src/runtime/desktop/**/*.ts",
         "src/modules/assets/**/*.ts",
         "src/modules/config/**/*.ts",
-        "src/modules/integrations/wechat/**/*.ts",
         "src/modules/kernel/**/*.ts",
         "src/modules/loop/**/*.ts",
         "src/shared/api/**/*.ts",

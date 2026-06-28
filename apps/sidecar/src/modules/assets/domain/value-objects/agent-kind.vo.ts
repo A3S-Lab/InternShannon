@@ -2,10 +2,10 @@
  * Agent Kind - 智能体子类型
  *
  * 仅对 category === 'agent' 的资产有意义：
- * - tool        专用型智能体，可被工作流编排作为节点调用
+ * - tool        专用型智能体，可作为本地工具型能力调用
  * - application 应用型智能体，只能独立部署运行
  * - agentic        基于 a3s-code 或其它框架开发的自主交互智能体；
- *               可被工作流编排，但要求资产产出结构化输出
+ *               可被工具化调用，但要求资产产出结构化输出
  */
 export type AgentKind = 'tool' | 'application' | 'agentic';
 
@@ -26,7 +26,7 @@ export const AGENT_KIND_LABELS: Record<AgentKind, string> = {
 /** 默认值：保持与历史"独立部署"行为一致 */
 export const DEFAULT_AGENT_KIND: AgentKind = 'application';
 
-/** 可被工作流编排作为节点调用的 agent kinds（tool 默认可调用；agentic 要求结构化输出） */
+/** 可被本地工具化调用的 agent kinds（tool 默认可调用；agentic 要求结构化输出） */
 export const ORCHESTRABLE_AGENT_KINDS: readonly AgentKind[] = ['tool', 'agentic'];
 
 export function isAgentKind(value: unknown): value is AgentKind {

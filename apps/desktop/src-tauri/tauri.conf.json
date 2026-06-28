@@ -1,17 +1,18 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-utils/schema.json",
-  "productName": "internShannon",
+  "productName": "InternShannon",
   "version": "0.2.1",
   "identifier": "com.a3s.internshannon",
   "build": {
     "devUrl": "http://127.0.0.1:5000",
-    "beforeBuildCommand": "pnpm --filter @internshannon/sidecar run build && pnpm run stage:sidecar",
-    "frontendDist": "../frontend"
+    "beforeDevCommand": "pnpm --filter @internshannon/web workspace:dev",
+    "beforeBuildCommand": "pnpm --filter @internshannon/sidecar run build && pnpm --filter @internshannon/web workspace:build && pnpm run stage:sidecar",
+    "frontendDist": "../../web/dist/workspace"
   },
   "app": {
     "windows": [
       {
-        "title": "internShannon",
+        "title": "InternShannon",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

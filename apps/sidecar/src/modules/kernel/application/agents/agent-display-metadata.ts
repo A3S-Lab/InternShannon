@@ -7,9 +7,8 @@ export interface AgentSummary {
 }
 
 const AGENT_DISPLAY_META: Record<string, { name: string; description: string }> = {
-    default: { name: 'internShannon', description: '认知驱动的智能助手，帮助对话、整理信息、管理文件和使用知识库' },
+    default: { name: 'InternShannon', description: '认知驱动的智能助手，帮助对话、整理信息、管理文件和使用知识库' },
     asset: { name: '知识库管理智能体', description: '帮助创建、整理和维护智能体与知识库资产' },
-    devops: { name: '运维智能体', description: '诊断质检、代码优化、上架发布与运行维护专用智能体' },
 };
 
 export function listAgentSummaries(specs: AgentSpec[], keyword?: string, rawLimit?: string): AgentSummary[] {

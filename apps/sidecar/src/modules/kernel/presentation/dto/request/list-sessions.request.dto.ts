@@ -12,7 +12,7 @@ import { PaginationQueryDto } from '@/shared/api/presentation/dto/pagination.dto
 export class ListSessionsQueryDto extends PaginationQueryDto {
     @ApiPropertyOptional({
         description:
-            '仅返回「真正的对话」会话（排除资产开发/编排/devops/系统等功能内部运行时会话）。传 "true" 或 "1" 开启。',
+            '仅返回「真正的对话」会话（排除知识/资产/系统等功能内部运行时会话）。传 "true" 或 "1" 开启。',
     })
     @IsOptional()
     @IsString()

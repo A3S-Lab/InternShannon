@@ -1,0 +1,90 @@
+/* Obsidian-style callouts (`> [!TYPE] title`).
+ *
+ * Single source of truth, imported by BOTH the markdown viewer (reading mode,
+ * where remarkCallouts rewrites the blockquote into `div.md-callout` with a
+ * `.md-callout-title` header) and the WYSIWYG markdown editor (live preview,
+ * where a ProseMirror decoration adds `md-callout md-callout-<type>` onto the
+ * `<blockquote>` node — no separate title element there, the box styling alone
+ * gives the Obsidian look). Class-based selectors so they apply to either tag. */
+.md-callout {
+	--callout-color: 68, 138, 255;
+	margin: 0.85rem 0;
+	padding: 0.55rem 0.9rem 0.7rem;
+	border: 1px solid rgb(var(--callout-color) / 0.28);
+	border-left: 3px solid rgb(var(--callout-color));
+	border-radius: 0.5rem;
+	background: rgb(var(--callout-color) / 0.07);
+}
+.md-callout > :first-child {
+	margin-top: 0;
+}
+.md-callout > :last-child {
+	margin-bottom: 0;
+}
+.md-callout-title {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-weight: 600;
+	font-size: 0.9em;
+	color: rgb(var(--callout-color));
+	margin: 0 0 0.3rem;
+}
+.md-callout-title::before {
+	content: "📝";
+	font-size: 0.95em;
+	line-height: 1;
+}
+.md-callout-note,
+.md-callout-info { --callout-color: 68, 138, 255; }
+.md-callout-tip,
+.md-callout-hint,
+.md-callout-success,
+.md-callout-check,
+.md-callout-done { --callout-color: 16, 185, 129; }
+.md-callout-question,
+.md-callout-help,
+.md-callout-faq,
+.md-callout-todo { --callout-color: 234, 179, 8; }
+.md-callout-warning,
+.md-callout-caution,
+.md-callout-attention,
+.md-callout-important { --callout-color: 245, 158, 11; }
+.md-callout-danger,
+.md-callout-error,
+.md-callout-bug,
+.md-callout-failure,
+.md-callout-fail,
+.md-callout-missing { --callout-color: 239, 68, 68; }
+.md-callout-example,
+.md-callout-quote,
+.md-callout-cite,
+.md-callout-abstract,
+.md-callout-summary,
+.md-callout-tldr { --callout-color: 139, 92, 246; }
+.md-callout-info .md-callout-title::before { content: "ℹ️"; }
+.md-callout-tip .md-callout-title::before,
+.md-callout-hint .md-callout-title::before { content: "🔥"; }
+.md-callout-success .md-callout-title::before,
+.md-callout-check .md-callout-title::before,
+.md-callout-done .md-callout-title::before { content: "✅"; }
+.md-callout-question .md-callout-title::before,
+.md-callout-help .md-callout-title::before,
+.md-callout-faq .md-callout-title::before { content: "❓"; }
+.md-callout-todo .md-callout-title::before { content: "☑️"; }
+.md-callout-warning .md-callout-title::before,
+.md-callout-caution .md-callout-title::before,
+.md-callout-attention .md-callout-title::before,
+.md-callout-important .md-callout-title::before { content: "⚠️"; }
+.md-callout-danger .md-callout-title::before,
+.md-callout-error .md-callout-title::before { content: "🚨"; }
+.md-callout-bug .md-callout-title::before { content: "🐛"; }
+.md-callout-failure .md-callout-title::before,
+.md-callout-fail .md-callout-title::before,
+.md-callout-missing .md-callout-title::before { content: "❌"; }
+.md-callout-example .md-callout-title::before { content: "📋"; }
+.md-callout-quote .md-callout-title::before,
+.md-callout-cite .md-callout-title::before { content: "💬"; }
+.md-callout-abstract .md-callout-title::before,
+.md-callout-summary .md-callout-title::before,
+.md-callout-tldr .md-callout-title::before { content: "📑"; }

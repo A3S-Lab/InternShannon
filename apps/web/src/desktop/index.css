@@ -1,0 +1,283 @@
+@import "./assets/fonts/FiraCode/fira_code.css";
+@import "file-icons-js/css/style.css";
+@import "../components/ui/styles.css";
+
+/* Unified with Admin theme - using consistent layer structure */
+@layer tailwind-base, tailwind-components, tailwind-utils;
+@layer tailwind-base {
+	@tailwind base;
+}
+@layer tailwind-components {
+	@tailwind components;
+}
+@layer tailwind-utils {
+	@tailwind utilities;
+}
+
+@layer base {
+	:root {
+		/* Font families - unified with Admin */
+		--font-sans: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+		--font-display: "Outfit", "Helvetica Neue", Helvetica, Arial, sans-serif;
+		--font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+			"Liberation Mono", "Courier New", monospace;
+
+		/* ── Brand Colors ── */
+		--brand-6: #1456f0; /* Brand Blue */
+		--brand-6-rgb: 20, 86, 240;
+		--brand-5: #3b82f6;
+		--col-brand00: #3daeff; /* Sky Blue */
+		--col-brand02: #ea5ec1; /* Brand Pink (accent only) */
+
+		/* ── Blue Scale ── */
+		--color-primary-200: 214 95% 87%; /* #bfdbfe */
+		--color-primary-light: 217 91% 64%; /* #60a5fa */
+		--color-primary-500: 220 94% 58%; /* #3b82f6 */
+		--color-primary-600: 224 85% 52%; /* #2563eb */
+		--color-primary-700: 224 76% 45%; /* #1d4ed8 */
+		--brand-3: 216 82% 31%; /* #17437d */
+
+		/* ── Text Colors ── */
+		--col-text00: 0 0% 13%; /* #222222 - Primary text */
+		--col-text-dark: 240 6% 9%; /* #18181b - Headings */
+		--col-text04: 215 17% 38%; /* #45515e - Secondary text */
+		--col-text-muted: 36 0% 56%; /* #8e8e93 - Tertiary/muted */
+		--brand-2: 0 0% 37%; /* #5f5f5f - Helper text */
+
+		/* ── Surfaces & Backgrounds ── */
+		--col-bg13: 0 0% 100%; /* #ffffff - Primary background */
+		--col-bg-secondary: 0 0% 94%; /* #f0f0f0 - Secondary button bg */
+		--fill-bg-white: 0 0% 100% / 0.4; /* Frosted glass */
+		--border-light: 220 14% 95%; /* #f2f3f5 */
+		--border-gray: 220 13% 91%; /* #e5e7eb */
+
+		/* ── Semantic ── */
+		--success-bg: 130 75% 94%; /* #e8ffea */
+
+		/* ── Tailwind Mapped Colors ── */
+		--background: 0 0% 100%;
+		--foreground: 0 0% 13%;
+		--card: 0 0% 100%;
+		--card-foreground: 0 0% 13%;
+		--popover: 0 0% 100%;
+		--popover-foreground: 0 0% 13%;
+		--primary: 220 94% 48%;
+		--primary-foreground: 0 0% 100%;
+		--secondary: 0 0% 94%;
+		--secondary-foreground: 240 6% 9%;
+		--muted: 220 14% 95%;
+		--muted-foreground: 215 17% 38%;
+		--accent: 220 14% 95%;
+		--accent-foreground: 240 6% 9%;
+		--destructive: 0 84% 60%;
+		--destructive-foreground: 0 0% 100%;
+		--border: 220 13% 91%;
+		--input: 220 13% 91%;
+		--ring: 220 94% 48%;
+		--radius: 8px;
+		--radius-minimal: 4px;
+		--radius-standard: 8px;
+		--radius-comfortable: 12px;
+		--radius-generous: 18px;
+		--radius-large: 22px;
+		--radius-pill: 30px;
+		--radius-full: 9999px;
+		--focus-ring-width: 1px;
+		--focus-ring-offset: 1px;
+		--focus-ring-color: var(--ring);
+
+		/* Charts */
+		--chart-1: 220 94% 58%;
+		--chart-2: 220 94% 48%;
+		--chart-3: 158 64% 40%;
+		--chart-4: 35 95% 52%;
+		--chart-5: 318 67% 62%;
+
+		/* Sidebar */
+		--sidebar-background: 0 0% 98%;
+		--sidebar-foreground: 240 5.3% 26.1%;
+		--sidebar-primary: 220 94% 48%;
+		--sidebar-primary-foreground: 0 0% 100%;
+		--sidebar-accent: 220 14% 94%;
+		--sidebar-accent-foreground: 240 5.3% 26.1%;
+		--sidebar-border: 220 13% 91%;
+		--sidebar-ring: 220 94% 48%;
+
+		/* Semantic colors */
+		--success: 138 76% 46%;
+		--success-foreground: 0 0% 100%;
+		--warning: 35 95% 52%;
+		--warning-foreground: 0 0% 100%;
+		--info: 220 94% 48%;
+		--info-foreground: 0 0% 100%;
+
+		/* ── Shadows (CSS custom) ── */
+		--shadow-subtle: 0 4px 6px rgba(0, 0, 0, 0.08), 0 0 22.576px rgba(0, 0, 0, 0.04);
+		--shadow-ambient: 0 0 22.576px rgba(0, 0, 0, 0.08);
+		--shadow-brand: 0 0 15px 0 rgba(44, 30, 116, 0.16);
+		--shadow-elevated: 0 12px 16px -4px rgba(36, 36, 36, 0.08);
+
+		/* ── Desktop-specific Layout ── */
+		--activity-bar-width: 44px;
+		--session-list-width: 280px;
+		--header-height: 48px;
+
+		/* ── Desktop-specific Chat ── */
+		--chat-bubble-max-width: 85%;
+		--chat-avatar-size: 32px;
+		--chat-bubble-radius: 12px;
+		--chat-bubble-user: var(--primary);
+		--chat-bubble-user-fg: var(--primary-foreground);
+		--chat-bubble-assistant: var(--muted);
+		--chat-bubble-assistant-fg: var(--foreground);
+
+		/* ── Desktop-specific Transitions ── */
+		--transition-fast: 150ms;
+		--transition-normal: 200ms;
+		--transition-slow: 300ms;
+
+		/* ── Desktop-specific Activity bar colors - light theme ── */
+		--color-activity-bar-bg: #fcfcfd;
+		--color-activity-bar-border: #ffffff;
+	}
+
+	.dark {
+		/* ── Dark Theme ── unified with Admin */
+		--background: 222 47% 6%;
+		--foreground: 0 0% 98%;
+		--card: 222 47% 6%;
+		--card-foreground: 0 0% 98%;
+		--popover: 222 47% 6%;
+		--popover-foreground: 0 0% 98%;
+		--primary: 220 94% 60%;
+		--primary-foreground: 0 0% 100%;
+		--secondary: 215 27% 16%;
+		--secondary-foreground: 0 0% 98%;
+		--muted: 215 27% 16%;
+		--muted-foreground: 217 9% 52%;
+		--accent: 215 27% 16%;
+		--accent-foreground: 0 0% 98%;
+		--destructive: 0 62% 50%;
+		--destructive-foreground: 0 0% 100%;
+		--border: 215 27% 16%;
+		--input: 215 27% 16%;
+		--ring: 220 94% 60%;
+
+		/* Charts (dark) */
+		--chart-1: 220 94% 60%;
+		--chart-2: 220 94% 70%;
+		--chart-3: 158 58% 50%;
+		--chart-4: 35 90% 60%;
+		--chart-5: 318 67% 62%;
+
+		/* Sidebar (dark) */
+		--sidebar-background: 240 6% 10%;
+		--sidebar-foreground: 240 4% 95%;
+		--sidebar-primary: 220 94% 60%;
+		--sidebar-primary-foreground: 0 0% 100%;
+		--sidebar-accent: 240 4% 16%;
+		--sidebar-accent-foreground: 240 4% 95%;
+		--sidebar-border: 240 4% 18%;
+		--sidebar-ring: 220 94% 60%;
+
+		/* Semantic colors (dark) */
+		--success: 138 60% 50%;
+		--success-foreground: 0 0% 100%;
+		--warning: 35 90% 55%;
+		--warning-foreground: 0 0% 100%;
+		--info: 220 94% 60%;
+		--info-foreground: 0 0% 100%;
+
+		/* Shadows (dark) */
+		--shadow-subtle: 0 0% 3% 0 rgba(0, 0, 0, 0.3), 0 4px 6px 0 rgba(0, 0, 0, 0.3);
+		--shadow-ambient: 0 0 22.576px 0 rgba(0, 0, 0, 0.3);
+		--shadow-brand: 0 0 15px 0 rgba(44, 30, 116, 0.3);
+		--shadow-elevated: 0 12px 16px -4px rgba(0, 0, 0, 0.3);
+
+		/* Desktop-specific Activity bar colors - dark theme */
+		--color-activity-bar-bg: #1a1a1a;
+		--color-activity-bar-border: #2a2a2a;
+	}
+}
+
+@layer base {
+	* {
+		@apply border-border;
+	}
+
+	html,
+	body {
+		height: 100%;
+	}
+
+	html {
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		text-rendering: optimizeLegibility;
+		scroll-behavior: smooth;
+	}
+
+	body {
+		@apply bg-background text-foreground font-sans antialiased;
+		font-feature-settings: "rlig" 1, "calt" 1;
+		line-height: 1.45;
+		color: #222222;
+	}
+
+	/* Selection */
+	::selection {
+		background-color: hsl(var(--primary) / 0.15);
+	}
+
+	/* Scrollbar */
+	::-webkit-scrollbar {
+		width: 6px;
+		height: 6px;
+	}
+	::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	::-webkit-scrollbar-thumb {
+		background: hsl(var(--foreground) / 0.1);
+		border-radius: 3px;
+	}
+	::-webkit-scrollbar-thumb:hover {
+		background: hsl(var(--foreground) / 0.2);
+	}
+
+	/* Focus visible */
+	:focus-visible {
+		outline: var(--focus-ring-width) solid hsl(var(--focus-ring-color) / 0.4);
+		outline-offset: var(--focus-ring-offset);
+	}
+
+	/* Respect motion preferences */
+	@media (prefers-reduced-motion: reduce) {
+		*,
+		*::before,
+		*::after {
+			animation-duration: 0.01ms;
+			animation-iteration-count: 1;
+			transition-duration: 0.01ms;
+		}
+	}
+}
+
+@layer utilities {
+	@supports not (height: 100svh) {
+		.h-svh {
+			height: 100vh;
+		}
+		.min-h-svh {
+			min-height: 100vh;
+		}
+	}
+
+	.no-scrollbar::-webkit-scrollbar {
+		display: none;
+	}
+	.no-scrollbar {
+		-ms-overflow-style: none;
+		scrollbar-width: none;
+	}
+}

@@ -7,7 +7,7 @@ import { DesktopMessageRepository } from '@/modules/kernel/infrastructure/deskto
 import { DesktopSessionRepository } from '@/modules/kernel/infrastructure/desktop/repositories/desktop-session.repository';
 import { LocalFileStorage } from '@/modules/kernel/infrastructure/workspace-storage/local-file.storage';
 import { AgentLifecycleMediator } from '@/modules/kernel/application/agent-lifecycle-mediator.service';
-import { AgentRegistry, AssetAgent, DefaultAgent, DevOpsAgent } from '@/modules/kernel/application/agents';
+import { AgentRegistry, AssetAgent, DefaultAgent } from '@/modules/kernel/application/agents';
 import { LockedAgentSessionStore } from '@/modules/kernel/application/agents/locked-agent-session.store';
 import { ApiOperationExecutor } from '@/modules/kernel/application/api-operation-executor.service';
 import { CapabilitiesToolService } from '@/modules/kernel/application/capabilities-tool.service';
@@ -120,11 +120,10 @@ const QueryHandlers = [GetSessionHandler, ListSessionsHandler, CountSessionsHand
         LockedAgentSessionStore,
         DefaultAgent,
         AssetAgent,
-        DevOpsAgent,
         {
             provide: AGENT_SPEC,
             useFactory: (...agents: AgentSpec[]) => agents,
-            inject: [DefaultAgent, AssetAgent, DevOpsAgent],
+            inject: [DefaultAgent, AssetAgent],
         },
         KernelSessionResetService,
         KernelSessionBroadcaster,

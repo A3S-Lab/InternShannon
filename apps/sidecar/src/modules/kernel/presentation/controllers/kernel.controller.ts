@@ -115,7 +115,7 @@ export class KernelController {
     })
     async listSessions(
         @DesktopOwnerId() userId: string,
-        // 用户总览页传 conversational=true：只看「真正的对话」，排除资产开发/编排/devops/系统等
+        // 用户总览页传 conversational=true：只看「真正的对话」，排除知识/资产/系统等
         // 功能内部运行时会话。后台「会话」管理页不传，仍看全部。过滤同时作用于列表与 total，
         // 否则分页语义会错乱。`conversational` 必须在 DTO 白名单内，否则 cloud 模式
         // forbidNonWhitelisted 会判其为多余属性直接 400（见 ListSessionsQueryDto）。

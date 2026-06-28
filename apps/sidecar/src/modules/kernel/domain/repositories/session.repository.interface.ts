@@ -4,13 +4,13 @@ export const SESSION_REPOSITORY = Symbol('SESSION_REPOSITORY');
 
 /**
  * Feature-internal agent kinds whose kernel sessions are runtime/automation
- * artifacts — asset development, devops, and system operations (diagnostics)
+ * artifacts — knowledge/asset management and system operations
  * — NOT user conversations. They
  * are excluded from the "my conversations" count/list shown on the user
  * overview. `default` / `default-agent` and custom marketplace-agent chats are
  * conversations and stay counted.
  */
-export const NON_CONVERSATIONAL_AGENT_IDS = ['asset', 'devops', 'system'] as const;
+export const NON_CONVERSATIONAL_AGENT_IDS = ['asset', 'system'] as const;
 
 /**
  * Session Repository Interface

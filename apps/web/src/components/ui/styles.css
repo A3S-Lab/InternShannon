@@ -1,0 +1,168 @@
+:root {
+		--font-sans: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+		--font-display: "Outfit", "Helvetica Neue", Helvetica, Arial, sans-serif;
+		--font-mid: "Poppins", "Helvetica Neue", Helvetica, Arial, sans-serif;
+		--font-mono: "Fira Code", "Roboto", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+		--brand-6: #1456f0;
+		--brand-6-rgb: 20, 86, 240;
+		--brand-5: #3b82f6;
+		--col-brand00: #3daeff;
+		--col-brand02: #ea5ec1;
+
+		--color-primary-200: #bfdbfe;
+		--color-primary-light: #60a5fa;
+		--color-primary-500: #3b82f6;
+		--color-primary-600: #2563eb;
+		--color-primary-700: #1d4ed8;
+		--brand-3: #17437d;
+
+		--col-text00: #222222;
+		--col-text01: #18181b;
+		--col-text02: #181e25;
+		--col-text03: #64748b;
+		--col-text04: #45515e;
+		--col-text05: #8e8e93;
+		--brand-2: #5f5f5f;
+
+		--col-bg13: #ffffff;
+		--col-bg14: #f0f0f0;
+		--fill-bg-white: hsla(0, 0%, 100%, 0.4);
+		--col-border-light: #f2f3f5;
+		--col-border: #e5e7eb;
+
+		--success-bg: #e8ffea;
+
+		--background: 0 0% 100%;
+		--foreground: 0 0% 13%;
+		--card: 0 0% 100%;
+		--card-foreground: 0 0% 13%;
+		--popover: 0 0% 100%;
+		--popover-foreground: 0 0% 13%;
+		--primary: 220 94% 48%;
+		--primary-foreground: 0 0% 100%;
+		--secondary: 0 0% 94%;
+		--secondary-foreground: 240 6% 9%;
+		--muted: 220 14% 95%;
+		--muted-foreground: 215 17% 38%;
+		--accent: 220 14% 95%;
+		--accent-foreground: 240 6% 9%;
+		--destructive: 0 84% 60%;
+		--destructive-foreground: 0 0% 100%;
+		--border: 220 13% 91%;
+		--input: 220 13% 91%;
+		--ring: 220 94% 48%;
+
+		--radius: 8px;
+		--radius-minimal: 4px;
+		--radius-standard: 8px;
+		--radius-comfortable: 12px;
+		--radius-generous: 18px;
+		--radius-large: 22px;
+		--radius-pill: 30px;
+		--radius-full: 9999px;
+
+		--focus-ring-width: 1px;
+		--focus-ring-offset: 1px;
+		--focus-ring-color: var(--ring);
+
+		--chart-1: 220 94% 58%;
+		--chart-2: 220 94% 48%;
+		--chart-3: 158 64% 40%;
+		--chart-4: 35 95% 52%;
+		--chart-5: 318 67% 62%;
+
+		--sidebar-background: 0 0% 98%;
+		--sidebar-foreground: 240 5.3% 26.1%;
+		--sidebar-primary: 220 94% 48%;
+		--sidebar-primary-foreground: 0 0% 100%;
+		--sidebar-accent: 220 14% 94%;
+		--sidebar-accent-foreground: 240 5.3% 26.1%;
+		--sidebar-border: 220 13% 91%;
+		--sidebar-ring: 220 94% 48%;
+
+		--success: 138 76% 46%;
+		--success-foreground: 0 0% 100%;
+		--warning: 35 95% 52%;
+		--warning-foreground: 0 0% 100%;
+		--info: 220 94% 48%;
+		--info-foreground: 0 0% 100%;
+
+		--shadow-standard: rgba(0, 0, 0, 0.08) 0px 4px 6px;
+		--shadow-subtle: 0 4px 6px rgba(0, 0, 0, 0.08), 0 0 22.576px rgba(0, 0, 0, 0.04);
+		--shadow-soft-glow: rgba(0, 0, 0, 0.08) 0px 0px 22.576px;
+		--shadow-ambient: rgba(0, 0, 0, 0.08) 0px 0px 22.576px;
+		--shadow-brand-purple: rgba(44, 30, 116, 0.16) 0px 0px 15px;
+		--shadow-brand: 0 0 15px 0 rgba(44, 30, 116, 0.16);
+		--shadow-brand-purple-offset: rgba(44, 30, 116, 0.11) 6.5px 2px 17.5px;
+		--shadow-card: rgba(36, 36, 36, 0.08) 0px 12px 16px -4px;
+		--shadow-elevated: 0 12px 16px -4px rgba(36, 36, 36, 0.08);
+}
+
+.dark {
+		/* 三级背景层次：background (最深) < card/popover (浮起表面) < muted (悬浮态 / 弱强调) */
+		--background: 222 47% 7%;
+		--foreground: 0 0% 96%;
+		--card: 222 40% 10%;
+		--card-foreground: 0 0% 96%;
+		--popover: 222 40% 10%;
+		--popover-foreground: 0 0% 96%;
+		--primary: 220 94% 62%;
+		--primary-foreground: 0 0% 100%;
+		--secondary: 215 27% 18%;
+		--secondary-foreground: 0 0% 96%;
+		--muted: 215 25% 15%;
+		--muted-foreground: 217 12% 70%;
+		--accent: 215 25% 15%;
+		--accent-foreground: 0 0% 96%;
+		--destructive: 0 62% 52%;
+		--destructive-foreground: 0 0% 100%;
+		/* border 比 background 浅 ~13%，确保 1px 边框在暗背景上肉眼可见 */
+		--border: 215 22% 20%;
+		--input: 215 22% 20%;
+		--ring: 220 94% 62%;
+
+		--col-text00: #e5e5e5;
+		--col-text01: #d1d5db;
+		--col-text02: #9ca3af;
+		--col-text03: #94a3b8;
+		--col-text04: #9ca3af;
+		--col-text05: #6b7280;
+		--brand-2: #9ca3af;
+
+		--col-bg13: #111118;
+		--col-bg14: #1a1a22;
+		--fill-bg-white: hsla(0, 0%, 100%, 0.05);
+		/* 这两个 token 被 tailwind-preset 的 border-border-light / border-border 引用，dark 模式下需要比 background 浅一阶。 */
+		--col-border-light: #2a2b3a;
+		--col-border: #3a3c4a;
+
+		--chart-1: 220 94% 60%;
+		--chart-2: 220 94% 70%;
+		--chart-3: 158 58% 50%;
+		--chart-4: 35 90% 60%;
+		--chart-5: 318 67% 62%;
+
+		--sidebar-background: 240 6% 10%;
+		--sidebar-foreground: 240 4% 95%;
+		--sidebar-primary: 220 94% 60%;
+		--sidebar-primary-foreground: 0 0% 100%;
+		--sidebar-accent: 240 4% 16%;
+		--sidebar-accent-foreground: 240 4% 95%;
+		--sidebar-border: 240 4% 18%;
+		--sidebar-ring: 220 94% 60%;
+
+		--success: 138 60% 50%;
+		--success-foreground: 0 0% 100%;
+		--warning: 35 90% 55%;
+		--warning-foreground: 0 0% 100%;
+		--info: 220 94% 60%;
+		--info-foreground: 0 0% 100%;
+
+		--shadow-subtle: 0 0% 3% 0 rgba(0, 0, 0, 0.3), 0 4px 6px 0 rgba(0, 0, 0, 0.3);
+		--shadow-ambient: 0 0 22.576px 0 rgba(0, 0, 0, 0.3);
+		--shadow-brand-purple: rgba(44, 30, 116, 0.3) 0px 0px 15px;
+		--shadow-brand: 0 0 15px 0 rgba(44, 30, 116, 0.3);
+		--shadow-card: rgba(0, 0, 0, 0.3) 0px 12px 16px -4px;
+		--shadow-elevated: 0 12px 16px -4px rgba(0, 0, 0, 0.3);
+}

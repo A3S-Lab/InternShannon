@@ -76,12 +76,12 @@ export const StatusMessages: Record<StatusCode, string> = {
     [StatusCode.OPERATION_FAILED]: '操作执行失败，请稍后重试',
     [StatusCode.BUSINESS_RULE_VIOLATION]: '违反业务规则，请检查输入',
 
-    // Auth Errors
-    [StatusCode.TOKEN_EXPIRED]: '登录已过期，请重新登录',
-    [StatusCode.TOKEN_INVALID]: '登录状态已失效，请重新登录',
-    [StatusCode.TOKEN_MISSING]: '请先登录获取访问令牌',
-    [StatusCode.PERMISSION_DENIED]: '您的权限不足，无法执行此操作',
-    [StatusCode.ACCOUNT_DISABLED]: '您的账户已被禁用，请联系管理员',
+    // Access Errors
+    [StatusCode.TOKEN_EXPIRED]: '访问令牌已过期',
+    [StatusCode.TOKEN_INVALID]: '访问令牌无效',
+    [StatusCode.TOKEN_MISSING]: '缺少访问令牌',
+    [StatusCode.PERMISSION_DENIED]: '当前操作不被允许',
+    [StatusCode.ACCOUNT_DISABLED]: '本地访问主体不可用',
     [StatusCode.DEV_MODE_ONLY]: '该接口仅在开发模式下可用',
 
     // Domain Errors

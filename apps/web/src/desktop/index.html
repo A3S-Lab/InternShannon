@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="./logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>InternShannon</title>
+    <style>
+      #internshannon-bootstrap {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #ffffff;
+        font-family:
+          "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+        animation: gradient-shift 8s ease infinite;
+        background-size: 200% 200%;
+      }
+
+      @keyframes gradient-shift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+
+      #internshannon-bootstrap.hidden {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.4s ease-out;
+      }
+
+      #internshannon-bootstrap[hidden] {
+        display: none !important;
+      }
+
+      #internshannon-bootstrap .panel {
+        width: min(100%, 520px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        box-shadow: 0 32px 64px rgba(0, 0, 0, 0.3),
+                    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+        padding: 48px 40px;
+        animation: panel-enter 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      @keyframes panel-enter {
+        from {
+          opacity: 0;
+          transform: scale(0.9) translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1) translateY(0);
+        }
+      }
+
+      #internshannon-bootstrap .logo {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 24px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        font-weight: 700;
+        color: white;
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+        animation: logo-pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes logo-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+
+      #internshannon-bootstrap .title {
+        margin: 0 0 12px;
+        font-size: 24px;
+        font-weight: 700;
+        text-align: center;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      #internshannon-bootstrap .message {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.7;
+        color: #64748b;
+        text-align: center;
+        white-space: pre-wrap;
+      }
+
+      #internshannon-bootstrap .spinner {
+        width: 40px;
+        height: 40px;
+        margin: 32px auto 0;
+        border: 3px solid rgba(102, 126, 234, 0.2);
+        border-top-color: #667eea;
+        border-radius: 50%;
+        animation: spinner-rotate 0.8s linear infinite;
+      }
+
+      @keyframes spinner-rotate {
+        to { transform: rotate(360deg); }
+      }
+
+      #internshannon-bootstrap .details {
+        margin-top: 24px;
+        border-radius: 12px;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 16px;
+        font-size: 12px;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        overflow: auto;
+        max-height: 45vh;
+        font-family: ui-monospace, "SF Mono", "Cascadia Code", monospace;
+      }
+    </style>
+    <script>
+      (() => {
+        const boot = {
+          stage: "html-loaded",
+          ready: false,
+          rootMounted: false,
+        };
+
+        function ensureNodes() {
+          const root = document.getElementById("internshannon-bootstrap");
+          if (!root) return null;
+          return {
+            root,
+            title: document.getElementById("internshannon-bootstrap-title"),
+            message: document.getElementById("internshannon-bootstrap-message"),
+            details: document.getElementById("internshannon-bootstrap-details"),
+          };
+        }
+
+        function render(title, message, details) {
+          const nodes = ensureNodes();
+          if (!nodes) return;
+          nodes.root.hidden = false;
+          nodes.root.removeAttribute("aria-hidden");
+          nodes.root.inert = false;
+          nodes.root.classList.remove("hidden");
+          if (nodes.title) nodes.title.textContent = title;
+          if (nodes.message) nodes.message.textContent = message;
+          if (nodes.details) {
+            if (details) {
+              nodes.details.textContent = details;
+              nodes.details.style.display = "block";
+            } else {
+              nodes.details.textContent = "";
+              nodes.details.style.display = "none";
+            }
+          }
+        }
+
+        function formatReason(reason) {
+          if (reason instanceof Error) {
+            return `${reason.name}: ${reason.message}`;
+          }
+          if (typeof reason === "string") return reason;
+          if (reason && typeof reason === "object" && "message" in reason) {
+            return String(reason.message || "Unknown error");
+          }
+          try {
+            return JSON.stringify(reason, null, 2);
+          } catch {
+            return String(reason || "Unknown error");
+          }
+        }
+
+        window.__internshannonBoot = {
+          setStage(stage, message) {
+            boot.stage = stage;
+            render("InternShannon 正在启动", message || "前端资源与本地运行时正在初始化。");
+          },
+          markRootMounted() {
+            boot.rootMounted = true;
+          },
+          fail(stage, reason) {
+            boot.stage = stage || boot.stage;
+            render(
+              "InternShannon 启动失败",
+              "界面没有成功完成初始化。下面是浏览器侧捕获到的首个错误。",
+              `stage=${boot.stage}\n${formatReason(reason)}`,
+            );
+          },
+          ready() {
+            boot.ready = true;
+            const nodes = ensureNodes();
+            if (nodes) {
+              nodes.root.setAttribute("aria-hidden", "true");
+              nodes.root.inert = true;
+              nodes.root.classList.add("hidden");
+              window.setTimeout(() => {
+                if (boot.ready) nodes.root.hidden = true;
+              }, 450);
+            }
+          },
+        };
+
+        window.addEventListener(
+          "error",
+          (event) => {
+            // Don't show fatal screen after startup has completed
+            if (boot.ready) return;
+            const target = event.target;
+            if (
+              target &&
+              target !== window &&
+              typeof target.tagName === "string"
+            ) {
+              const tag = String(target.tagName).toLowerCase();
+              const src = target.src || target.href || "";
+              window.__internshannonBoot.fail(
+                "resource-load",
+                `Failed to load ${tag}: ${src}`,
+              );
+              return;
+            }
+            window.__internshannonBoot.fail("window-error", event.error || event.message);
+          },
+          true,
+        );
+
+        window.addEventListener("unhandledrejection", (event) => {
+          // Auto-recover from ChunkLoadError
+          const reason = event.reason;
+          const isChunkError = reason && (
+            /Loading chunk.*failed/i.test(String(reason.message || reason)) ||
+            /ChunkLoadError/i.test(String(reason.name || ''))
+          );
+
+          if (isChunkError) {
+            const reloadKey = 'chunk-reload-attempted';
+            if (!sessionStorage.getItem(reloadKey)) {
+              sessionStorage.setItem(reloadKey, '1');
+              window.location.reload();
+              return;
+            }
+            sessionStorage.removeItem(reloadKey);
+          }
+
+          // Don't show fatal screen after startup has completed
+          if (boot.ready) return;
+          window.__internshannonBoot.fail("unhandledrejection", event.reason);
+        });
+
+        window.addEventListener("DOMContentLoaded", () => {
+          render(
+            "InternShannon 正在启动",
+            "HTML 已加载，正在等待前端脚本执行。",
+          );
+        });
+
+        window.setTimeout(() => {
+          if (!boot.ready) {
+            if (boot.rootMounted) {
+              window.__internshannonBoot.ready();
+              return;
+            }
+            window.__internshannonBoot.fail(
+              "startup-timeout",
+              `Frontend startup timeout. stage=${boot.stage}, rootMounted=${boot.rootMounted}`,
+            );
+          }
+        }, 15000);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="internshannon-bootstrap">
+      <div class="panel">
+        <div class="logo">书</div>
+        <h1 id="internshannon-bootstrap-title" class="title">InternShannon 正在启动</h1>
+        <div id="internshannon-bootstrap-message" class="message">正在加载页面模板。</div>
+        <div class="spinner"></div>
+        <pre id="internshannon-bootstrap-details" class="details" style="display: none"></pre>
+      </div>
+    </div>
+    <div id="root"></div>
+  </body>
+</html>

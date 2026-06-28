@@ -52,10 +52,10 @@ const checks = [
         remediation: 'Run just sidecar-build before launching dev or packaging.',
     }),
     classifyPathCheck({
-        exists: existsSync(path.join(repoRoot, 'apps/desktop/frontend/index.html')),
+        exists: existsSync(path.join(repoRoot, 'apps/web/src/desktop/index.html')),
         label: 'Desktop frontend',
-        path: 'apps/desktop/frontend/index.html',
-        remediation: 'Restore the desktop frontend entrypoint before launching dev or packaging.',
+        path: 'apps/web/src/desktop/index.html',
+        remediation: 'Restore apps/web or run pnpm --filter @internshannon/web workspace:build before packaging.',
         required: true,
     }),
 ];

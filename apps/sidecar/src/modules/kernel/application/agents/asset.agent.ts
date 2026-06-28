@@ -86,11 +86,11 @@ export class AssetAgent implements AgentSpec {
     if (targetAgentKind && targetCategory === "agent" && !session.assetId) {
       const kindHints: Record<"tool" | "application" | "agentic", string> = {
         tool:
-          "tool — 专用型智能体。需遵循 a3s-code 工具协议、暴露结构化 input/output schema，可被工作流编排作为节点调用。脚手架优先选 a3s-code-tool-agent / a3s-code-python-tool-agent。",
+          "tool — 专用型智能体。需遵循 a3s-code 工具协议、暴露结构化 input/output schema，可作为本地工具型能力调用。脚手架优先选 a3s-code-tool-agent / a3s-code-python-tool-agent。",
         application:
           "application — 应用型智能体。独立部署到\"进程\"页，不要求结构化输出。脚手架优先选 a3s-code-basic-agent / a3s-code-python-basic-agent。",
         agentic:
-          "agentic — 自主型智能体。基于 a3s-code 或其它框架开发，面向交互式对话场景；要求**必须产出结构化输出**才能被工作流编排调用，请在脚手架里默认带上 generate_object / structured output 示例。",
+          "agentic — 自主型智能体。基于 a3s-code 或其它框架开发，面向交互式对话场景；如需被工具化调用，需产出结构化输出，请在脚手架里默认带上 generate_object / structured output 示例。",
       };
       lines.push(
         "",

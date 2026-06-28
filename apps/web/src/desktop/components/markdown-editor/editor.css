@@ -1,0 +1,232 @@
+.md-editor-content .ProseMirror {
+	outline: none;
+	min-height: 100%;
+	padding: 2rem 3rem;
+	font-size: 15px;
+	line-height: 1.75;
+	color: var(--foreground);
+	caret-color: var(--primary);
+}
+
+/* Headings */
+.md-editor-content .ProseMirror h1 {
+	font-size: 1.75em;
+	font-weight: 700;
+	margin: 1.2em 0 0.4em;
+	border-bottom: 1px solid hsl(var(--border));
+	padding-bottom: 0.25em;
+}
+.md-editor-content .ProseMirror h2 {
+	font-size: 1.35em;
+	font-weight: 600;
+	margin: 1.1em 0 0.35em;
+}
+.md-editor-content .ProseMirror h3 {
+	font-size: 1.15em;
+	font-weight: 600;
+	margin: 1em 0 0.3em;
+}
+.md-editor-content .ProseMirror h4 {
+	font-size: 1em;
+	font-weight: 600;
+	margin: 0.9em 0 0.25em;
+}
+
+/* Paragraph */
+.md-editor-content .ProseMirror p {
+	margin: 0.5em 0;
+}
+.md-editor-content .ProseMirror p:first-child {
+	margin-top: 0;
+}
+
+/* Bold / Italic / Strike */
+.md-editor-content .ProseMirror strong {
+	font-weight: 600;
+}
+.md-editor-content .ProseMirror em {
+	font-style: italic;
+}
+.md-editor-content .ProseMirror s {
+	text-decoration: line-through;
+	color: hsl(var(--muted-foreground));
+}
+
+/* Inline code */
+.md-editor-content .ProseMirror code {
+	background: hsl(var(--muted));
+	border: 1px solid hsl(var(--border) / 0.6);
+	border-radius: 4px;
+	padding: 0.1em 0.35em;
+	font-size: 0.875em;
+	font-family: "Maple Mono NF CN", "Fira Code", monospace;
+}
+
+/* Code block */
+.md-editor-content .ProseMirror pre {
+	background: hsl(var(--muted));
+	border: 1px solid hsl(var(--border) / 0.5);
+	border-radius: 8px;
+	padding: 1em 1.25em;
+	margin: 1em 0;
+	overflow-x: auto;
+}
+.md-editor-content .ProseMirror pre code {
+	background: none;
+	border: none;
+	padding: 0;
+	font-size: 0.875em;
+	line-height: 1.6;
+}
+
+/* Blockquote */
+.md-editor-content .ProseMirror blockquote {
+	border-left: 3px solid hsl(var(--primary) / 0.5);
+	margin: 0.75em 0;
+	padding: 0.1em 1em;
+	color: hsl(var(--muted-foreground));
+	background: hsl(var(--muted) / 0.3);
+	border-radius: 0 6px 6px 0;
+}
+
+/* Lists */
+.md-editor-content .ProseMirror ul,
+.md-editor-content .ProseMirror ol {
+	margin: 0.5em 0;
+	padding-left: 1.75em;
+}
+.md-editor-content .ProseMirror li {
+	margin: 0.25em 0;
+}
+.md-editor-content .ProseMirror li > p {
+	margin: 0;
+}
+.md-editor-content .ProseMirror ul {
+	list-style-type: disc;
+}
+.md-editor-content .ProseMirror ol {
+	list-style-type: decimal;
+}
+
+/* Task list */
+.md-editor-content .ProseMirror ul[data-type="taskList"] {
+	list-style: none;
+	padding-left: 0.25em;
+}
+.md-editor-content .ProseMirror li[data-type="taskItem"] {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5em;
+}
+.md-editor-content .ProseMirror li[data-type="taskItem"] > label {
+	user-select: none;
+}
+.md-editor-content
+	.ProseMirror
+	li[data-type="taskItem"][data-checked="true"]
+	> div {
+	color: hsl(var(--muted-foreground));
+	text-decoration: line-through;
+}
+
+/* HR */
+.md-editor-content .ProseMirror hr {
+	border: none;
+	border-top: 1px solid hsl(var(--border));
+	margin: 1.5em 0;
+}
+
+/* Link */
+.md-editor-content .ProseMirror a {
+	color: hsl(var(--primary));
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	cursor: pointer;
+}
+
+/* WikiLink [[...]] — decoration-based highlight (text stays literal) */
+.md-editor-content .ProseMirror .md-wikilink {
+	color: hsl(var(--primary));
+	background: hsl(var(--primary) / 0.08);
+	border-radius: 3px;
+	padding: 0 0.1em;
+	cursor: pointer;
+	text-underline-offset: 2px;
+	text-decoration: underline dashed hsl(var(--primary) / 0.5);
+}
+.md-editor-content .ProseMirror .md-wikilink:hover {
+	background: hsl(var(--primary) / 0.16);
+	text-decoration-color: hsl(var(--primary));
+}
+
+/* Selection */
+.md-editor-content .ProseMirror ::selection {
+	background: hsl(var(--primary) / 0.2);
+}
+
+/* Placeholder */
+.md-editor-content .ProseMirror p.is-editor-empty:first-child::before {
+	content: attr(data-placeholder);
+	float: left;
+	color: hsl(var(--muted-foreground) / 0.5);
+	pointer-events: none;
+	height: 0;
+}
+
+/* Focus ring suppression */
+.md-editor-content .ProseMirror:focus {
+	outline: none;
+}
+
+/* GFM tables (TableKit) — editable cells, resizable columns. */
+.md-editor-content .ProseMirror table {
+	border-collapse: collapse;
+	width: 100%;
+	margin: 0.75rem 0;
+	table-layout: fixed;
+	overflow: hidden;
+}
+.md-editor-content .ProseMirror th,
+.md-editor-content .ProseMirror td {
+	border: 1px solid hsl(var(--border));
+	padding: 0.375rem 0.6rem;
+	vertical-align: top;
+	position: relative;
+	min-width: 3rem;
+}
+.md-editor-content .ProseMirror th {
+	background: hsl(var(--muted) / 0.5);
+	font-weight: 600;
+	text-align: left;
+}
+.md-editor-content .ProseMirror .selectedCell::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: hsl(var(--primary) / 0.12);
+	pointer-events: none;
+}
+.md-editor-content .ProseMirror .column-resize-handle {
+	position: absolute;
+	right: -2px;
+	top: 0;
+	bottom: 0;
+	width: 4px;
+	background: hsl(var(--primary) / 0.5);
+	cursor: col-resize;
+}
+.md-editor-content .ProseMirror.resize-cursor {
+	cursor: col-resize;
+}
+
+/* Inline images (pasted/dropped). */
+.md-editor-content .ProseMirror img {
+	max-width: 100%;
+	height: auto;
+	border-radius: 0.375rem;
+	border: 1px solid hsl(var(--border));
+	margin: 0.5rem 0;
+}
+.md-editor-content .ProseMirror img.ProseMirror-selectednode {
+	outline: 2px solid hsl(var(--primary) / 0.6);
+}
