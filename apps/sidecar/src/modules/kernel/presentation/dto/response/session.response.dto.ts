@@ -10,7 +10,7 @@ export class SessionBoundAssetResponseDto {
 
     @ApiProperty({
         description: '资产分类',
-        enum: ['code', 'agent', 'workflow', 'mcp', 'knowledge', 'memory', 'skill', 'tool'],
+        enum: ['code', 'agent', 'mcp', 'knowledge', 'memory', 'skill', 'tool'],
     })
     category: string;
 

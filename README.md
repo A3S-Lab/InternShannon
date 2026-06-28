@@ -1,9 +1,9 @@
 # InternShannon
 
-InternShannon is a local-first desktop workspace for running an AI assistant
-beside the user's files, tools, and automation loops. The desktop app owns the
-user experience. The sidecar owns local API orchestration, configuration,
-workspace access, asset metadata, agent sessions, and integration bridges.
+InternShannon is a local-first desktop workspace with two product capabilities:
+agent chat and knowledge-base management. The desktop app owns the user
+experience. The sidecar owns local API coordination, configuration, workspace
+access, asset metadata, agent sessions, and integration bridges.
 
 The first principle is simple: a desktop assistant should not need a cloud
 control plane to be useful. It should start locally, keep state locally, and
@@ -34,7 +34,8 @@ The codebase is shaped by these constraints:
   module explicitly documents another integration.
 - Small trusted surface: sidecar APIs should be understandable as local desktop
   APIs, not a general multi-tenant backend.
-- Replaceable edges: integrations such as WeChat, OCR, workflow execution, and
+- Product focus: keep the desktop path centered on agent chat and
+  knowledge-base management; optional integrations such as WeChat, OCR, and
   planning packages sit at boundaries rather than inside the domain model.
 
 ## Architecture
@@ -91,7 +92,6 @@ pnpm sidecar:ddd:check
     ocr/
     ooxml/
     wechat/
-    workflow/
   pnpm-workspace.yaml
 ```
 

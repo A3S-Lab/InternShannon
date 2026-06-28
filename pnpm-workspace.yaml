@@ -5,7 +5,6 @@ packages:
   - packages/ocr
   - packages/ooxml
   - packages/wechat
-  - packages/workflow
 verifyDepsBeforeRun: false
 shamefullyHoist: true
 strictPeerDependencies: false

@@ -13,8 +13,8 @@ import type { LoopSpec, LoopSpecProvider } from '@/modules/loop/domain/services/
 /**
  * Dev loop — read-only spec provider (third of the three loops).
  *
- * ★ The dev loop is the interactive OrchestrationAgent loop that closes via CROSS-TURN PROMPT
- * INJECTION (extra() re-rendering verify issues), driven by real user turns + live socket emit —
+ * ★ The dev loop is a read-only model of the interactive software delivery loop
+ * that closes via CROSS-TURN PROMPT INJECTION, driven by real user turns + live socket emit —
  * NOT by the LoopRunDriver (review §4.3: driving it through a setInterval driver is a real behavior
  * change, not zero-cost). It registers ONLY the read-only `dev` SPEC (for the /loops/specs modeling
  * page). It does NOT register into the LoopControllerRegistry: that registry is keyed by `kind`, and
@@ -42,7 +42,7 @@ export class DevLoopSpecProvider implements LoopController, LoopSpecProvider, On
     }
 
     isAvailableInMode(_mode: 'cloud' | 'desktop'): boolean {
-        return false; // never driver-scheduled; the OrchestrationAgent turn loop is the real driver
+        return false; // never driver-scheduled; real user turns are the driver
     }
 
     shouldTerminate(_run: LoopRunSnapshot): TerminationVerdict {
@@ -61,8 +61,7 @@ export class DevLoopSpecProvider implements LoopController, LoopSpecProvider, On
 
     /**
      * Read-only model of the dev loop. Unlike ops/knowledge it is NOT driver-managed — it closes
-     * via cross-turn prompt injection inside the interactive OrchestrationAgent turn loop (extra()
-     * re-rendering verify issues on each real user turn). So `enforcement` here reflects "the interactive
+     * via cross-turn prompt injection inside an interactive agent turn loop. So `enforcement` here reflects "the interactive
      * agent loop enforces this" rather than "the LoopRunDriver enforces this"; almost every loop_runs-table
      * guardrail is declaredOnly for the dev loop because no loop_run row is ever created for it.
      */
@@ -74,11 +73,11 @@ export class DevLoopSpecProvider implements LoopController, LoopSpecProvider, On
             trigger: {
                 kinds: ['manual', 'goal-unmet'],
                 detail:
-                    '由真实用户对话轮次驱动(internShannon/OrchestrationAgent),每轮 LLM 生成后将未通过的验证(verify issues)经 extra() 跨轮重注入,直到目标达成。不经 LoopRunDriver / loop_runs 表,也无扫描器入队。',
+                    '由真实用户对话轮次驱动,每轮 LLM 生成后将未通过的验证(verify issues)经 extra() 跨轮重注入,直到目标达成。不经 LoopRunDriver / loop_runs 表,也无扫描器入队。',
             },
             scope: {
                 subjectTypes: ['session', 'workspace'],
-                description: '一个会话工作区内的软件交付目标(代码/工作流/资产仓库的编辑与验证)。',
+                description: '一个会话工作区内的软件交付目标(代码/资产仓库的编辑与验证)。',
             },
             context: {
                 rules:

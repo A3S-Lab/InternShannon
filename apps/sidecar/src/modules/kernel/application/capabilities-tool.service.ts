@@ -389,7 +389,7 @@ export class CapabilitiesToolService {
 
         const moduleName = (input.module ?? input.query ?? '').toLowerCase();
 
-        // Locked agents (orchestration / asset) are scoped to a single
+        // Locked asset sessions are scoped to a single
         // digital asset. They are explicitly NOT allowed to issue writes
         // against other platform modules (packages, registry, runtime,
         // resources, observability, marketplace, etc.) — even if the
@@ -439,7 +439,7 @@ export class CapabilitiesToolService {
      * 默认会话助手(internShannon,agentId='default')以【只读】方式使用渐进式 API:它经
      * runtimeDefaults().allowCapabilities 被放行 capabilities,但 execute 仅允许 GET 只读
      * 操作 —— 拒绝写 / 删,以中和「恶意知识文档或用户输入诱导对话助手执行用户本有权限的
-     * 破坏性写操作」的提示注入面。锁定型 agent(asset / orchestration)各有 assets 单资产
+     * 破坏性写操作」的提示注入面。锁定型 asset agent 有 assets 单资产
      * 写门禁(见 assertSingleAssetSessionCanExecute),不走此分支;无 sessionId 的直连调用
      * 由调用者自身权限把关,亦不受此限。
      */
@@ -487,9 +487,7 @@ export class CapabilitiesToolService {
      * level requirement in `asset-agent.prompts.ts` so a non-compliant model
      * cannot silently fabricate an asset behind the user's back.
      *
-     * Only fires for `agentId === 'asset'`. Orchestration agent has its own
-     * flow (workflow asset is auto-created on session start) so it bypasses
-     * the gate.
+     * Only fires for `agentId === 'asset'`.
      *
      * No-ops when the LockedAgentSessionStore isn't wired (test envs, library
      * usage). The store is `@Optional` to keep this guard fail-open at module
@@ -522,7 +520,7 @@ export class CapabilitiesToolService {
     }
 
     private isSingleAssetAgent(agentId?: string): boolean {
-        return agentId === 'asset' || agentId === 'orchestration';
+        return agentId === 'asset';
     }
 
     private isRootAssetCreate(operation: ApiOperation): boolean {

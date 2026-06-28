@@ -7,7 +7,7 @@
     "license": "MIT",
     "scripts": {
         "clean:dist": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
-        "prepare:workspace": "pnpm --filter @a3s-lab/agent-planning --filter @a3s-lab/lark --filter @a3s-lab/ocr --filter @a3s-lab/workflow build",
+        "prepare:workspace": "pnpm --filter @a3s-lab/agent-planning --filter @a3s-lab/lark --filter @a3s-lab/ocr build",
         "build": "pnpm prepare:workspace && node scripts/build-desktop-sidecar.mjs",
         "ddd:check": "node scripts/check-ddd-boundaries.mjs",
         "format": "biome format --write src scripts test",
@@ -32,7 +32,6 @@
         "@a3s-lab/code": "4.2.1",
         "@a3s-lab/lark": "workspace:*",
         "@a3s-lab/ocr": "workspace:*",
-        "@a3s-lab/workflow": "workspace:*",
         "@nestjs/axios": "^4.0.1",
         "@nestjs/common": "^11.0.0",
         "@nestjs/config": "^4.0.0",

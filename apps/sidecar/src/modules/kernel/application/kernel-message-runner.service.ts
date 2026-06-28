@@ -1142,11 +1142,8 @@ export class KernelMessageRunnerService {
             const wasCancelled = this.runtimeState.isCancelled(sessionId);
 
             // Give the agent one last hook after the stream is fully closed.
-            // Used e.g. by OrchestrationAgent to force a final flow.json
-            // checkpoint when the assistant emitted workflow updates this turn,
-            // so cancelling the SSE / closing the browser tab never leaves the
-            // canvas in a "streamed but not committed" state. Skip on cancel:
-            // a cancelled turn is best left at the last good checkpoint.
+            // Skip on cancel: a cancelled turn is best left at the last good
+            // checkpoint.
             if (!wasCancelled && streamCtx && agentSpec?.onStreamEnd) {
                 try {
                     await agentSpec.onStreamEnd(streamCtx, finalAssistantText);

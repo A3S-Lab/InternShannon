@@ -3,8 +3,8 @@
  *
  * Each detector advances along the assistant-stream text via an explicit
  * offset so the agent can consume every marker exactly once across deltas.
- * Mirrors the API shape of `workflow-parser.util.ts` used by the
- * orchestration agent.
+ * Keeps explicit offsets so streamed assistant text can be parsed
+ * incrementally without consuming the same marker twice.
  *
  * Both detectors also reject markers that fall inside a markdown code
  * context (fenced block / inline code / blockquote) to defend against
@@ -93,8 +93,7 @@ export function detectAssetCreatedMarker(
  *
  * The fenced-block shape (rather than inline `[ASSET_PROPOSAL:...]`) is
  * deliberate: JSON payloads carrying `]` would break a bracket regex, and the
- * existing orchestration agent already uses the same `\`\`\`workflow-json` fenced
- * convention.
+ * fenced blocks keep the proposal readable and avoid fragile inline JSON parsing.
  */
 export function extractAssetProposalBlocks(
     text: string,

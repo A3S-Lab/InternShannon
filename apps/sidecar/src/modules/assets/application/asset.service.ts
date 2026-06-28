@@ -15,7 +15,7 @@ interface NotificationService {
         metadata?: Record<string, unknown>;
     }): Promise<unknown>;
 }
-import { Asset, AssetActionVariable, WorkflowDefinition, WorkflowJobDefinition } from '../domain/entities/asset.entity';
+import { Asset, AssetActionVariable, PipelineSourceDefinition, PipelineSourceJob } from '../domain/entities/asset.entity';
 import {
     AssetCatalogFilters,
     ASSET_REPOSITORY,
@@ -2002,9 +2002,9 @@ export class AssetServiceImpl implements IAssetService {
         return { contents, truncated };
     }
 
-    async syncPipelinesFromWorkflows(assetId: string, workflows: WorkflowDefinition[]): Promise<Pipeline[]> {
+    async syncPipelinesFromDefinitions(assetId: string, definitions: PipelineSourceDefinition[]): Promise<Pipeline[]> {
         const asset = await this.requireAsset(assetId);
-        const pipelines = asset.syncPipelinesFromWorkflows(workflows);
+        const pipelines = asset.syncPipelinesFromDefinitions(definitions);
         await this.assetRepository.save(asset);
         return pipelines;
     }
@@ -2104,7 +2104,7 @@ export class AssetServiceImpl implements IAssetService {
             branch?: string;
             commitSha?: string;
             triggeredBy?: string;
-            jobs?: WorkflowJobDefinition[];
+            jobs?: PipelineSourceJob[];
             status?: PipelineRun['status'];
             inputs?: Record<string, string>;
         },

@@ -1,5 +1,5 @@
 /**
- * 锁定智能体策略：编排（orchestration）、开发（asset）与运维（devops）智能体
+ * 锁定智能体策略：资产/知识库（asset）与运维（devops）智能体
  * 必须使用系统内核配置的默认模型，并强制启用 SDK planningMode；
  * 不允许通过开放平台接口指定模型或运行模式。
  *
@@ -7,13 +7,11 @@
  */
 
 export enum LockedAgentId {
-    ORCHESTRATION = 'orchestration',
     ASSET = 'asset',
     DEVOPS = 'devops',
 }
 
 const LOCKED_AGENT_IDS = new Set<string>([
-    LockedAgentId.ORCHESTRATION,
     LockedAgentId.ASSET,
     LockedAgentId.DEVOPS,
 ]);
@@ -65,30 +63,30 @@ export function describeLockedSessionViolation(payload: {
     systemPrompt?: unknown;
 }): string | null {
     if (typeof payload.model === 'string' && payload.model.trim()) {
-        return '编排、开发与运维智能体必须使用系统内核配置的默认模型，不允许指定 model';
+        return '资产/知识库与运维智能体必须使用系统内核配置的默认模型，不允许指定 model';
     }
     if (typeof payload.systemPrompt === 'string' && payload.systemPrompt.trim()) {
-        return '编排、开发与运维智能体的系统提示词由后端内置规格提供，不允许指定 systemPrompt';
+        return '资产/知识库与运维智能体的系统提示词由后端内置规格提供，不允许指定 systemPrompt';
     }
     if (
         typeof payload.permissionMode === 'string' &&
         payload.permissionMode.trim() &&
         payload.permissionMode.trim() !== LOCKED_AGENT_POLICY.permissionMode
     ) {
-        return '编排、开发与运维智能体的执行权限由系统固定，不允许指定 permissionMode';
+        return '资产/知识库与运维智能体的执行权限由系统固定，不允许指定 permissionMode';
     }
     if (
         typeof payload.planningMode === 'string' &&
         payload.planningMode.trim() &&
         payload.planningMode.trim() !== LOCKED_AGENT_POLICY.planningMode
     ) {
-        return '编排、开发与运维智能体强制启用规划模式，不允许指定 planningMode';
+        return '资产/知识库与运维智能体强制启用规划模式，不允许指定 planningMode';
     }
     if (payload.goalTracking === false) {
-        return '编排、开发与运维智能体强制启用任务追踪，不允许 goalTracking=false';
+        return '资产/知识库与运维智能体强制启用任务追踪，不允许 goalTracking=false';
     }
     if (payload.followDefaultModel === false) {
-        return '编排、开发与运维智能体必须跟随系统默认模型，不允许 followDefaultModel=false';
+        return '资产/知识库与运维智能体必须跟随系统默认模型，不允许 followDefaultModel=false';
     }
     return null;
 }
@@ -142,7 +140,7 @@ export function describeLockedRunViolation(payload?: object | null): string | nu
         if (typeof value === 'string' && value.trim() === '') continue;
         if (Array.isArray(value) && value.length === 0) continue;
         if (typeof value === 'object' && Object.keys(value as Record<string, unknown>).length === 0) continue;
-        return `编排、开发与运维智能体不允许在单条消息中覆盖运行参数：${key}`;
+        return `资产/知识库与运维智能体不允许在单条消息中覆盖运行参数：${key}`;
     }
     return null;
 }

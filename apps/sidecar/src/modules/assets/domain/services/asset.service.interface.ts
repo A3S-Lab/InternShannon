@@ -24,7 +24,7 @@ import {
 } from '../entities/pull-request.entity';
 import { Release } from '../entities/release.entity';
 import { Tag } from '../entities/tag.entity';
-import { AssetActionVariable, WorkflowDefinition, WorkflowJobDefinition } from '../entities/asset.entity';
+import { AssetActionVariable, PipelineSourceDefinition, PipelineSourceJob } from '../entities/asset.entity';
 import { AgentKind } from '../value-objects/agent-kind.vo';
 import { AssetCategory } from '../value-objects/asset-category.vo';
 import { Permission } from '../value-objects/permission.vo';
@@ -61,12 +61,12 @@ export interface AssetComparison {
 }
 
 export interface PullRequestCheckItem {
-    workflowId: string;
-    workflowName: string;
+    pipelineId: string;
+    pipelineName: string;
     status: 'success' | 'pending' | 'failure';
     run?: {
         id: string;
-        workflowId: string;
+        pipelineId: string;
         assetId: string;
         runNumber: number;
         status: PipelineRun['status'];
@@ -175,7 +175,7 @@ export interface IAssetService {
     getAssetCore(id: string): Promise<Asset | null>;
     /**
      * Batch lookup — single SQL WHERE id IN (...). Use whenever you'd otherwise
-     * loop getAsset (enriching marketplace listings / workflow nodes / etc.).
+     * loop getAsset (enriching marketplace listings / graph nodes / etc.).
      */
     getAssets(ids: string[]): Promise<Asset[]>;
     findByOwnerAndName(owner: string, name: string): Promise<Asset | null>;
@@ -490,7 +490,7 @@ export interface IAssetService {
     >;
 
     // Pipeline / A3S Actions
-    syncPipelinesFromWorkflows(assetId: string, workflows: WorkflowDefinition[]): Promise<Pipeline[]>;
+    syncPipelinesFromDefinitions(assetId: string, definitions: PipelineSourceDefinition[]): Promise<Pipeline[]>;
     listActionVariables(assetId: string): Promise<AssetActionVariable[]>;
     upsertActionVariable(assetId: string, name: string, value: string): Promise<AssetActionVariable>;
     deleteActionVariable(assetId: string, name: string): Promise<void>;
@@ -531,7 +531,7 @@ export interface IAssetService {
             branch?: string;
             commitSha?: string;
             triggeredBy?: string;
-            jobs?: WorkflowJobDefinition[];
+            jobs?: PipelineSourceJob[];
             status?: PipelineRun['status'];
             inputs?: Record<string, string>;
         },

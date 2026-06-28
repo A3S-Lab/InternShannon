@@ -1,5 +1,5 @@
-export type AssetRuntimeBindingKind = 'agent' | 'workflow' | 'service' | 'job' | 'mcp' | 'tool';
-export type AssetRuntimeTargetKind = 'asset' | 'package' | 'image' | 'workflow';
+export type AssetRuntimeBindingKind = 'agent' | 'service' | 'job' | 'mcp' | 'tool';
+export type AssetRuntimeTargetKind = 'asset' | 'package' | 'image';
 export type AssetRuntimeProtocol = 'http' | 'grpc' | 'stdio' | 'websocket';
 
 /**
@@ -22,7 +22,6 @@ export interface AssetRuntimeTarget {
     packageId?: string;
     version?: string;
     image?: string;
-    workflowId?: string;
     ref?: string;
 }
 
@@ -114,8 +113,8 @@ export interface AssetRuntimeBindingValidation {
     checkedAt: string;
 }
 
-export const ASSET_RUNTIME_BINDING_KINDS: AssetRuntimeBindingKind[] = ['agent', 'workflow', 'service', 'job', 'mcp', 'tool'];
-export const ASSET_RUNTIME_TARGET_KINDS: AssetRuntimeTargetKind[] = ['asset', 'package', 'image', 'workflow'];
+export const ASSET_RUNTIME_BINDING_KINDS: AssetRuntimeBindingKind[] = ['agent', 'service', 'job', 'mcp', 'tool'];
+export const ASSET_RUNTIME_TARGET_KINDS: AssetRuntimeTargetKind[] = ['asset', 'package', 'image'];
 export const ASSET_RUNTIME_PROTOCOLS: AssetRuntimeProtocol[] = ['http', 'grpc', 'stdio', 'websocket'];
 export const ASSET_RUNTIME_ISOLATIONS: AssetRuntimeIsolation[] = ['native', 'serving', 'container'];
 export const ASSET_SHARED_RUNTIMES: AssetSharedRuntime[] = ['node-20', 'python-3.11', 'deno-1', 'wasm-1'];

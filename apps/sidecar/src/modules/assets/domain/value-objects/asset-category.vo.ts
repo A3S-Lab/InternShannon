@@ -4,7 +4,6 @@
 export type AssetCategory =
     | 'code'        // 常规代码
     | 'agent'       // 智能体
-    | 'workflow'     // 工作流
     | 'mcp'          // MCP
     | 'knowledge'    // 知识库
     | 'memory'       // 记忆库
@@ -15,7 +14,6 @@ export type AssetCategory =
 export const AssetCategory = {
     CODE: 'code' as AssetCategory,
     AGENT: 'agent' as AssetCategory,
-    WORKFLOW: 'workflow' as AssetCategory,
     MCP: 'mcp' as AssetCategory,
     KNOWLEDGE: 'knowledge' as AssetCategory,
     MEMORY: 'memory' as AssetCategory,
@@ -27,7 +25,6 @@ export const AssetCategory = {
 export const ASSET_CATEGORY_LABELS: Record<AssetCategory, string> = {
     code: '常规代码',
     agent: '智能体',
-    workflow: '工作流',
     mcp: 'MCP',
     knowledge: '知识库',
     memory: '记忆库',

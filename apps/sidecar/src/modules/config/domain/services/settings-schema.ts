@@ -579,7 +579,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     assets: {
         defaultVisibility: 'organization',
         maxUploadSizeMb: 512,
-        allowedKinds: ['source', 'document', 'dataset', 'model', 'mcp', 'workflow', 'container'],
+        allowedKinds: ['source', 'document', 'dataset', 'model', 'mcp', 'container'],
         requireActionsValidation: true,
         buildPackageOnActionsValidation: true,
         keepSourceSnapshots: true,

@@ -82,9 +82,8 @@ export interface AgentSpec {
      * marker in the assistant output).
      *
      * Returning a Promise is supported and awaited by the runner — useful
-     * when an agent needs to rehydrate persisted state (e.g. the current
-     * workflow canvas) before the model invocation starts, so the system
-     * prompt slot and any subsequent delta application have full context.
+     * when an agent needs to rehydrate persisted state before the model
+     * invocation starts, so the system prompt slot has full context.
      */
     onUserMessage?(
         ctx: { sessionId: string; agentId: string; userId: string },

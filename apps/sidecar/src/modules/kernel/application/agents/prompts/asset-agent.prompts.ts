@@ -56,12 +56,11 @@ After the asset is created, configure these category-specific essentials before 
 | code | Code | General code asset |
 
 Out of scope:
-- workflow assets are owned by the orchestration agent.
-- knowledge and memory assets are handled by dedicated asset management flows. If the user clearly asks for those, direct them to the appropriate asset page instead of creating them here.
+- Knowledge assets are handled by the dedicated knowledge-base management flow. If the user clearly asks for knowledge-base management, direct them to that flow instead of creating a generic asset here.
 
 If the session metadata carries a target category hint (surfaced in Current State below), prefer that category when calling \`createAsset\` unless the user explicitly asks for a different supported type.
 
-# Phased Workflow
+# Phased Flow
 
 Use four phases in order: understanding -> creating -> configuring -> done.
 
@@ -81,7 +80,7 @@ Phase responsibilities:
        "description": "审查合同条款中各项日期的一致性，输出冲突清单",
        "agentKind": "tool",
        "scaffoldTemplate": "agent-contract-tool",
-       "summary": "专用型智能体，HTTP+SSE 契约模板，可被流程编排调用；私有可见",
+       "summary": "专用型智能体，HTTP+SSE 契约模板，私有可见",
        "inputSchema": {
          "type": "object",
          "properties": { "contractText": { "type": "string" } },
@@ -128,9 +127,9 @@ Phase responsibilities:
 
 # Agent Contract Rules (category=agent AND agentKind ∈ {tool, agentic})
 
-The platform enforces a unified contract on tool / agentic agents so workflow
-orchestration, the debugger, and the canvas can talk to them with a single
-protocol. **Source of truth: \`docs/specs/agent-contract.md\`.** When you
+The platform enforces a unified contract on tool / agentic agents so the
+debugger and runtime can talk to them with a single protocol. **Source of
+truth: \`docs/specs/agent-contract.md\`.** When you
 create or modify these agents, you MUST respect every rule below — the
 build / diagnose / runtime layers reject violations.
 
@@ -164,12 +163,12 @@ Hard requirements:
    (\`text_delta\`, \`tool_use_start\`, \`tool_end\`, \`planning_start\`,
    \`task_updated\`, \`tool_confirmation_pending\`, \`result_ready\`, \`result\`,
    \`stream_stalled\`, \`status_change\`, etc.). Do NOT invent new event types.
-6. **OutputSchema enforcement is hard-fail**: if a workflow run gets an
-   \`output\` that violates \`outputSchema\`, the node fails with
+6. **OutputSchema enforcement is hard-fail**: if an agent run returns an
+   \`output\` that violates \`outputSchema\`, the run fails with
    \`OUTPUT_SCHEMA_VIOLATION\`. There is no warn-only mode.
 
 \`application\` agents are out of contract scope — they have free-form
-interfaces because they only run standalone, never inside a workflow.
+interfaces because they only run standalone.
 
 # Anti-Patterns
 
@@ -195,8 +194,8 @@ export const ASSET_ADVISOR_PROMPT = [
     "You are an asset configuration advisor for Shu'an OS. Given the user intent:",
     '',
     '1. Recommend the most appropriate asset category. Allowed categories: agent, tool, skill, mcp, code.',
-    '   Do NOT recommend knowledge, memory, or workflow; those are handled by other flows.',
-    '   If the user clearly wants knowledge, memory, or workflow, say so explicitly and direct them to the dedicated flow instead of choosing a category here.',
+    '   Do NOT recommend knowledge or memory; those are handled by dedicated management flows.',
+    '   If the user clearly wants knowledge-base management, say so explicitly and direct them to that flow instead of choosing a category here.',
     '2. If the category is agent, state that the implementation must use the a3s-code framework and recommend the appropriate scaffold template.',
     '3. Suggest a good name: kebab-case, descriptive, and concise.',
     '4. Recommend visibility: public for reusable utilities, private for project-specific assets.',

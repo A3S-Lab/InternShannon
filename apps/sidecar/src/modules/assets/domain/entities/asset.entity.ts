@@ -74,7 +74,7 @@ type PersistedAssetProps = Omit<AssetProps, 'createdAt' | 'updatedAt'> & {
 
 type MetadataChild = Record<string, unknown>;
 
-export interface WorkflowStepDefinition {
+export interface PipelineSourceStep {
     name: string;
     command?: string;
     workingDirectory?: string;
@@ -86,7 +86,7 @@ export interface WorkflowStepDefinition {
     timeoutMinutes?: number;
 }
 
-export interface WorkflowJobDefinition {
+export interface PipelineSourceJob {
     id: string;
     sourceId?: string;
     name: string;
@@ -104,19 +104,19 @@ export interface WorkflowJobDefinition {
     matrixMaxParallel?: number;
     matrixFailFast?: boolean;
     matrixValues?: Record<string, string>;
-    steps: WorkflowStepDefinition[];
+    steps: PipelineSourceStep[];
 }
 
-export interface WorkflowDefinition {
+export interface PipelineSourceDefinition {
     name: string;
     description?: string;
     filePath: string;
     triggerEvents: string[];
-    inputs?: WorkflowInputDefinition[];
-    jobs: WorkflowJobDefinition[];
+    inputs?: PipelineSourceInput[];
+    jobs: PipelineSourceJob[];
 }
 
-export interface WorkflowInputDefinition {
+export interface PipelineSourceInput {
     name: string;
     description?: string;
     required?: boolean;
@@ -1643,30 +1643,30 @@ export class Asset extends AggregateRoot<string> {
         return updatedWebhook;
     }
 
-    public syncPipelinesFromWorkflows(workflows: WorkflowDefinition[]): Pipeline[] {
+    public syncPipelinesFromDefinitions(definitions: PipelineSourceDefinition[]): Pipeline[] {
         const now = new Date();
         const existingByFilePath = new Map(this.pipelines.map(pipeline => [pipeline.filePath, pipeline]));
         const existingByName = new Map(this.pipelines.map(pipeline => [pipeline.name, pipeline]));
         const pipelineDefinitions = this.getPipelineDefinitions();
-        const pipelines = workflows.map(workflow => {
-            const existing = existingByFilePath.get(workflow.filePath) || existingByName.get(workflow.name);
+        const pipelines = definitions.map(definition => {
+            const existing = existingByFilePath.get(definition.filePath) || existingByName.get(definition.name);
             const pipeline = Asset.asPipeline({
                 id: existing?.id || uuidv4(),
                 assetId: this.id,
-                name: Asset.normalizeName(workflow.name),
-                description: workflow.description,
-                filePath: workflow.filePath,
+                name: Asset.normalizeName(definition.name),
+                description: definition.description,
+                filePath: definition.filePath,
                 isEnabled: existing?.isEnabled ?? true,
-                triggerEvents: workflow.triggerEvents.length > 0 ? workflow.triggerEvents : ['workflow_dispatch'],
-                inputs: workflow.inputs,
+                triggerEvents: definition.triggerEvents.length > 0 ? definition.triggerEvents : ['manual_dispatch'],
+                inputs: definition.inputs,
                 createdAt: existing?.createdAt || now,
                 updatedAt: now,
             });
-            pipelineDefinitions[pipeline.id] = workflow;
+            pipelineDefinitions[pipeline.id] = definition;
             return pipeline;
         });
 
-        if (workflows.length === 0) {
+        if (definitions.length === 0) {
             return this.pipelines;
         }
 
@@ -1779,7 +1779,7 @@ export class Asset extends AggregateRoot<string> {
             branch?: string;
             commitSha?: string;
             triggeredBy?: string;
-            jobs?: WorkflowJobDefinition[];
+            jobs?: PipelineSourceJob[];
             status?: PipelineRun['status'];
             inputs?: Record<string, string>;
         } = {},
@@ -1801,7 +1801,7 @@ export class Asset extends AggregateRoot<string> {
             runNumber: previousRunNumber + 1,
             status,
             conclusion,
-            event: options.event || 'workflow_dispatch',
+            event: options.event || 'manual_dispatch',
             branch: options.branch || this._defaultBranch,
             commitSha: options.commitSha || this.latestCommitSha(),
             triggeredBy: options.triggeredBy || 'local-user',
@@ -1812,7 +1812,7 @@ export class Asset extends AggregateRoot<string> {
         });
 
         const childStatus: PipelineJob['status'] = status === 'skipped' ? 'cancelled' : status;
-        const jobs = (options.jobs && options.jobs.length > 0 ? options.jobs : this.workflowJobsForPipeline(pipelineId))
+        const jobs = (options.jobs && options.jobs.length > 0 ? options.jobs : this.pipelineJobsForPipeline(pipelineId))
             .map((job, jobIndex) => this.createPipelineJob(run.id, job, jobIndex + 1, childStatus, now));
         const steps = jobs.flatMap(({ job, source }) => source.steps.map((step, index) => this.createPipelineStep(job.id, step, index + 1, childStatus, now)));
         const artifacts = status === 'success' ? this.createPipelineArtifacts(run.id, pipeline.name, now) : [];
@@ -2259,15 +2259,15 @@ export class Asset extends AggregateRoot<string> {
         return value === 'success' || value === 'failure' ? value : undefined;
     }
 
-    private getPipelineDefinitions(): Record<string, WorkflowDefinition> {
+    private getPipelineDefinitions(): Record<string, PipelineSourceDefinition> {
         const definitions = this._metadata?.pipelineDefinitions;
         if (!definitions || typeof definitions !== 'object' || Array.isArray(definitions)) {
             return {};
         }
-        return definitions as Record<string, WorkflowDefinition>;
+        return definitions as Record<string, PipelineSourceDefinition>;
     }
 
-    private workflowJobsForPipeline(pipelineId: string): WorkflowJobDefinition[] {
+    private pipelineJobsForPipeline(pipelineId: string): PipelineSourceJob[] {
         const definition = this.getPipelineDefinitions()[pipelineId];
         if (definition?.jobs?.length) {
             return definition.jobs;
@@ -2289,11 +2289,11 @@ export class Asset extends AggregateRoot<string> {
 
     private createPipelineJob(
         runId: string,
-        source: WorkflowJobDefinition,
+        source: PipelineSourceJob,
         stepNumber: number,
         status: PipelineJob['status'],
         now: Date,
-    ): { job: PipelineJob; source: WorkflowJobDefinition } {
+    ): { job: PipelineJob; source: PipelineSourceJob } {
         const firstStepName = source.steps[0]?.name || 'Run job';
         const isSuccess = status === 'success';
         const job = Asset.asPipelineJob({
@@ -2324,7 +2324,7 @@ export class Asset extends AggregateRoot<string> {
 
     private createPipelineStep(
         jobId: string,
-        source: WorkflowStepDefinition,
+        source: PipelineSourceStep,
         stepNumber: number,
         status: PipelineStep['status'],
         now: Date,
@@ -2359,7 +2359,7 @@ export class Asset extends AggregateRoot<string> {
         return [Asset.asPipelineArtifact({
             id: uuidv4(),
             runId,
-            name: `${pipelineName.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'workflow'}-metadata`,
+            name: `${pipelineName.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'pipeline'}-metadata`,
             sizeBytes: 1024,
             downloadUrl: undefined,
             expiredAt: new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000),

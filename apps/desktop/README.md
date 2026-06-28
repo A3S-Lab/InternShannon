@@ -36,8 +36,8 @@ just dev
 ```
 
 This path intentionally avoids Docker, Postgres, Redis, Etcd, and RustFS. It
-uses local workspace storage and a local data directory so the Agent workflow can
-be tested quickly in a browser.
+uses local workspace storage and a local data directory so the agent chat path
+and knowledge-base management can be tested quickly in a browser.
 
 `just dev` builds the sidecar first, starts a small local desktop frontend on the
 selected web port, and then launches the Tauri shell. The native shell spawns or
@@ -330,11 +330,11 @@ under `crates/safeclaw/src/embedded_skills` are the single source of truth, and
 `src-tauri/resources/skills` is a build-time mirror used for desktop
 distribution and `~/.internshannon/skills` sync.
 
-CI workflow:
+CI automation:
 
 - `.github/workflows/safeclaw-release-verify.yml`
 
-That workflow builds the desktop bundle on macOS, enforces bundled Box
+That job builds the desktop bundle on macOS, enforces bundled Box
 resources during release packaging, and validates the final `.app` resource
 directory instead of trusting build-time logs alone. It also uploads:
 
@@ -1610,7 +1610,7 @@ inside an A3S Box VM. A3S Code runs as a separate local service in the same VM.
 
 > **This is the most critical pending item.** internShannon currently embeds a3s-code as a
 > Cargo dependency and runs the agent in-process. This blurs the security boundary:
-> internShannon is a proxy, not a runtime. All new channel and workflow features (Phase 16+)
+> internShannon is a proxy, not a runtime. All new channel features (Phase 16+)
 > depend on this being fixed first.
 
 - [ ] **A3S Code local service client**: gRPC/unix socket client to a3s-code
@@ -1928,32 +1928,7 @@ policies, privacy rules, and model choices.
 - [ ] **Session routing**: `SessionManager` applies channel config when creating session
 - [ ] **Audit**: Channel config included in `PolicySnapshot` for drift detection
 
-### Phase 18: Workflow Orchestration 📋
-
-internShannon has a task scheduler (Phase 14) but no multi-step workflow composition.
-OpenClaw's "Lobster" pattern lets skills chain: `fetch_email → summarize → post_to_slack`.
-internShannon needs the same, with privacy checks at every step boundary.
-
-- [ ] **`WorkflowDef`**: Sequence of steps, each with a prompt + target tool/skill
-  ```rust
-  pub struct WorkflowDef {
-      pub id: String,
-      pub steps: Vec<WorkflowStep>,
-      pub trigger: WorkflowTrigger, // Manual | Schedule | WebhookEvent
-  }
-  pub struct WorkflowStep {
-      pub name: String,
-      pub prompt: String,
-      pub output_var: String,       // bind step output for next step
-      pub privacy_check: bool,      // run PrivacyPipeline on output before passing forward
-  }
-  ```
-- [ ] **Privacy gate at step boundaries**: Each step output passes through `PrivacyPipeline` before being injected into the next step's prompt — taint labels propagate through the chain
-- [ ] **`WorkflowExecutor`**: Runs steps sequentially, handles errors, delivers final output to channel
-- [ ] **REST API**: CRUD at `/api/v1/workflows`, manual trigger, execution history
-- [ ] **HITL integration**: Steps can require confirmation before proceeding
-
-### Phase 19: Cross-Session Memory Retrieval 📋
+### Phase 18: Cross-Session Memory Retrieval 📋
 
 The 3-layer memory system (Resource/Artifact/Insight) accumulates knowledge within a
 session but doesn't surface it in future sessions. OpenClaw's persistent memory injects

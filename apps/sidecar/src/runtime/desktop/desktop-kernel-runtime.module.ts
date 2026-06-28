@@ -7,7 +7,7 @@ import { DesktopMessageRepository } from '@/modules/kernel/infrastructure/deskto
 import { DesktopSessionRepository } from '@/modules/kernel/infrastructure/desktop/repositories/desktop-session.repository';
 import { LocalFileStorage } from '@/modules/kernel/infrastructure/workspace-storage/local-file.storage';
 import { AgentLifecycleMediator } from '@/modules/kernel/application/agent-lifecycle-mediator.service';
-import { AgentRegistry, AssetAgent, DefaultAgent, DevOpsAgent, OrchestrationAgent } from '@/modules/kernel/application/agents';
+import { AgentRegistry, AssetAgent, DefaultAgent, DevOpsAgent } from '@/modules/kernel/application/agents';
 import { LockedAgentSessionStore } from '@/modules/kernel/application/agents/locked-agent-session.store';
 import { ApiOperationExecutor } from '@/modules/kernel/application/api-operation-executor.service';
 import { CapabilitiesToolService } from '@/modules/kernel/application/capabilities-tool.service';
@@ -29,7 +29,6 @@ import { KernelSessionRuntimeStateService } from '@/modules/kernel/application/k
 import { KernelSessionSnapshotService } from '@/modules/kernel/application/kernel-session-snapshot.service';
 import { KernelSessionStatusService } from '@/modules/kernel/application/kernel-session-status.service';
 import { KernelToolConfirmationService } from '@/modules/kernel/application/kernel-tool-confirmation.service';
-import { OrchestrationTimelineService } from '@/modules/kernel/application/orchestration-timeline.service';
 import { CountSessionsHandler } from '@/modules/kernel/application/queries/count-sessions';
 import { GetSessionHandler } from '@/modules/kernel/application/queries/get-session';
 import { GetSessionMessagesHandler } from '@/modules/kernel/application/queries/get-session-messages';
@@ -57,7 +56,6 @@ import { WorkspaceController } from '@/modules/kernel/presentation/controllers/w
 import { KernelGateway } from '@/modules/kernel/presentation/gateways/kernel.gateway';
 import { DesktopAssetsRuntimeModule } from './desktop-assets-runtime.module';
 import { DesktopConfigRuntimeModule } from './desktop-config-runtime.module';
-import { DesktopSerialChainPlannerModule } from './desktop-serial-chain-planner.module';
 
 const CommandHandlers = [CreateSessionHandler, EndSessionHandler];
 const QueryHandlers = [GetSessionHandler, ListSessionsHandler, CountSessionsHandler, GetSessionMessagesHandler];
@@ -67,7 +65,6 @@ const QueryHandlers = [GetSessionHandler, ListSessionsHandler, CountSessionsHand
         CqrsModule,
         HttpModule,
         DesktopAssetsRuntimeModule,
-        DesktopSerialChainPlannerModule,
         DesktopConfigRuntimeModule,
         AppConfigModule,
     ],
@@ -122,14 +119,12 @@ const QueryHandlers = [GetSessionHandler, ListSessionsHandler, CountSessionsHand
         AgentLifecycleMediator,
         LockedAgentSessionStore,
         DefaultAgent,
-        OrchestrationAgent,
         AssetAgent,
         DevOpsAgent,
-        OrchestrationTimelineService,
         {
             provide: AGENT_SPEC,
             useFactory: (...agents: AgentSpec[]) => agents,
-            inject: [DefaultAgent, OrchestrationAgent, AssetAgent, DevOpsAgent],
+            inject: [DefaultAgent, AssetAgent, DevOpsAgent],
         },
         KernelSessionResetService,
         KernelSessionBroadcaster,

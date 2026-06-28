@@ -330,13 +330,13 @@ export function buildPullRequestChecks(asset: Asset, pullRequest: PullRequest): 
             .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())[0];
         const status = pipelineRunCheckStatus(run);
         return {
-            workflowId: pipeline.id,
-            workflowName: pipeline.name,
+            pipelineId: pipeline.id,
+            pipelineName: pipeline.name,
             status,
             run: run
                 ? {
                       id: run.id,
-                      workflowId: run.pipelineId,
+                      pipelineId: run.pipelineId,
                       assetId: run.assetId,
                       runNumber: run.runNumber,
                       status: run.status,

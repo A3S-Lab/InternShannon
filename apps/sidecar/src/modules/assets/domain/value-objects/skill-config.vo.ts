@@ -6,7 +6,7 @@
 /**
  * 技能类型
  */
-export type SkillType = 'command' | 'workflow' | 'template' | 'function';
+export type SkillType = 'command' | 'template' | 'function';
 
 /**
  * 技能参数定义
@@ -47,7 +47,7 @@ export function validateSkillConfig(config: unknown): config is SkillConfig {
         return false;
     }
 
-    const validTypes: SkillType[] = ['command', 'workflow', 'template', 'function'];
+    const validTypes: SkillType[] = ['command', 'template', 'function'];
     if (!validTypes.includes(c.type as SkillType)) {
         return false;
     }

@@ -78,8 +78,8 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         this.confirmationManager = new WebSocketConfirmationManager(this.server, 60000);
         this.logger.log('HITL Confirmation Manager initialized');
 
-        // Wire the broadcaster bridge so non-kernel services (e.g. runtime
-        // workflow execution) can push raw frames to a session room.
+        // Wire the broadcaster bridge so non-kernel services can push raw
+        // frames to a session room.
         this.sessionBroadcaster.attach(this.server);
 
         // Load runtime config for agent configuration

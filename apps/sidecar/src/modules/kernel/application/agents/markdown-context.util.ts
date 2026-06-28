@@ -1,8 +1,8 @@
 /**
  * Detects whether a position in assistant-stream text falls inside a
  * markdown code context (fenced block / inline code span / blockquote
- * line). Used by the orchestration and asset agent marker parsers to
- * reject control markers that arrive embedded in quoted user content,
+ * line). Used by agent marker parsers to reject control markers that arrive
+ * embedded in quoted user content,
  * file excerpts, or other untrusted material the model is paraphrasing.
  *
  * Threat model: control markers like `[PHASE:complete]` or `[PLAN:apply]`

@@ -111,8 +111,8 @@ export const ASSET_LIFECYCLE_TRANSITION_RULES: AssetLifecycleTransitionRule[] = 
     {
         event: 'publish',
         // 'ready' 是 P6 加的:isolation=serving 的 agent 资产不构建用户镜像,
-        // 直接从 git source 发布(同 workflow 资产路径)。container 路径仍走
-        // packaged → published(plan-level 控制,catalog 不需要看 isolation)。
+        // 直接从 git source 发布。container 路径仍走 packaged → published
+        // (plan-level 控制,catalog 不需要看 isolation)。
         from: ['ready', 'packaged'],
         to: 'published',
         label: '发布',
@@ -156,59 +156,11 @@ export function isAssetLifecycleState(value: unknown): value is AssetLifecycleSt
     return typeof value === 'string' && ASSET_LIFECYCLE_STATES.includes(value as AssetLifecycleState);
 }
 
-/**
- * 资产类别在状态机里的差异：
- * - `agent`: 走完整 8 状态 + 全部 transition（构建 / 制品 / 发布闭环）。
- * - `workflow`: 没有构建阶段，跳过 `building` / `packaged`，
- *   publish 直接 `ready → published`、unpublish 回 `ready`。
- * - 其它类别（knowledge / memory / skill / mcp / code / tool）暂不使用本状态机，
- *   返回原始规则但调用方应在 UI 上隐藏。
- */
-const WORKFLOW_EXCLUDED_EVENTS = new Set<AssetLifecycleTransition>([
-    'start_build',
-    'build_succeeded',
-    'build_failed',
-]);
-
-const WORKFLOW_EXCLUDED_STATES = new Set<AssetLifecycleState>(['building', 'packaged']);
-
-function withoutWorkflowExcludedStates(states: AssetLifecycleState[]): AssetLifecycleState[] {
-    return states.filter(state => !WORKFLOW_EXCLUDED_STATES.has(state));
-}
-
-function workflowTransitionRules(): AssetLifecycleTransitionRule[] {
-    return ASSET_LIFECYCLE_TRANSITION_RULES
-        .filter(rule => !WORKFLOW_EXCLUDED_EVENTS.has(rule.event))
-        .map((rule): AssetLifecycleTransitionRule => {
-            switch (rule.event) {
-                case 'publish':
-                    // workflow 没有 packaged 阶段，发布从 ready 直接到 published
-                    return { ...rule, from: ['ready' as AssetLifecycleState] };
-                case 'unpublish':
-                    // 对应回到 ready 而不是 packaged
-                    return { ...rule, to: 'ready' as AssetLifecycleState };
-                case 'start_development':
-                case 'mark_ready':
-                case 'deprecate':
-                case 'archive':
-                case 'restore':
-                    // 去掉 from 里 workflow 不会出现的 packaged / building
-                    return { ...rule, from: withoutWorkflowExcludedStates(rule.from) };
-                default:
-                    return rule;
-            }
-        })
-        .filter(rule => rule.from.length > 0);
-}
-
-const WORKFLOW_LIFECYCLE_TRANSITION_RULES: AssetLifecycleTransitionRule[] = workflowTransitionRules();
-
-export type AssetLifecycleCategory = 'agent' | 'workflow';
+export type AssetLifecycleCategory = 'agent';
 
 export function assetLifecycleTransitionRulesFor(
     category?: AssetLifecycleCategory | string,
 ): AssetLifecycleTransitionRule[] {
-    if (category === 'workflow') return WORKFLOW_LIFECYCLE_TRANSITION_RULES;
     return ASSET_LIFECYCLE_TRANSITION_RULES;
 }
 
@@ -226,6 +178,3 @@ export function assetLifecycleAllowedTransitions(
 ): AssetLifecycleTransitionRule[] {
     return assetLifecycleTransitionRulesFor(category).filter(rule => rule.from.includes(state));
 }
-
-/** workflow 不会进入 building / packaged，前端在状态徽章上也要按这个忽略。 */
-export const WORKFLOW_UNREACHABLE_LIFECYCLE_STATES: readonly AssetLifecycleState[] = ['building', 'packaged'];

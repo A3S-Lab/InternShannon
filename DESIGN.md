@@ -2,8 +2,8 @@
 
 This document defines the product UI taste for internShannon. It replaces the
 previous MiniMax-inspired marketing aesthetic with a design language shaped by
-what internShannon actually is: a cognitive operating system for digital assets,
-agents, workflows, knowledge, runtimes, and governance.
+what internShannon actually is: a focused desktop workspace for agent chat and
+knowledge-base management.
 
 The goal is not to make the product look more "AI". The goal is to make a
 powerful system feel calm, legible, trustworthy, and operational.
@@ -35,7 +35,7 @@ Avoid the common AI product smell:
 - Giant gradient hero sections.
 - Purple-blue glow everywhere.
 - Floating glass cards over decorative blobs.
-- Chatbot-first layouts for non-chat workflows.
+- Chatbot-first layouts for knowledge management.
 - Over-friendly copy that explains obvious controls.
 - Cards used as the only layout grammar.
 - Every page trying to look like a launch announcement.
@@ -58,7 +58,7 @@ Avoid the common AI product smell:
 Users should feel that internShannon can safely host valuable work:
 
 - Digital assets have provenance.
-- Agents and workflows can be inspected.
+- Agent sessions and knowledge sources can be inspected.
 - Runtime state is observable.
 - Permissions and ownership are explicit.
 - AI behavior is configurable, not magical.
@@ -112,7 +112,7 @@ Avoid:
 
 ### Asset Workbench
 
-Use for digital asset creation, editing, versions, graphs, workflow design,
+Use for digital asset creation, editing, versions, knowledge source review,
 debugging, and artifact inspection.
 
 Style:
@@ -301,7 +301,7 @@ Use semantic colors sparingly and consistently.
 - Use colored backgrounds only for state, selection, or a small class of
   domain-specific objects.
 - Prefer neutral surfaces with colored indicators over colorful panels.
-- Graphs and workflows may use more color, but each color must encode meaning.
+- Graphs and knowledge maps may use more color, but each color must encode meaning.
 
 ## 6. Typography
 
@@ -541,7 +541,7 @@ Allowed:
 
 - 120ms to 180ms hover and selection transitions.
 - 180ms to 240ms panel open/close.
-- subtle pulse for newly streamed workflow nodes.
+- subtle pulse for newly streamed agent events.
 - progress indication for running jobs.
 - skeleton loading for async data.
 
@@ -601,18 +601,18 @@ Asset cards must expose operational identity:
 
 Avoid decorative thumbnails unless they are real previews.
 
-### Workflow Builder
+### Knowledge Builder
 
-Workflow UI should feel like a structured editor:
+Knowledge-base UI should feel like a structured editor:
 
 - left palette
-- central canvas
+- central source list or document canvas
 - right inspector
-- bottom diagnostics or run trace
+- bottom diagnostics or ingest trace
 
 Node colors:
 
-- package/action: blue
+- source/action: blue
 - condition/branch: amber
 - loop: cyan
 - input/output: slate
@@ -729,10 +729,10 @@ For settings pages:
 > sections, 13px to 14px labels, 6px to 8px radius, bordered neutral surfaces,
 > dirty state, validation state, and clear save affordance.
 
-For asset/workflow pages:
+For asset/knowledge pages:
 
 > Use an IDE-like composition: toolbar, central canvas or list, right inspector,
-> and bottom diagnostics. Encode workflow state with semantic color and labels.
+> and bottom diagnostics. Encode ingest state with semantic color and labels.
 > Keep controls outside the canvas where possible.
 
 For runtime pages:

@@ -83,7 +83,7 @@ export interface CirculationEvent {
 /**
  * Dynamic execution DAG (constraint: every kernel loop MUST dynamically produce a DAG of its
  * process execution). The driver accumulates per-step deltas into loop_runs.state.dag; the UI
- * renders it as a live workflow canvas (nodes = processes executed, edges = dependencies).
+ * renders it as a live process graph (nodes = processes executed, edges = dependencies).
  */
 export type LoopDagNodeStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped' | 'awaiting_human';
 

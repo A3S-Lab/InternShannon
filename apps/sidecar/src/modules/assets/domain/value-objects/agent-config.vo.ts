@@ -82,7 +82,7 @@ export interface AgentPersonalityConfig {
 
 export interface AgentComponentRef {
     assetId?: string;
-    category?: 'mcp' | 'knowledge' | 'memory' | 'skill' | 'tool' | 'workflow' | string;
+    category?: 'mcp' | 'knowledge' | 'memory' | 'skill' | 'tool' | string;
     name?: string;
     version?: string;
     required?: boolean;
