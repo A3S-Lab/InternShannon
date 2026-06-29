@@ -141,9 +141,11 @@ jobs:
           : > "${file_manifest}"
 
           for root in "${bundle_roots[@]}"; do
-            [[ -d "${root}" ]] || continue
-            find "${root}" -type d -name "*.app"
-          done | sort -u > "${app_manifest}"
+            if [[ -d "${root}" ]]; then
+              find "${root}" -type d -name "*.app" >> "${app_manifest}"
+            fi
+          done
+          sort -u "${app_manifest}" -o "${app_manifest}"
 
           while IFS= read -r app_dir; do
             [[ -n "${app_dir}" ]] || continue
@@ -152,21 +154,23 @@ jobs:
             ditto -c -k --sequesterRsrc --keepParent "${app_dir}" "${app_zip}"
           done < "${app_manifest}"
 
-          {
-            for root in "${bundle_roots[@]}"; do
-              [[ -d "${root}" ]] || continue
+          for root in "${bundle_roots[@]}"; do
+            if [[ -d "${root}" ]]; then
               find "${root}" -type f \( \
                 -name "*.dmg" -o \
                 -name "*.pkg" -o \
                 -name "*.tar.gz" -o \
                 -name "*.sig" -o \
                 -name "latest.json" \
-              \)
-            done
-            for root in "${release_roots[@]}"; do
-              [[ -f "${root}/latest.json" ]] && printf '%s\n' "${root}/latest.json"
-            done
-          } | sort -u > "${file_manifest}"
+              \) >> "${file_manifest}"
+            fi
+          done
+          for root in "${release_roots[@]}"; do
+            if [[ -f "${root}/latest.json" ]]; then
+              printf '%s\n' "${root}/latest.json" >> "${file_manifest}"
+            fi
+          done
+          sort -u "${file_manifest}" -o "${file_manifest}"
 
           while IFS= read -r asset; do
             [[ -n "${asset}" ]] || continue
