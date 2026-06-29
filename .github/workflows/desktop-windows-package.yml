@@ -1,0 +1,188 @@
+name: Desktop Windows Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Rust/Tauri target triple.
+        required: true
+        default: x86_64-pc-windows-msvc
+      bundles:
+        description: Tauri bundle type list.
+        required: true
+        default: nsis
+      node_runtime_version:
+        description: Optional exact bundled Node.js version, for example v22.21.1. Empty uses latest Node 22.x.
+        required: false
+        default: ""
+      skip_smoke:
+        description: Skip standalone sidecar smoke test after packaging.
+        type: boolean
+        required: true
+        default: false
+      publish_draft_release:
+        description: Upload the installer assets to a draft GitHub Release.
+        type: boolean
+        required: true
+        default: false
+      release_tag:
+        description: Release tag to create/update when publish_draft_release is true. Defaults to desktop-windows-v<apps/desktop version>.
+        required: false
+        default: ""
+  push:
+    paths:
+      - .github/workflows/desktop-windows-package.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-windows-package-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  TAURI_TARGET: ${{ inputs.target || 'x86_64-pc-windows-msvc' }}
+  TAURI_BUNDLES: ${{ inputs.bundles || 'nsis' }}
+  INTERNSHANNON_NODE_MAJOR: "22"
+  INTERNSHANNON_NODE_VERSION: ${{ inputs.node_runtime_version || '' }}
+  SKIP_SMOKE: ${{ inputs.skip_smoke || 'false' }}
+
+jobs:
+  package-windows:
+    name: Package Windows desktop app
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TAURI_TARGET }}
+
+      - name: Cache Rust build output
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Cache bundled Node runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: apps/desktop/.cache/node-runtime
+          key: desktop-node-runtime-${{ runner.os }}-${{ env.TAURI_TARGET }}-${{ env.INTERNSHANNON_NODE_VERSION || env.INTERNSHANNON_NODE_MAJOR }}
+          restore-keys: |
+            desktop-node-runtime-${{ runner.os }}-${{ env.TAURI_TARGET }}-
+            desktop-node-runtime-${{ runner.os }}-
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify desktop packaging scripts
+        run: pnpm --filter @internshannon/desktop run doctor:test
+
+      - name: Build Windows installer
+        run: |
+          $extraArgs = @()
+          if ($env:SKIP_SMOKE -eq "true") {
+            $extraArgs += "--skip-smoke"
+          }
+
+          pnpm --dir apps/desktop tauri:bundle -- `
+            --target $env:TAURI_TARGET `
+            --bundles $env:TAURI_BUNDLES `
+            @extraArgs
+
+      - name: Collect Windows installer assets
+        run: |
+          $artifactDir = "artifacts/desktop-windows"
+          New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+
+          $roots = @(
+            "apps/desktop/src-tauri/target/$env:TAURI_TARGET/release/bundle",
+            "apps/desktop/src-tauri/target/release/bundle"
+          )
+
+          $assets = @()
+          foreach ($root in $roots) {
+            if (Test-Path $root) {
+              $assets += Get-ChildItem -Path $root -Recurse -File | Where-Object {
+                $_.Extension -in @(".exe", ".msi", ".zip", ".sig") -or $_.Name -eq "latest.json"
+              }
+            }
+          }
+
+          $assets = $assets | Sort-Object -Property FullName -Unique
+          if ($assets.Count -eq 0) {
+            throw "No Windows installer assets were found under src-tauri/target."
+          }
+
+          foreach ($asset in $assets) {
+            Copy-Item -LiteralPath $asset.FullName -Destination $artifactDir -Force
+          }
+
+          $assets | ForEach-Object { $_.FullName } | Set-Content "$artifactDir/asset-manifest.txt"
+          Get-ChildItem -Path "apps/desktop/src-tauri/target" -Recurse | Where-Object {
+            $_.FullName -like "*\release\bundle\*"
+          } | Sort-Object -Property FullName | ForEach-Object {
+            $_.FullName
+          } | Set-Content "$artifactDir/bundle-tree.txt"
+          Get-ChildItem $artifactDir | Format-Table Name, Length
+
+      - name: Upload Windows package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows-${{ env.TAURI_TARGET }}
+          path: artifacts/desktop-windows/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload draft release assets
+        if: ${{ inputs.publish_draft_release == true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = node -p "require('./apps/desktop/package.json').version"
+          $tag = "${{ inputs.release_tag }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) {
+            $tag = "desktop-windows-v$version"
+          }
+
+          $title = "InternShannon Windows v$version"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag `
+              --repo $env:GITHUB_REPOSITORY `
+              --draft `
+              --title $title `
+              --notes "Draft Windows desktop package built by GitHub Actions run $env:GITHUB_RUN_ID."
+          }
+
+          $assets = Get-ChildItem -Path "artifacts/desktop-windows" -File | Where-Object {
+            $_.Name -notin @("asset-manifest.txt", "bundle-tree.txt")
+          }
+          if ($assets.Count -eq 0) {
+            throw "No release assets found."
+          }
+
+          gh release upload $tag --repo $env:GITHUB_REPOSITORY --clobber @($assets.FullName)
