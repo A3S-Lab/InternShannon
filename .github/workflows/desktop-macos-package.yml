@@ -135,56 +135,60 @@ jobs:
           version="$(node -p "require('./apps/desktop/package.json').version")"
           arch="${TAURI_TARGET%%-*}"
 
-          mapfile -d '' app_dirs < <(
-            for root in "${bundle_roots[@]}"; do
-              [[ -d "${root}" ]] || continue
-              find "${root}" -type d -name "*.app" -print0
-            done | sort -z -u
-          )
+          app_manifest="${RUNNER_TEMP:-/tmp}/internshannon-macos-apps.txt"
+          file_manifest="${RUNNER_TEMP:-/tmp}/internshannon-macos-files.txt"
+          : > "${app_manifest}"
+          : > "${file_manifest}"
 
-          for app_dir in "${app_dirs[@]}"; do
+          for root in "${bundle_roots[@]}"; do
+            [[ -d "${root}" ]] || continue
+            find "${root}" -type d -name "*.app"
+          done | sort -u > "${app_manifest}"
+
+          while IFS= read -r app_dir; do
+            [[ -n "${app_dir}" ]] || continue
             app_name="$(basename "${app_dir}" .app)"
             app_zip="${artifact_dir}/${app_name}_${version}_${arch}.app.zip"
             ditto -c -k --sequesterRsrc --keepParent "${app_dir}" "${app_zip}"
-          done
+          done < "${app_manifest}"
 
-          mapfile -d '' assets < <(
-            {
-              for root in "${bundle_roots[@]}"; do
-                [[ -d "${root}" ]] || continue
-                find "${root}" -type f \( \
-                  -name "*.dmg" -o \
-                  -name "*.pkg" -o \
-                  -name "*.tar.gz" -o \
-                  -name "*.sig" -o \
-                  -name "latest.json" \
-                \) -print0
-              done
-              for root in "${release_roots[@]}"; do
-                [[ -f "${root}/latest.json" ]] && printf '%s\0' "${root}/latest.json"
-              done
-            } | sort -z -u
-          )
+          {
+            for root in "${bundle_roots[@]}"; do
+              [[ -d "${root}" ]] || continue
+              find "${root}" -type f \( \
+                -name "*.dmg" -o \
+                -name "*.pkg" -o \
+                -name "*.tar.gz" -o \
+                -name "*.sig" -o \
+                -name "latest.json" \
+              \)
+            done
+            for root in "${release_roots[@]}"; do
+              [[ -f "${root}/latest.json" ]] && printf '%s\n' "${root}/latest.json"
+            done
+          } | sort -u > "${file_manifest}"
 
-          for asset in "${assets[@]}"; do
+          while IFS= read -r asset; do
+            [[ -n "${asset}" ]] || continue
             cp -f "${asset}" "${artifact_dir}/"
-          done
+          done < "${file_manifest}"
 
           collected_count=0
-          while IFS= read -r -d '' _asset; do
+          for collected_asset in "${artifact_dir}"/*; do
+            [[ -f "${collected_asset}" ]] || continue
+            case "$(basename "${collected_asset}")" in
+              asset-manifest.txt|bundle-tree.txt) continue ;;
+            esac
             collected_count=$((collected_count + 1))
-          done < <(find "${artifact_dir}" -maxdepth 1 -type f ! -name "asset-manifest.txt" ! -name "bundle-tree.txt" -print0)
+          done
 
           if (( collected_count == 0 )); then
             echo "No macOS package assets were collected." >&2
             exit 1
           fi
 
-          {
-            printf '%s\n' "${app_dirs[@]}"
-            printf '%s\n' "${assets[@]}"
-          } > "${artifact_dir}/asset-manifest.txt"
-          find apps/desktop/src-tauri/target -maxdepth 8 -path "*/release/bundle/*" -print | sort > "${artifact_dir}/bundle-tree.txt"
+          cat "${app_manifest}" "${file_manifest}" > "${artifact_dir}/asset-manifest.txt"
+          find apps/desktop/src-tauri/target -path "*/release/bundle/*" -print | sort > "${artifact_dir}/bundle-tree.txt"
           ls -lh "${artifact_dir}"
 
       - name: Upload macOS package artifact
@@ -215,7 +219,14 @@ jobs:
               --notes "Draft macOS desktop package built by GitHub Actions run ${GITHUB_RUN_ID}."
           fi
 
-          mapfile -t assets < <(find "artifacts/desktop-macos" -maxdepth 1 -type f ! -name "asset-manifest.txt" ! -name "bundle-tree.txt" | sort)
+          assets=()
+          for asset in artifacts/desktop-macos/*; do
+            [[ -f "${asset}" ]] || continue
+            case "$(basename "${asset}")" in
+              asset-manifest.txt|bundle-tree.txt) continue ;;
+            esac
+            assets+=("${asset}")
+          done
           if (( ${#assets[@]} == 0 )); then
             echo "No release assets found." >&2
             exit 1
