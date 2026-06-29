@@ -18,10 +18,44 @@ pub struct SidecarStartupFailure {
     pub message: String,
 }
 
-struct SidecarProcess {
+#[derive(Debug)]
+pub struct ManagedSidecarProcess {
     child: Child,
     stdout_log_path: PathBuf,
     stderr_log_path: PathBuf,
+}
+
+impl ManagedSidecarProcess {
+    pub fn id(&self) -> u32 {
+        self.child.id()
+    }
+
+    pub fn shutdown(&mut self) {
+        if matches!(self.child.try_wait(), Ok(Some(_))) {
+            return;
+        }
+
+        let pid = self.child.id();
+        tracing::info!("Stopping managed InternShannon sidecar pid={pid}");
+        let _ = terminate_process(pid);
+
+        for _ in 0..20 {
+            if matches!(self.child.try_wait(), Ok(Some(_))) {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+
+        tracing::warn!("Managed InternShannon sidecar pid={pid} did not exit after TERM; killing");
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+impl Drop for ManagedSidecarProcess {
+    fn drop(&mut self) {
+        self.shutdown();
+    }
 }
 
 impl SidecarStartupFailure {
@@ -76,7 +110,7 @@ fn read_sidecar_log(path: &PathBuf, max_len: usize) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn sidecar_exit_details(process: &SidecarProcess) -> String {
+fn sidecar_exit_details(process: &ManagedSidecarProcess) -> String {
     let stderr = read_sidecar_log(&process.stderr_log_path, 1800);
     let stdout = read_sidecar_log(&process.stdout_log_path, 1000);
     let mut details = Vec::new();
@@ -574,7 +608,9 @@ where
 }
 
 /// Start the InternShannon API sidecar process.
-pub async fn start_sidecar_with_progress<F>(mut on_progress: F) -> Result<(), SidecarStartupFailure>
+pub async fn start_sidecar_with_progress<F>(
+    mut on_progress: F,
+) -> Result<Option<ManagedSidecarProcess>, SidecarStartupFailure>
 where
     F: FnMut(&'static str, String) + Send,
 {
@@ -619,7 +655,7 @@ where
         }
         Err(e) if e.code == "sidecar_already_running" => {
             // Healthy sidecar exists, reuse it
-            return Ok(());
+            return Ok(None);
         }
         Err(e) => {
             return Err(e);
@@ -702,17 +738,13 @@ where
         ready_attempts
     );
 
-    wait_for_sidecar(
-        29653,
-        ready_attempts,
-        Some(SidecarProcess {
-            child,
-            stdout_log_path,
-            stderr_log_path,
-        }),
-        &mut on_progress,
-    )
-    .await?;
+    let mut process = ManagedSidecarProcess {
+        child,
+        stdout_log_path,
+        stderr_log_path,
+    };
+
+    wait_for_sidecar(29653, ready_attempts, &mut process, &mut on_progress).await?;
 
     tracing::info!("InternShannon API sidecar is ready");
     on_progress(
@@ -720,7 +752,7 @@ where
         "Sidecar /api/v1/health is ready".to_string(),
     );
 
-    Ok(())
+    Ok(Some(process))
 }
 
 #[cfg(test)]
@@ -831,28 +863,26 @@ mod tests {
 async fn wait_for_sidecar(
     port: u16,
     max_attempts: usize,
-    mut process: Option<SidecarProcess>,
+    process: &mut ManagedSidecarProcess,
     on_progress: &mut impl FnMut(&'static str, String),
 ) -> Result<(), SidecarStartupFailure> {
     for attempt in 0..max_attempts {
-        if let Some(process) = process.as_mut() {
-            if let Some(status) = process.child.try_wait().map_err(|error| {
-                SidecarStartupFailure::new(
-                    "health_check",
-                    "sidecar_process_probe_failed",
-                    format!("Failed to inspect sidecar process: {error}"),
-                )
-            })? {
-                return Err(SidecarStartupFailure::new(
-                    "process",
-                    "sidecar_exited",
-                    format!(
-                        "Sidecar process exited before becoming ready: status={status}, attempt={}{}",
-                        attempt + 1,
-                        sidecar_exit_details(process)
-                    ),
-                ));
-            }
+        if let Some(status) = process.child.try_wait().map_err(|error| {
+            SidecarStartupFailure::new(
+                "health_check",
+                "sidecar_process_probe_failed",
+                format!("Failed to inspect sidecar process: {error}"),
+            )
+        })? {
+            return Err(SidecarStartupFailure::new(
+                "process",
+                "sidecar_exited",
+                format!(
+                    "Sidecar process exited before becoming ready: status={status}, attempt={}{}",
+                    attempt + 1,
+                    sidecar_exit_details(process)
+                ),
+            ));
         }
 
         let client = reqwest::Client::builder()
