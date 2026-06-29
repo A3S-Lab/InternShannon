@@ -122,6 +122,31 @@ fn bundled_sidecar_script(resource_dir: &Path) -> PathBuf {
     resource_dir.join("main.js")
 }
 
+#[cfg(any(target_os = "windows", test))]
+fn windows_extended_path_to_node_path(value: &str) -> Option<String> {
+    if let Some(rest) = value.strip_prefix("\\\\?\\UNC\\") {
+        return Some(format!("\\\\{rest}"));
+    }
+
+    value.strip_prefix("\\\\?\\").map(str::to_string)
+}
+
+fn node_spawn_path_string(value: &str) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        windows_extended_path_to_node_path(value).unwrap_or_else(|| value.to_string())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        value.to_string()
+    }
+}
+
+fn node_spawn_path(path: &Path) -> PathBuf {
+    PathBuf::from(node_spawn_path_string(&path.to_string_lossy()))
+}
+
 fn executable_file(path: &Path) -> Option<String> {
     fs::metadata(path)
         .ok()
@@ -581,17 +606,27 @@ where
     tracing::info!("start_sidecar() called - getting sidecar script...");
     on_progress("path", "Resolving sidecar script".to_string());
     let script_path = get_sidecar_script()?;
+    let node_script_path = node_spawn_path(&script_path);
     on_progress(
         "path",
-        format!("Using sidecar script {}", script_path.display()),
+        format!("Using sidecar script {}", node_script_path.display()),
     );
-    tracing::info!("Sidecar script path: {:?}", script_path);
+    tracing::info!(
+        "Sidecar script path: {:?} (node arg {:?})",
+        script_path,
+        node_script_path
+    );
     let node_exe = get_node_executable()?;
-    on_progress("spawn", format!("Using Node executable {node_exe}"));
+    let node_exe_for_spawn = node_spawn_path_string(&node_exe);
+    on_progress(
+        "spawn",
+        format!("Using Node executable {node_exe_for_spawn}"),
+    );
     let sidecar_cwd = script_path
         .parent()
         .map(PathBuf::from)
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let node_sidecar_cwd = node_spawn_path(&sidecar_cwd);
     let node_env = if cfg!(debug_assertions) {
         "development"
     } else {
@@ -601,15 +636,15 @@ where
         "spawn",
         format!(
             "Using sidecar cwd {} with NODE_ENV={node_env}",
-            sidecar_cwd.display()
+            node_sidecar_cwd.display()
         ),
     );
 
     tracing::info!(
         "Starting InternShannon API sidecar: {} {} (cwd {})",
-        node_exe,
-        script_path.display(),
-        sidecar_cwd.display()
+        node_exe_for_spawn,
+        node_script_path.display(),
+        node_sidecar_cwd.display()
     );
 
     // Ensure port is usable (reuse a healthy sidecar or surface the owner).
@@ -638,9 +673,9 @@ where
             use std::os::windows::process::CommandExt;
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
-            Command::new(&node_exe)
-                .arg(&script_path)
-                .current_dir(&sidecar_cwd)
+            Command::new(&node_exe_for_spawn)
+                .arg(&node_script_path)
+                .current_dir(&node_sidecar_cwd)
                 .env("APP_PORT", "29653")
                 .env("APP_HOST", "127.0.0.1")
                 .env("APP_MODE", "desktop")
@@ -659,9 +694,9 @@ where
 
         #[cfg(not(target_os = "windows"))]
         {
-            Command::new(&node_exe)
-                .arg(&script_path)
-                .current_dir(&sidecar_cwd)
+            Command::new(&node_exe_for_spawn)
+                .arg(&node_script_path)
+                .current_dir(&node_sidecar_cwd)
                 .env("APP_PORT", "29653")
                 .env("APP_HOST", "127.0.0.1")
                 .env("APP_MODE", "desktop")
@@ -681,7 +716,7 @@ where
     tracing::info!(
         "InternShannon API sidecar spawned: pid={} node {} on port 29653",
         child.id(),
-        script_path.display()
+        node_script_path.display()
     );
     on_progress(
         "spawn",
@@ -781,6 +816,28 @@ mod tests {
             Some("main.js")
         );
         assert!(!script.to_string_lossy().ends_with("main.js.exe"));
+    }
+
+    #[test]
+    fn strips_windows_extended_path_prefix_for_node() {
+        assert_eq!(
+            windows_extended_path_to_node_path(
+                r"\\?\C:\Users\15536\AppData\Local\InternShannon\main.js"
+            )
+            .as_deref(),
+            Some(r"C:\Users\15536\AppData\Local\InternShannon\main.js")
+        );
+        assert_eq!(
+            windows_extended_path_to_node_path(r"\\?\UNC\server\share\InternShannon\main.js")
+                .as_deref(),
+            Some(r"\\server\share\InternShannon\main.js")
+        );
+        assert_eq!(
+            windows_extended_path_to_node_path(
+                r"C:\Users\15536\AppData\Local\InternShannon\main.js"
+            ),
+            None
+        );
     }
 
     #[test]
