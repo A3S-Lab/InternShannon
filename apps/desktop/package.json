@@ -12,9 +12,6 @@
     "stage:sidecar:standalone": "node scripts/stage-sidecar-resources.mjs --standalone",
     "stage:node-runtime": "node scripts/stage-node-runtime.mjs",
     "clean:node-runtime": "node scripts/stage-node-runtime.mjs --clean",
-    "sync:core-skills": "node scripts/sync-core-skills.mjs sync",
-    "check:core-skills": "node scripts/sync-core-skills.mjs check",
-    "check:box-resources": "node scripts/verify-box-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources",
     "check:sidecar-resources": "node scripts/verify-sidecar-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources",
     "check:standalone-sidecar": "node scripts/verify-sidecar-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources --require-standalone",
     "smoke:standalone-sidecar": "node scripts/smoke-standalone-sidecar.mjs",
@@ -24,8 +21,6 @@
     "tauri:build:standalone": "node scripts/build-standalone-tauri.mjs",
     "tauri:build:test": "pnpm tauri:build",
     "tauri:bundle": "node scripts/build-standalone-tauri.mjs --release",
-    "tauri:build:macos-fixed": "pnpm tauri:bundle && node scripts/fix-macos-bundle.mjs",
-    "tauri:build:validated": "pnpm tauri:bundle && pnpm check:standalone-sidecar && node scripts/verify-box-resources.mjs --dir src-tauri/resources/box",
     "format": "pnpm biome format --write scripts"
   },
   "dependencies": {
