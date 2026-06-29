@@ -114,13 +114,12 @@ fn get_sidecar_script() -> Result<PathBuf, SidecarStartupFailure> {
         ));
     }
 
-    // Production mode: use the bundled script
-    let script_name = if cfg!(target_os = "windows") {
-        "main.js.exe"
-    } else {
-        "main.js"
-    };
-    Ok(PathBuf::from(&resource_dir).join(script_name))
+    // Production mode: run the bundled JavaScript entrypoint with bundled Node.
+    Ok(bundled_sidecar_script(Path::new(&resource_dir)))
+}
+
+fn bundled_sidecar_script(resource_dir: &Path) -> PathBuf {
+    resource_dir.join("main.js")
 }
 
 fn executable_file(path: &Path) -> Option<String> {
@@ -770,6 +769,18 @@ mod tests {
         );
 
         fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn bundled_sidecar_script_uses_js_entrypoint() {
+        let script =
+            bundled_sidecar_script(Path::new(r"C:\Users\15536\AppData\Local\InternShannon"));
+
+        assert_eq!(
+            script.file_name().and_then(|value| value.to_str()),
+            Some("main.js")
+        );
+        assert!(!script.to_string_lossy().ends_with("main.js.exe"));
     }
 
     #[test]
