@@ -1,0 +1,224 @@
+name: Desktop macOS Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: GitHub-hosted macOS runner label.
+        required: true
+        default: macos-14
+      target:
+        description: Rust/Tauri target triple.
+        required: true
+        default: aarch64-apple-darwin
+      bundles:
+        description: Tauri bundle type list.
+        required: true
+        default: dmg
+      node_runtime_version:
+        description: Optional exact bundled Node.js version, for example v22.21.1. Empty uses latest Node 22.x.
+        required: false
+        default: ""
+      skip_smoke:
+        description: Skip standalone sidecar smoke test after packaging.
+        type: boolean
+        required: true
+        default: false
+      publish_draft_release:
+        description: Upload the macOS package assets to a draft GitHub Release.
+        type: boolean
+        required: true
+        default: false
+      release_tag:
+        description: Release tag to create/update when publish_draft_release is true. Defaults to desktop-macos-v<apps/desktop version>.
+        required: false
+        default: ""
+  push:
+    paths:
+      - .github/workflows/desktop-macos-package.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-macos-package-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  TAURI_TARGET: ${{ inputs.target || 'aarch64-apple-darwin' }}
+  TAURI_BUNDLES: ${{ inputs.bundles || 'dmg' }}
+  INTERNSHANNON_NODE_MAJOR: "22"
+  INTERNSHANNON_NODE_VERSION: ${{ inputs.node_runtime_version || '' }}
+  SKIP_SMOKE: ${{ inputs.skip_smoke || 'false' }}
+
+jobs:
+  package-macos:
+    name: Package macOS desktop app
+    runs-on: ${{ inputs.runner || 'macos-14' }}
+    timeout-minutes: 90
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ env.TAURI_TARGET }}
+
+      - name: Cache Rust build output
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Cache bundled Node runtime downloads
+        uses: actions/cache@v4
+        with:
+          path: apps/desktop/.cache/node-runtime
+          key: desktop-node-runtime-${{ runner.os }}-${{ env.TAURI_TARGET }}-${{ env.INTERNSHANNON_NODE_VERSION || env.INTERNSHANNON_NODE_MAJOR }}
+          restore-keys: |
+            desktop-node-runtime-${{ runner.os }}-${{ env.TAURI_TARGET }}-
+            desktop-node-runtime-${{ runner.os }}-
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify desktop packaging scripts
+        run: pnpm --filter @internshannon/desktop run doctor:test
+
+      - name: Build macOS packages
+        run: |
+          extra_args=()
+          if [[ "${SKIP_SMOKE}" == "true" ]]; then
+            extra_args+=(--skip-smoke)
+          fi
+
+          pnpm --dir apps/desktop tauri:bundle -- \
+            --target "${TAURI_TARGET}" \
+            --bundles "${TAURI_BUNDLES}" \
+            --no-sign \
+            "${extra_args[@]}"
+
+      - name: Collect macOS package assets
+        run: |
+          artifact_dir="artifacts/desktop-macos"
+          mkdir -p "${artifact_dir}"
+
+          bundle_roots=(
+            "apps/desktop/src-tauri/target/${TAURI_TARGET}/release/bundle"
+            "apps/desktop/src-tauri/target/release/bundle"
+          )
+          release_roots=(
+            "apps/desktop/src-tauri/target/${TAURI_TARGET}/release"
+            "apps/desktop/src-tauri/target/release"
+          )
+
+          version="$(node -p "require('./apps/desktop/package.json').version")"
+          arch="${TAURI_TARGET%%-*}"
+
+          mapfile -d '' app_dirs < <(
+            for root in "${bundle_roots[@]}"; do
+              [[ -d "${root}" ]] || continue
+              find "${root}" -type d -name "*.app" -print0
+            done | sort -z -u
+          )
+
+          for app_dir in "${app_dirs[@]}"; do
+            app_name="$(basename "${app_dir}" .app)"
+            app_zip="${artifact_dir}/${app_name}_${version}_${arch}.app.zip"
+            ditto -c -k --sequesterRsrc --keepParent "${app_dir}" "${app_zip}"
+          done
+
+          mapfile -d '' assets < <(
+            {
+              for root in "${bundle_roots[@]}"; do
+                [[ -d "${root}" ]] || continue
+                find "${root}" -type f \( \
+                  -name "*.dmg" -o \
+                  -name "*.pkg" -o \
+                  -name "*.tar.gz" -o \
+                  -name "*.sig" -o \
+                  -name "latest.json" \
+                \) -print0
+              done
+              for root in "${release_roots[@]}"; do
+                [[ -f "${root}/latest.json" ]] && printf '%s\0' "${root}/latest.json"
+              done
+            } | sort -z -u
+          )
+
+          for asset in "${assets[@]}"; do
+            cp -f "${asset}" "${artifact_dir}/"
+          done
+
+          collected_count=0
+          while IFS= read -r -d '' _asset; do
+            collected_count=$((collected_count + 1))
+          done < <(find "${artifact_dir}" -maxdepth 1 -type f ! -name "asset-manifest.txt" ! -name "bundle-tree.txt" -print0)
+
+          if (( collected_count == 0 )); then
+            echo "No macOS package assets were collected." >&2
+            exit 1
+          fi
+
+          {
+            printf '%s\n' "${app_dirs[@]}"
+            printf '%s\n' "${assets[@]}"
+          } > "${artifact_dir}/asset-manifest.txt"
+          find apps/desktop/src-tauri/target -maxdepth 8 -path "*/release/bundle/*" -print | sort > "${artifact_dir}/bundle-tree.txt"
+          ls -lh "${artifact_dir}"
+
+      - name: Upload macOS package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos-${{ env.TAURI_TARGET }}
+          path: artifacts/desktop-macos/*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload draft release assets
+        if: ${{ inputs.publish_draft_release == true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(node -p "require('./apps/desktop/package.json').version")"
+          tag="${{ inputs.release_tag }}"
+          if [[ -z "${tag//[[:space:]]/}" ]]; then
+            tag="desktop-macos-v${version}"
+          fi
+
+          title="InternShannon macOS v${version}"
+          if ! gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release create "${tag}" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --draft \
+              --title "${title}" \
+              --notes "Draft macOS desktop package built by GitHub Actions run ${GITHUB_RUN_ID}."
+          fi
+
+          mapfile -t assets < <(find "artifacts/desktop-macos" -maxdepth 1 -type f ! -name "asset-manifest.txt" ! -name "bundle-tree.txt" | sort)
+          if (( ${#assets[@]} == 0 )); then
+            echo "No release assets found." >&2
+            exit 1
+          fi
+
+          gh release upload "${tag}" --repo "${GITHUB_REPOSITORY}" --clobber "${assets[@]}"
