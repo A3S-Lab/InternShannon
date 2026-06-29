@@ -151,7 +151,10 @@ jobs:
                 -name "*.tar.gz" -o \
                 -name "*.sig" -o \
                 -name "latest.json" \
-              \) -print0
+              \) \
+                ! -name "control.tar.gz" \
+                ! -name "data.tar.gz" \
+                -print0
             done | sort -z -u
           )
 
