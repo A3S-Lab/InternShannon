@@ -4,6 +4,27 @@ import type { SessionRuntimeOverrides } from './session-runtime.types';
 export const PLAN_READONLY_TOOL_BLOCK_REASON =
     '当前为先看方案模式，只允许读取、浏览和搜索；请切换到默认模式或自动执行后再修改文件或运行命令。';
 
+const READONLY_PERMISSION_TOOLS = [
+    'read',
+    'read_file',
+    'ls',
+    'list',
+    'glob',
+    'grep',
+    'find',
+    'search',
+    'web_search',
+    'Read',
+    'List',
+    'LS',
+    'Glob',
+    'Grep',
+    'Search',
+    'WebSearch',
+    'TodoRead',
+    'NotebookRead',
+];
+
 export function permissionPolicyForMode(permissionMode?: string, hitlEnabled = true): SessionOptions['permissionPolicy'] {
     if (permissionMode === 'auto' || permissionMode === 'plan') {
         return { defaultDecision: 'allow' };
@@ -12,7 +33,7 @@ export function permissionPolicyForMode(permissionMode?: string, hitlEnabled = t
         return undefined;
     }
     return {
-        allow: ['read', 'read_file', 'ls', 'list', 'glob', 'grep', 'find', 'search', 'web_search'],
+        allow: [...READONLY_PERMISSION_TOOLS],
         defaultDecision: 'ask',
     };
 }

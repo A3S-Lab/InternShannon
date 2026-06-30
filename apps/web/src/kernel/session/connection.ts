@@ -57,6 +57,7 @@ import {
 import { normalizeStreamStalledActivity } from "./stream-stalled-activity";
 import { normalizeToolCircuitActivity } from "./tool-circuit-activity";
 import { normalizeToolErrorActivity } from "./tool-error-activity";
+import { canSendSessionSocketMessage, subscribedPayloadMatchesSession } from "./connection-readiness";
 
 // Module-level state (outside Valtio to avoid proxy overhead)
 const sockets = new Map<string, AgentSocket>();
@@ -780,11 +781,10 @@ export function connectSession(sessionId: string): void {
           });
           sockets.set(sessionId, socket);
 
-          socket.on("connect", () => {
+          socket.on("subscribed", (payload: unknown) => {
+            if (!subscribedPayloadMatchesSession(payload, sessionId)) return;
             if (isStreamDebugEnabled()) {
-              console.log(
-                `[Socket.IO] Connected to ${url}/ws/kernel, socketId: ${socket.id}, socket.connected=${socket.connected}`,
-              );
+              console.log(`[Socket.IO] Subscribed to session room ${sessionId}`);
             }
             connected = true;
             connectingSessions.delete(sessionId);
@@ -795,9 +795,17 @@ export function connectSession(sessionId: string): void {
               clearTimeout(timer);
               reconnectTimers.delete(sessionId);
             }
+            socket.emit("message", { sessionId, type: "session_status" });
+          });
+
+          socket.on("connect", () => {
+            if (isStreamDebugEnabled()) {
+              console.log(
+                `[Socket.IO] Connected to ${url}/ws/kernel, socketId: ${socket.id}, socket.connected=${socket.connected}`,
+              );
+            }
             // Subscribe to the session room
             socket.emit("subscribe", { sessionId });
-            socket.emit("message", { sessionId, type: "session_status" });
           });
 
           socket.on("disconnect", (reason: string) => {
@@ -952,7 +960,12 @@ export function sendToSession(sessionId: string, msg: BrowserOutgoingMessage): b
   if (isStreamDebugEnabled()) {
     console.log(`[WS] sendToSession: socketId=${socket?.id}, connected=${socket?.connected}, msg.type=${msg.type}`);
   }
-  if (socket?.connected) {
+  if (
+    canSendSessionSocketMessage({
+      socketConnected: socket?.connected,
+      connectionStatus: agentModel.state.connectionStatus[sessionId],
+    })
+  ) {
     const now = performance.now();
     // Emit message to the gateway's 'message' event handler
     socket.emit("message", { sessionId, ...msg });
