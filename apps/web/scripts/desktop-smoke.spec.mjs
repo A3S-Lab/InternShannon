@@ -4,10 +4,13 @@ import {
   assertConfigCategoryList,
   assertDesktopSettingsConfig,
   assertDesktopShellHtml,
+  assertNoForbiddenHitlFailure,
   assertSocketMessageHistoryContainsRun,
   assertSessionSnapshotContainsRun,
   assertSocketRunOutcome,
   assertSkillsDirectoryContains,
+  buildSmokeToolConfirmationResponse,
+  collectForbiddenHitlDiagnostics,
   describeProbeError,
   formatProbeAttempts,
   isSocketRunOutcomeMessage,
@@ -222,5 +225,79 @@ test("requires socket message_history replay to include the smoke user turn and 
       },
       userContent,
     ),
+  );
+});
+
+test("builds complete tool confirmation responses for smoke auto-approval", () => {
+  assert.deepEqual(
+    buildSmokeToolConfirmationResponse("session-a", {
+      requestId: "request-1",
+      sessionId: "session-a",
+      toolName: "Write",
+      toolInput: { file_path: "/tmp/a.txt" },
+    }),
+    {
+      requestId: "request-1",
+      approved: true,
+      scope: "session",
+      toolName: "Write",
+    },
+  );
+
+  assert.throws(
+    () =>
+      buildSmokeToolConfirmationResponse("session-a", {
+        requestId: "request-2",
+        sessionId: "session-b",
+        toolName: "Write",
+      }),
+    /session mismatch/,
+  );
+  assert.throws(
+    () =>
+      buildSmokeToolConfirmationResponse("session-a", {
+        requestId: "request-3",
+        sessionId: "session-a",
+      }),
+    /missing toolName/,
+  );
+});
+
+test("detects HITL timeout regressions in smoke events and sidecar logs", () => {
+  const cleanEvents = [
+    {
+      type: "message",
+      message: {
+        type: "stream_event",
+        event: { type: "main_agent_activity", phase: "intake" },
+      },
+    },
+  ];
+
+  assert.deepEqual(collectForbiddenHitlDiagnostics(cleanEvents, ""), []);
+  assert.doesNotThrow(() => assertNoForbiddenHitlFailure("clean", cleanEvents, "", "session-a"));
+
+  assert.deepEqual(
+    collectForbiddenHitlDiagnostics(cleanEvents, "[kernel.tool.confirmation_not_found] sessionId=session-a"),
+    ["confirmation_not_found"],
+  );
+  assert.throws(
+    () =>
+      assertNoForbiddenHitlFailure(
+        "bad",
+        [
+          ...cleanEvents,
+          {
+            type: "message",
+            message: {
+              type: "stream_event",
+              event: { type: "confirmation_timeout" },
+            },
+          },
+        ],
+        "",
+        "session-a",
+      ),
+    /confirmation_timeout/,
   );
 });

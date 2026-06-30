@@ -68,4 +68,49 @@ describe('WebSocketConfirmationManager', () => {
 
         await expect(approval).resolves.toBe(false);
     });
+
+    it('does not resolve a pending request from the wrong session response', async () => {
+        const emitted: Array<{ room: string; event: string; payload: Record<string, unknown> }> = [];
+        const server = {
+            to: (room: string) => ({
+                emit: (event: string, payload: Record<string, unknown>) => {
+                    emitted.push({ room, event, payload });
+                },
+            }),
+        } as unknown as Server;
+        const manager = new WebSocketConfirmationManager(server, 25);
+
+        const approval = manager.requestConfirmation('session-a', 'Write', { file_path: '/tmp/a.txt' });
+        const requestId = emitted[0].payload.requestId as string;
+
+        manager.handleConfirmationResponse(
+            {
+                requestId,
+                approved: true,
+                scope: 'session',
+                toolName: 'Write',
+            },
+            'session-b',
+        );
+
+        await expect(Promise.race([approval.then(() => 'resolved'), delay(5).then(() => 'pending')])).resolves.toBe(
+            'pending',
+        );
+
+        manager.handleConfirmationResponse(
+            {
+                requestId,
+                approved: true,
+                scope: 'session',
+                toolName: 'Write',
+            },
+            'session-a',
+        );
+
+        await expect(approval).resolves.toBe(true);
+    });
 });
+
+function delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
