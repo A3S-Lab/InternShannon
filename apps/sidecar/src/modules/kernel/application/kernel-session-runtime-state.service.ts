@@ -67,6 +67,13 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
         return new KernelRuntimeConfigBuilder(this.modelsConfig, this.assistantDefaults);
     }
 
+    invalidateModelsConfig(reason = 'unknown'): void {
+        this.modelsConfig = null;
+        this.assistantDefaults = null;
+        this.modelsConfigFetchedAt = 0;
+        this.logger.log(`Runtime models config cache invalidated (reason=${reason})`);
+    }
+
     async refreshModelsConfig(): Promise<void> {
         if (!this.runtimeConfigService) return;
         const now = Date.now();

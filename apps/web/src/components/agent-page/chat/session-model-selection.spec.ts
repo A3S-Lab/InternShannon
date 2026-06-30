@@ -1,6 +1,11 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveStatusBarModelValue, type StatusBarModelOption } from "./session-model-selection.ts";
+import {
+  buildPinnedSessionModelPatch,
+  buildRoutedSessionModelPatch,
+  resolveStatusBarModelValue,
+  type StatusBarModelOption,
+} from "./session-model-selection.ts";
 
 const models: StatusBarModelOption[] = [
   { value: "openai/gpt-4o", modelId: "gpt-4o" },
@@ -52,4 +57,25 @@ test("maps a unique bare model id to its provider-qualified value", () => {
     }),
     "zhipu/glm-4.5",
   );
+});
+
+test("pins status bar model selections so new sends do not fall back to defaults", () => {
+  assert.deepEqual(buildPinnedSessionModelPatch(" zhipu/glm-4.5 "), {
+    model: "zhipu/glm-4.5",
+    followDefaultModel: false,
+  });
+});
+
+test("carries explicit follow-default state through send-time runtime configuration", () => {
+  assert.deepEqual(buildRoutedSessionModelPatch("openai/gpt-4o", false), {
+    model: "openai/gpt-4o",
+    followDefaultModel: false,
+  });
+  assert.deepEqual(buildRoutedSessionModelPatch("zhipu/glm-4.5", true), {
+    model: "zhipu/glm-4.5",
+    followDefaultModel: true,
+  });
+  assert.deepEqual(buildRoutedSessionModelPatch("minimax/MiniMax-M1"), {
+    model: "minimax/MiniMax-M1",
+  });
 });

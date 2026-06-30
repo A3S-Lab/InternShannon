@@ -43,6 +43,7 @@ import {
   resolveChatSearchState,
   shouldOpenChatSearchFromShortcut,
 } from "./chat/agent-chat-search-state";
+import { buildRoutedSessionModelPatch } from "./chat/session-model-selection";
 import { resolveAgentChatSessionRuntimeState } from "./chat/agent-chat-session-state";
 import { resolveClearSessionDeliveryState } from "./chat/agent-clear-session-state";
 import { AgentInput, type AgentInputRef } from "./chat/agent-input";
@@ -1025,6 +1026,7 @@ export default function AgentChat({
         permissionMode === "plan" ? { planningMode: "enabled" as const, goalTracking: true } : {};
       if (permissionMode || Object.keys(runtimeDefaults).length > 0) {
         const fullModel = providerName && modelId ? `${providerName}/${modelId}` : modelId;
+        const modelPatch = buildRoutedSessionModelPatch(fullModel, followDefaultModel);
         try {
           const tCfg0 = performance.now();
           const result = await agentApi.configureSession(
@@ -1033,12 +1035,17 @@ export default function AgentChat({
               ...runtimeDefaults,
               permissionMode: permissionMode || undefined,
               ...permissionPlanningPatch,
-              model: fullModel || undefined,
+              ...modelPatch,
             },
             apiUrl,
           );
           if (result?.model) {
-            agentModel.updateSession(targetSessionId, { model: result.model });
+            agentModel.updateSession(targetSessionId, {
+              model: result.model,
+              ...(typeof modelPatch.followDefaultModel === "boolean"
+                ? { followDefaultModel: modelPatch.followDefaultModel }
+                : {}),
+            });
           }
           if (isStreamDebugEnabled()) {
             console.info(`[stream:${targetSessionId}] configureSession latency`, {

@@ -5,7 +5,7 @@ import { agentApi, type CreateSessionRequest } from "./agent-api";
 import type { AgentProfile } from "./agent-profile.types";
 import { DEFAULT_AGENT_ID, getAgentById, normalizeAgentId } from "./builtins";
 import { allowsLocalWorkspacePaths } from "./runtime-environment";
-import { buildCreatedSessionInfo } from "./session-bootstrap-state";
+import { buildAgentSessionCreateRequest, buildCreatedSessionInfo } from "./session-bootstrap-state";
 import { defaultSessionTitle } from "./session-title";
 import type { AgentProcessInfo, AgentSessionState } from "./types";
 import { exposeWorkspacePath as exposeRuntimeWorkspacePath } from "./workspace-path";
@@ -20,6 +20,7 @@ const RECENT_LOCAL_SESSION_GRACE_MS = 2 * 60 * 1000;
 
 const SESSION_RUNTIME_OPTION_KEYS = [
   "model",
+  "followDefaultModel",
   "systemPrompt",
   "mcpServers",
   "builtinSkills",
@@ -77,17 +78,16 @@ function normalizeStringList(values?: string[] | null): string[] | undefined {
   return normalized.length > 0 ? Array.from(new Set(normalized)) : undefined;
 }
 
-function copyDefinedRuntimeOptions(
-  target: CreateSessionRequest,
-  source: Partial<CreateSessionRequest> | undefined,
-): void {
-  if (!source) return;
+function pickDefinedRuntimeOptions(source: Partial<CreateSessionRequest> | undefined): Record<string, unknown> {
+  const runtimeOptions: Record<string, unknown> = {};
+  if (!source) return runtimeOptions;
   for (const key of SESSION_RUNTIME_OPTION_KEYS) {
     const value = source[key];
     if (value !== undefined) {
-      (target as Record<string, unknown>)[key] = value;
+      runtimeOptions[key] = value;
     }
   }
+  return runtimeOptions;
 }
 
 function runtimeOptionsFingerprint(options: Partial<CreateSessionRequest>): string {
@@ -341,17 +341,15 @@ export async function createAgentSession(
       agentRegistryModel.ensureSessionAgent(tempSessionId, normalizedAgentId);
     }
 
-    const createRequest: CreateSessionRequest = {
-      ...(agent.sessionOptions ?? {}),
-      agentId: normalizedAgentId,
+    const createRequest = buildAgentSessionCreateRequest({
+      agent,
+      normalizedAgentId,
       title: explicitName || undefined,
       permissionMode,
       cwd: resolvedCwd || undefined,
-      model: (options.model ?? agent.defaultModel) || undefined,
-      skills: normalizeStringList(options.skills) ?? normalizeStringList(agent.defaultSkills),
-      skillDirs: normalizeStringList(options.skillDirs),
-    };
-    copyDefinedRuntimeOptions(createRequest, options);
+      options,
+      runtimeOptions: pickDefinedRuntimeOptions(options),
+    }) as CreateSessionRequest;
 
     let result: Awaited<ReturnType<typeof agentApi.createSession>>;
     try {

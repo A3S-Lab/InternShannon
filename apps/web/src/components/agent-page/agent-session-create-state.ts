@@ -11,6 +11,7 @@ export interface AgentSessionCreateOptionsInput {
 
 export interface AgentSessionCreateOptions {
   agentId: string;
+  followDefaultModel?: boolean;
   permissionMode?: string;
   apiUrl?: string;
   optimisticPlaceholder?: boolean;
@@ -22,6 +23,10 @@ export function buildAgentSessionCreateOptions(
   const options: AgentSessionCreateOptions = {
     agentId: input.agentId,
   };
+  const normalizedAgentId = input.agentId.trim();
+  if (normalizedAgentId === "default" || normalizedAgentId === "super-admin") {
+    options.followDefaultModel = true;
+  }
   const permissionMode = input.agent?.defaultPermissionMode?.trim();
   if (permissionMode) {
     options.permissionMode = permissionMode;

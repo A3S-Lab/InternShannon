@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import agentModel from "@/models/agent.model";
 import settingsModel, { getSessionRoutingModel, normalizeLegacyModelRef } from "@/models/settings.model";
 import { PlanningStatusSummary } from "./planning-status-summary";
-import { resolveStatusBarModelValue } from "./session-model-selection";
+import { buildPinnedSessionModelPatch, resolveStatusBarModelValue } from "./session-model-selection";
 import { EXECUTION_MODE_SELECT_LABEL, SESSION_MODEL_SELECT_LABEL } from "./session-status-bar-accessibility";
 import {
   formatSessionStatusBarActionError,
@@ -295,19 +295,16 @@ export function SessionStatusBar({
     setActionError(null);
     setSwitchingModel(true);
     try {
+      const modelPatch = buildPinnedSessionModelPatch(target.value);
       const result = await agentApi.configureSession(
         sessionId,
-        {
-          model: target.value || undefined,
-        },
+        modelPatch,
         apiUrl,
       );
-      if (result?.model) {
-        agentModel.updateSession(sessionId, {
-          model: result.model,
-          followDefaultModel: false,
-        });
-      }
+      agentModel.updateSession(sessionId, {
+        model: result?.model || modelPatch.model,
+        followDefaultModel: false,
+      });
     } catch (error) {
       if (error instanceof AppError && error.code === 404) {
         void handleMissingSession({ sessionId, apiUrl });

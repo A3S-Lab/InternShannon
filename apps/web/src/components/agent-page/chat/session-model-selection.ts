@@ -8,6 +8,11 @@ export interface RoutedSessionModel {
   modelId: string;
 }
 
+export interface SessionModelPatch {
+  model?: string;
+  followDefaultModel?: boolean;
+}
+
 function routedModelValue(routed?: RoutedSessionModel): string {
   if (!routed?.modelId) return "";
   return routed.providerName ? `${routed.providerName}/${routed.modelId}` : routed.modelId;
@@ -37,4 +42,17 @@ export function resolveStatusBarModelValue(input: {
   const routed = resolveAvailableModelValue(availableModels, routedModelValue(routedModel));
   if (routed) return routed;
   return availableModels[0]?.value ?? "";
+}
+
+export function buildPinnedSessionModelPatch(modelRef: string): SessionModelPatch & { followDefaultModel: false } {
+  const model = modelRef.trim() || undefined;
+  return { model, followDefaultModel: false };
+}
+
+export function buildRoutedSessionModelPatch(modelRef: string, followDefaultModel?: boolean): SessionModelPatch {
+  const model = modelRef.trim() || undefined;
+  return {
+    model,
+    ...(typeof followDefaultModel === "boolean" ? { followDefaultModel } : {}),
+  };
 }

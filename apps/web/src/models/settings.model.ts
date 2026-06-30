@@ -26,7 +26,7 @@ import {
   normalizeLegacyModelRef,
   normalizeSecretForBackend,
 } from "./settings-backend-mappers";
-import { normalizeBackendModelConfig } from "./settings-model-config-normalization";
+import { normalizeBackendModelConfig, splitProviderModelRef } from "./settings-model-config-normalization";
 import {
   createRuntimeModelConfigSnapshot,
   resolveRuntimeApiKey,
@@ -1014,7 +1014,9 @@ function getConfiguredSessionModel(sessionModel?: string): {
   const preferred = getPreferredSessionModel();
 
   if (rawModel.includes("/")) {
-    const [providerName, modelId] = rawModel.split("/", 2);
+    const parsed = splitProviderModelRef(rawModel);
+    if (!parsed) return null;
+    const { providerName, modelId } = parsed;
     const provider = getRuntimeProviders().find((p) => p.name === providerName);
     if (!provider?.models.some((model) => model.id === modelId)) {
       return null;

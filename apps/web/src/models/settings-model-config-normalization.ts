@@ -8,6 +8,15 @@ export interface NormalizedBackendModelConfig {
   defaultModel: string;
 }
 
+export function splitProviderModelRef(rawRef: string): { providerName: string; modelId: string } | null {
+  const slashIndex = rawRef.indexOf("/");
+  if (slashIndex < 0) return null;
+  const providerName = rawRef.slice(0, slashIndex).trim();
+  const modelId = rawRef.slice(slashIndex + 1).trim();
+  if (!providerName || !modelId) return null;
+  return { providerName, modelId };
+}
+
 export function normalizeBackendModelConfig(value: {
   providers?: unknown;
   defaultModel?: unknown;
@@ -104,8 +113,9 @@ function resolveDefaultModelRef(
   if (!rawRef) return null;
 
   if (rawRef.includes("/")) {
-    const [providerName, modelId] = rawRef.split("/", 2).map((part) => part.trim());
-    if (!providerName || !modelId) return null;
+    const parsed = splitProviderModelRef(rawRef);
+    if (!parsed) return null;
+    const { providerName, modelId } = parsed;
     const provider = providers.find((item) => item.name === providerName);
     if (!provider) return null;
     return provider.models.some((model) => model.id === modelId) ? { provider: providerName, model: modelId } : null;

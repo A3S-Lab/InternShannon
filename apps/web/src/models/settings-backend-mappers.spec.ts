@@ -6,6 +6,7 @@ import {
   backendNetworkToFrontend,
   backendSearchToFrontend,
   backendStorageToFrontend,
+  normalizeLegacyModelRef,
 } from "./settings-backend-mappers.ts";
 import type { SearchConfig } from "./settings.model.ts";
 
@@ -21,6 +22,11 @@ const fallbackSearch: SearchConfig = {
   timeout: 30,
   limit: 10,
 };
+
+test("normalizes legacy model refs without truncating slash-containing model ids", () => {
+  assert.equal(normalizeLegacyModelRef("glm/family/model-id"), "zhipu/family/model-id");
+  assert.equal(normalizeLegacyModelRef("openai/bailian/deepseek-v4-pro"), "openai/bailian/deepseek-v4-pro");
+});
 
 test("normalizes malformed backend search settings without throwing", () => {
   assert.deepEqual(

@@ -71,6 +71,46 @@ struct EmbeddedGatewayState {
     status: Mutex<EmbeddedGatewayStatus>,
 }
 
+#[derive(Debug, Default)]
+struct ManagedSidecarState {
+    process: Mutex<Option<server::ManagedSidecarProcess>>,
+}
+
+impl ManagedSidecarState {
+    fn set(&self, process: server::ManagedSidecarProcess) {
+        let pid = process.id();
+        if let Ok(mut guard) = self.process.lock() {
+            if let Some(mut previous) = guard.take() {
+                tracing::warn!(
+                    "Replacing managed InternShannon sidecar pid={} with pid={pid}",
+                    previous.id()
+                );
+                previous.shutdown();
+            }
+            tracing::info!("Registered managed InternShannon sidecar pid={pid}");
+            *guard = Some(process);
+        }
+    }
+
+    fn shutdown(&self) {
+        if let Ok(mut guard) = self.process.lock() {
+            if let Some(mut process) = guard.take() {
+                process.shutdown();
+            }
+        }
+    }
+}
+
+impl Drop for ManagedSidecarState {
+    fn drop(&mut self) {
+        if let Ok(guard) = self.process.get_mut() {
+            if let Some(mut process) = guard.take() {
+                process.shutdown();
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct EmbeddedGatewayLogEntry {
@@ -1096,11 +1136,17 @@ fn validate_workspace_write_target(path: &Path) -> Result<(), String> {
         .ok_or_else(|| "Target file path must include a parent directory".to_string())?;
 
     if !parent.exists() {
-        return Err(format!("Target directory does not exist: {}", parent.display()));
+        return Err(format!(
+            "Target directory does not exist: {}",
+            parent.display()
+        ));
     }
 
     if !parent.is_dir() {
-        return Err(format!("Target parent is not a directory: {}", parent.display()));
+        return Err(format!(
+            "Target parent is not a directory: {}",
+            parent.display()
+        ));
     }
 
     Ok(())
@@ -1114,7 +1160,8 @@ fn workspace_write_file(path: String, content: String) -> Result<(), String> {
 
     let target = PathBuf::from(path);
     validate_workspace_write_target(&target)?;
-    fs::write(&target, content).map_err(|error| format!("Failed to write file {}: {error}", target.display()))?;
+    fs::write(&target, content)
+        .map_err(|error| format!("Failed to write file {}: {error}", target.display()))?;
     Ok(())
 }
 
@@ -1530,6 +1577,7 @@ pub fn run() {
             // Initialize browser state
             app.manage(browser::BrowserState::default());
             app.manage(EmbeddedGatewayState::default());
+            app.manage(ManagedSidecarState::default());
             // Initialize file watcher state
             app.manage(Arc::new(WatcherState::default()));
             // Load UI config from ~/.internshannon/config.hcl
@@ -1711,6 +1759,7 @@ pub fn run() {
                         }
                     }
                     "quit" => {
+                        app.state::<ManagedSidecarState>().shutdown();
                         app.exit(0);
                     }
                     _ => {}
@@ -1785,75 +1834,96 @@ pub fn run() {
                     }
                 })
                 .await;
-                if let Err(e) = startup_result {
-                    let report_path = write_diagnostic_report(
-                        "embedded-gateway-start-failed",
-                        "Embedded InternShannon gateway failed to start.",
-                        &e.to_string(),
-                        vec![
-                            ("configured_url".to_string(), get_gateway_url()),
-                            ("error_stage".to_string(), e.stage.to_string()),
-                            ("error_code".to_string(), e.code.to_string()),
-                            (
-                                "port".to_string(),
-                                gateway_state
-                                    .status
-                                    .lock()
-                                    .ok()
-                                    .map(|status| status.port.to_string())
-                                    .unwrap_or_else(|| default_gateway_port().to_string()),
-                            ),
-                        ],
-                    );
-                    if let Ok(mut status) = gateway_state.status.lock() {
-                        status.started = false;
-                        status.last_error = Some(e.message.clone());
-                        status.last_error_stage = Some(e.stage.to_string());
-                        status.last_error_code = Some(e.code.to_string());
-                        status.diagnostic_report_path = report_path.clone();
-                        push_embedded_gateway_log(
-                            &mut status,
-                            e.stage,
-                            format!("Startup failed: {}", e.message),
+                match startup_result {
+                    Err(e) => {
+                        let report_path = write_diagnostic_report(
+                            "embedded-gateway-start-failed",
+                            "Embedded InternShannon gateway failed to start.",
+                            &e.to_string(),
+                            vec![
+                                ("configured_url".to_string(), get_gateway_url()),
+                                ("error_stage".to_string(), e.stage.to_string()),
+                                ("error_code".to_string(), e.code.to_string()),
+                                (
+                                    "port".to_string(),
+                                    gateway_state
+                                        .status
+                                        .lock()
+                                        .ok()
+                                        .map(|status| status.port.to_string())
+                                        .unwrap_or_else(|| default_gateway_port().to_string()),
+                                ),
+                            ],
                         );
-                        let (port_in_use, port_owner_pid, port_owner_name) =
-                            inspect_port_owner(status.port);
-                        status.port_in_use = port_in_use;
-                        status.port_owner_pid = port_owner_pid;
-                        status.port_owner_name = port_owner_name;
+                        if let Ok(mut status) = gateway_state.status.lock() {
+                            status.started = false;
+                            status.last_error = Some(e.message.clone());
+                            status.last_error_stage = Some(e.stage.to_string());
+                            status.last_error_code = Some(e.code.to_string());
+                            status.diagnostic_report_path = report_path.clone();
+                            push_embedded_gateway_log(
+                                &mut status,
+                                e.stage,
+                                format!("Startup failed: {}", e.message),
+                            );
+                            let (port_in_use, port_owner_pid, port_owner_name) =
+                                inspect_port_owner(status.port);
+                            status.port_in_use = port_in_use;
+                            status.port_owner_pid = port_owner_pid;
+                            status.port_owner_name = port_owner_name;
+                        }
+                        let message = build_embedded_gateway_failure_dialog(
+                            &get_gateway_url(),
+                            &e,
+                            report_path.as_deref(),
+                        );
+                        let _ = show_blocking_message_dialog(
+                            &app_handle,
+                            "internShannon 本地服务暂不可用",
+                            message,
+                            MessageDialogKind::Error,
+                            MessageDialogButtons::Ok,
+                        );
+                        tracing::error!("Embedded gateway failed: {e:#}");
                     }
-                    let message = build_embedded_gateway_failure_dialog(
-                        &get_gateway_url(),
-                        &e,
-                        report_path.as_deref(),
-                    );
-                    let _ = show_blocking_message_dialog(
-                        &app_handle,
-                        "internShannon 本地服务暂不可用",
-                        message,
-                        MessageDialogKind::Error,
-                        MessageDialogButtons::Ok,
-                    );
-                    tracing::error!("Embedded gateway failed: {e:#}");
-                } else if let Ok(mut status) = gateway_state.status.lock() {
-                    status.started = true;
-                    status.last_error = None;
-                    status.last_error_stage = None;
-                    status.last_error_code = None;
-                    status.diagnostic_report_path = None;
-                    let configured_url = status.configured_url.clone();
-                    push_embedded_gateway_log(
-                        &mut status,
-                        "bind-listener",
-                        format!("Embedded gateway is listening on {}", configured_url),
-                    );
+                    Ok(managed_process) => {
+                        if let Some(process) = managed_process {
+                            let pid = process.id();
+                            app_handle.state::<ManagedSidecarState>().set(process);
+                            if let Ok(mut status) = gateway_state.status.lock() {
+                                push_embedded_gateway_log(
+                                    &mut status,
+                                    "spawn",
+                                    format!("Managing embedded sidecar pid={pid} for app shutdown"),
+                                );
+                            }
+                        }
+                        if let Ok(mut status) = gateway_state.status.lock() {
+                            status.started = true;
+                            status.last_error = None;
+                            status.last_error_stage = None;
+                            status.last_error_code = None;
+                            status.diagnostic_report_path = None;
+                            let configured_url = status.configured_url.clone();
+                            push_embedded_gateway_log(
+                                &mut status,
+                                "bind-listener",
+                                format!("Embedded gateway is listening on {}", configured_url),
+                            );
+                        }
+                    }
                 }
             });
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running InternShannon");
+        .build(tauri::generate_context!())
+        .expect("error while building InternShannon")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                app_handle.state::<ManagedSidecarState>().shutdown();
+            }
+        });
 }
 
 #[cfg(test)]
@@ -1904,7 +1974,8 @@ mod tests {
     fn workspace_write_file_rejects_missing_parent_directory() {
         let dir = unique_test_dir("missing-parent");
         let target = dir.join("session.json");
-        let error = workspace_write_file(target.display().to_string(), "content".to_string()).unwrap_err();
+        let error =
+            workspace_write_file(target.display().to_string(), "content".to_string()).unwrap_err();
         assert!(error.contains("does not exist"));
     }
 
@@ -1912,7 +1983,8 @@ mod tests {
     fn workspace_write_file_rejects_directory_target() {
         let dir = unique_test_dir("directory-target");
         fs::create_dir_all(&dir).expect("create temp test dir");
-        let error = workspace_write_file(dir.display().to_string(), "content".to_string()).unwrap_err();
+        let error =
+            workspace_write_file(dir.display().to_string(), "content".to_string()).unwrap_err();
         assert!(error.contains("directory"));
         let _ = fs::remove_dir_all(&dir);
     }
@@ -1923,8 +1995,11 @@ mod tests {
         fs::create_dir_all(&dir).expect("create temp test dir");
         let target = dir.join("session.json");
 
-        workspace_write_file(target.display().to_string(), "{\"ok\":\"internShannon\"}\n".to_string())
-            .expect("write workspace file");
+        workspace_write_file(
+            target.display().to_string(),
+            "{\"ok\":\"internShannon\"}\n".to_string(),
+        )
+        .expect("write workspace file");
 
         let written = fs::read_to_string(&target).expect("read written file");
         assert_eq!(written, "{\"ok\":\"internShannon\"}\n");

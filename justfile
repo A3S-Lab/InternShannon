@@ -74,6 +74,20 @@ doctor-test:
 dev: sidecar-build stage-sidecar
     pnpm --dir "{{root}}" --filter {{desktop_pkg}} run tauri:dev
 
+# Backward-compatible desktop aliases from the old monorepo justfile
+desktop: dev
+
+desktop-local: dev
+
+desktop-dev: dev
+
+desktop-doctor: doctor
+
+desktop-bundle *args:
+    @just --justfile "{{root}}/justfile" bundle {{args}}
+
+desktop-smoke: smoke-standalone
+
 # Build release installers with standalone sidecar resources
 bundle *args:
     pnpm --dir "{{root}}" --filter {{desktop_pkg}} run tauri:bundle -- {{args}}

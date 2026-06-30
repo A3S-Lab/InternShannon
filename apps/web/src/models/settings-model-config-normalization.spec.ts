@@ -103,6 +103,21 @@ test("falls back to the first valid provider and model when the default referenc
   assert.equal(normalized.defaultModel, "gpt-4.1");
 });
 
+test("keeps slashes inside provider-qualified default model ids", () => {
+  const normalized = normalizeBackendModelConfig({
+    providers: [
+      {
+        name: "openai",
+        models: [{ id: "bailian/deepseek-v4-pro" }],
+      },
+    ],
+    defaultModel: "openai/bailian/deepseek-v4-pro",
+  });
+
+  assert.equal(normalized.defaultProvider, "openai");
+  assert.equal(normalized.defaultModel, "bailian/deepseek-v4-pro");
+});
+
 test("keeps a bare default model only when it exists under a valid provider", () => {
   assert.deepEqual(
     normalizeBackendModelConfig({
