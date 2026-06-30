@@ -1,4 +1,4 @@
-import type { AgentEvent, Session } from '@a3s-lab/code';
+import type { AgentEvent, PendingConfirmation, Session } from '@a3s-lab/code';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { MetricsService } from '@/shared/observability/metrics';
 import { isLockedAgent } from './agents/locked-agent.policy';
@@ -37,19 +37,39 @@ export class KernelToolConfirmationService {
             this.logger.warn(`Failed to parse confirmation event data for session ${sessionId}`);
         }
 
-        const toolId =
+        let toolId =
             pickNonEmptyString(data, 'toolId', 'tool_id', 'toolUseId', 'tool_use_id', 'id') ||
             nonEmptyString(event.toolId) ||
             nonEmptyString(input.fallbackToolId) ||
             '';
-        const toolName =
+        let toolName =
             pickNonEmptyString(data, 'toolName', 'tool_name', 'name', 'tool') ||
             nonEmptyString(event.toolName) ||
             nonEmptyString(input.fallbackToolName) ||
             '';
         const extractedToolInput = extractToolInputForConfirmation(data, data);
-        const toolInput =
+        let toolInput =
             Object.keys(extractedToolInput).length > 0 ? extractedToolInput : (input.fallbackToolInput ?? {});
+
+        const pendingConfirmation = await this.resolvePendingConfirmation(session, {
+            sessionId,
+            toolId,
+            toolName,
+            toolInput,
+        });
+        if (pendingConfirmation) {
+            if (pendingConfirmation.toolId !== toolId) {
+                this.logger.log(
+                    `[kernel.tool.confirmation_resolved] sessionId=${sessionId} providedToolId=${toolId || 'n/a'} pendingToolId=${pendingConfirmation.toolId} toolName=${pendingConfirmation.toolName || toolName || 'n/a'}`,
+                );
+            }
+            toolId = pendingConfirmation.toolId;
+            toolName = toolName || pendingConfirmation.toolName;
+            const pendingInput = recordValue(pendingConfirmation.args);
+            if (Object.keys(toolInput).length === 0 && pendingInput) {
+                toolInput = pendingInput;
+            }
+        }
 
         if (!toolId) {
             this.logger.warn(`confirmation_required event missing toolId for session ${sessionId}`);
@@ -57,7 +77,14 @@ export class KernelToolConfirmationService {
         }
 
         if (this.runtimeState.isCancelled(sessionId)) {
-            await session.confirmToolUse(toolId, false, 'user_cancelled');
+            await this.confirmToolUse(session, {
+                sessionId,
+                toolId,
+                toolName,
+                toolInput,
+                approved: false,
+                reason: 'user_cancelled',
+            });
             return false;
         }
 
@@ -77,8 +104,13 @@ export class KernelToolConfirmationService {
                     timestamp: Date.now(),
                 },
             });
-            await session.confirmToolUse(toolId, true);
-            return true;
+            return this.confirmToolUse(session, {
+                sessionId,
+                toolId,
+                toolName,
+                toolInput,
+                approved: true,
+            });
         }
 
         if (!confirmation) {
@@ -89,7 +121,14 @@ export class KernelToolConfirmationService {
                 tool: toolName || 'unknown',
                 agent: agentId ?? 'unknown',
             });
-            await session.confirmToolUse(toolId, false, 'no_confirmation_manager');
+            await this.confirmToolUse(session, {
+                sessionId,
+                toolId,
+                toolName,
+                toolInput,
+                approved: false,
+                reason: 'no_confirmation_manager',
+            });
             return false;
         }
 
@@ -107,16 +146,123 @@ export class KernelToolConfirmationService {
             const approved = await confirmation.requestConfirmation(sessionId, toolName, toolInput);
 
             if (this.runtimeState.isCancelled(sessionId)) {
-                await session.confirmToolUse(toolId, false, 'user_cancelled');
+                await this.confirmToolUse(session, {
+                    sessionId,
+                    toolId,
+                    toolName,
+                    toolInput,
+                    approved: false,
+                    reason: 'user_cancelled',
+                });
                 return false;
             }
 
-            await session.confirmToolUse(toolId, approved);
-            return approved;
+            const confirmed = await this.confirmToolUse(session, {
+                sessionId,
+                toolId,
+                toolName,
+                toolInput,
+                approved,
+            });
+            return approved && confirmed;
         } catch (error) {
             this.logger.warn(`HITL confirmation failed for ${toolName} in ${sessionId}: ${error}`);
-            await session.confirmToolUse(toolId, false, 'confirmation_timeout');
+            await this.confirmToolUse(session, {
+                sessionId,
+                toolId,
+                toolName,
+                toolInput,
+                approved: false,
+                reason: 'confirmation_timeout',
+            });
             return false;
+        }
+    }
+
+    private async confirmToolUse(
+        session: Session,
+        input: {
+            sessionId: string;
+            toolId: string;
+            toolName: string;
+            toolInput: Record<string, unknown>;
+            approved: boolean;
+            reason?: string;
+        },
+    ): Promise<boolean> {
+        const result = await session.confirmToolUse(input.toolId, input.approved, input.reason);
+        if (result !== false) return true;
+
+        const pendingConfirmation = await this.resolvePendingConfirmation(session, input);
+        if (pendingConfirmation && pendingConfirmation.toolId !== input.toolId) {
+            this.logger.warn(
+                `[kernel.tool.confirmation_retry] sessionId=${input.sessionId} toolName=${input.toolName || pendingConfirmation.toolName || 'n/a'} staleToolId=${input.toolId} pendingToolId=${pendingConfirmation.toolId}`,
+            );
+            const retryResult = await session.confirmToolUse(
+                pendingConfirmation.toolId,
+                input.approved,
+                input.reason,
+            );
+            if (retryResult !== false) return true;
+        }
+
+        this.logger.warn(
+            `[kernel.tool.confirmation_not_found] sessionId=${input.sessionId} toolName=${input.toolName || 'n/a'} toolId=${input.toolId} approved=${input.approved}`,
+        );
+        return false;
+    }
+
+    private async resolvePendingConfirmation(
+        session: Session,
+        input: {
+            sessionId: string;
+            toolId: string;
+            toolName: string;
+            toolInput: Record<string, unknown>;
+        },
+    ): Promise<PendingConfirmation | null> {
+        const pendingConfirmations = await this.pendingConfirmations(session, input.sessionId);
+        if (pendingConfirmations.length === 0) return null;
+
+        if (input.toolId) {
+            const exact = pendingConfirmations.find(item => item.toolId === input.toolId);
+            if (exact) return exact;
+        }
+
+        const hasToolInput = Object.keys(input.toolInput).length > 0;
+        const sameArgs = (item: PendingConfirmation) => hasToolInput && sameJson(item.args, input.toolInput);
+        const sameName = (item: PendingConfirmation) =>
+            Boolean(input.toolName) && item.toolName.trim() === input.toolName.trim();
+
+        const byNameAndArgs = pendingConfirmations.find(item => sameName(item) && sameArgs(item));
+        if (byNameAndArgs) return byNameAndArgs;
+
+        const byArgs = pendingConfirmations.find(sameArgs);
+        if (byArgs) return byArgs;
+
+        const byName = pendingConfirmations.filter(sameName);
+        if (byName.length === 1) return byName[0];
+
+        if (pendingConfirmations.length === 1) return pendingConfirmations[0];
+        return null;
+    }
+
+    private async pendingConfirmations(session: Session, sessionId: string): Promise<PendingConfirmation[]> {
+        const pendingConfirmations = (session as unknown as {
+            pendingConfirmations?: () => Promise<unknown>;
+        }).pendingConfirmations;
+        if (typeof pendingConfirmations !== 'function') return [];
+        try {
+            const result = await pendingConfirmations.call(session);
+            if (!Array.isArray(result)) return [];
+            return result.filter(isPendingConfirmation);
+        } catch (error) {
+            this.logger.warn(
+                `Failed to read pending confirmations for session ${sessionId}: ${
+                    error instanceof Error ? error.message : String(error)
+                }`,
+            );
+            return [];
         }
     }
 }
@@ -131,4 +277,40 @@ function pickNonEmptyString(data: Record<string, unknown>, ...keys: string[]): s
 
 function nonEmptyString(value: unknown): string | undefined {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function recordValue(value: unknown): Record<string, unknown> | undefined {
+    return value && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : undefined;
+}
+
+function isPendingConfirmation(value: unknown): value is PendingConfirmation {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    const record = value as Record<string, unknown>;
+    return typeof record.toolId === 'string' && record.toolId.trim() !== '';
+}
+
+function sameJson(left: unknown, right: unknown): boolean {
+    return stableJson(left) === stableJson(right);
+}
+
+function stableJson(value: unknown): string {
+    try {
+        return JSON.stringify(sortJsonValue(value));
+    } catch {
+        return '';
+    }
+}
+
+function sortJsonValue(value: unknown, depth = 0): unknown {
+    if (depth > 8 || value === null || typeof value !== 'object') return value;
+    if (Array.isArray(value)) return value.map(item => sortJsonValue(item, depth + 1));
+    const record = value as Record<string, unknown>;
+    return Object.keys(record)
+        .sort()
+        .reduce<Record<string, unknown>>((result, key) => {
+            result[key] = sortJsonValue(record[key], depth + 1);
+            return result;
+        }, {});
 }
