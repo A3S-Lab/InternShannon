@@ -199,10 +199,10 @@ export default function CreateSessionDialog({
 	const syncModelCredentials = useCallback(
 		(value: string) => {
 			const selected = selectableModelSources.find((item) => item.id === value);
-			const [providerFromId] =
+			const providerFromId =
 				value.includes("/") && !selected
-					? value.split("/", 2)
-					: [selected?.provider || "", value];
+					? value.slice(0, value.indexOf("/")).trim()
+					: selected?.provider || "";
 			if (!providerFromId) return;
 		},
 		[selectableModelSources],

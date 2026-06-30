@@ -13,6 +13,29 @@ export interface CreatedSessionProjection {
   metadata?: Record<string, unknown>;
 }
 
+export interface AgentSessionCreateRequestAgentProjection {
+  sessionOptions?: Record<string, unknown>;
+  defaultModel?: string;
+  defaultSkills?: string[];
+}
+
+export interface AgentSessionCreateRequestOptionsProjection {
+  model?: string;
+  followDefaultModel?: boolean;
+  skills?: string[] | null;
+  skillDirs?: string[] | null;
+}
+
+export interface BuildAgentSessionCreateRequestInput {
+  agent: AgentSessionCreateRequestAgentProjection;
+  normalizedAgentId: string;
+  title?: string;
+  permissionMode: string;
+  cwd?: string;
+  options?: AgentSessionCreateRequestOptionsProjection;
+  runtimeOptions?: Record<string, unknown>;
+}
+
 export interface BuildCreatedSessionInfoInput {
   session: CreatedSessionProjection;
   normalizedAgentId?: string | null;
@@ -34,6 +57,34 @@ function stringFromRecord(record: Record<string, unknown> | undefined, key: stri
 function booleanFromRecord(record: Record<string, unknown> | undefined, key: string): boolean | undefined {
   const value = record?.[key];
   return typeof value === "boolean" ? value : undefined;
+}
+
+function normalizeStringList(values?: string[] | null): string[] | undefined {
+  const normalized = values?.map((value) => value.trim()).filter(Boolean) ?? [];
+  return normalized.length > 0 ? Array.from(new Set(normalized)) : undefined;
+}
+
+export function buildAgentSessionCreateRequest(input: BuildAgentSessionCreateRequestInput): Record<string, unknown> {
+  const options = input.options ?? {};
+  const runtimeOptions = input.runtimeOptions ?? {};
+  const request: Record<string, unknown> = {
+    ...(input.agent.sessionOptions ?? {}),
+    agentId: input.normalizedAgentId,
+    title: input.title,
+    permissionMode: input.permissionMode,
+    cwd: input.cwd,
+    model: (options.model ?? input.agent.defaultModel) || undefined,
+    followDefaultModel: options.followDefaultModel,
+    skills: normalizeStringList(options.skills) ?? normalizeStringList(input.agent.defaultSkills),
+    skillDirs: normalizeStringList(options.skillDirs),
+    ...runtimeOptions,
+  };
+
+  if (request.followDefaultModel === true) {
+    delete request.model;
+  }
+
+  return request;
 }
 
 export function buildCreatedSessionInfo(input: BuildCreatedSessionInfoInput): AgentProcessInfo {

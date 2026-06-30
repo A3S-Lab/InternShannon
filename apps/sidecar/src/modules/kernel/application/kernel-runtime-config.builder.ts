@@ -764,7 +764,9 @@ export class KernelRuntimeConfigBuilder {
     private parseModelRef(model?: string): { providerName: string; modelId: string } | null {
         const normalized = model?.trim();
         if (!normalized) return null;
-        const [providerName, modelId] = normalized.includes('/') ? normalized.split('/', 2) : ['openai', normalized];
+        const slashIndex = normalized.indexOf('/');
+        const providerName = slashIndex >= 0 ? normalized.slice(0, slashIndex).trim() : 'openai';
+        const modelId = slashIndex >= 0 ? normalized.slice(slashIndex + 1).trim() : normalized;
         if (!providerName || !modelId) return null;
         return { providerName, modelId };
     }

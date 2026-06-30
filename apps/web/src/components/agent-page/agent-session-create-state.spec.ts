@@ -16,6 +16,7 @@ test("uses the effective agent default permission mode when creating a session",
     }),
     {
       agentId: "super-admin",
+      followDefaultModel: true,
       permissionMode: "plan",
     },
   );
@@ -33,6 +34,32 @@ test("omits blank optional fields so createAgentSession can use its fallback def
     }),
     {
       agentId: "super-admin",
+      followDefaultModel: true,
+    },
+  );
+});
+
+test("marks default assistant sessions as following the system default model", () => {
+  assert.deepEqual(
+    buildAgentSessionCreateOptions({
+      agentId: "default",
+      agent: null,
+    }),
+    {
+      agentId: "default",
+      followDefaultModel: true,
+    },
+  );
+});
+
+test("does not force custom agents to follow the system default model", () => {
+  assert.deepEqual(
+    buildAgentSessionCreateOptions({
+      agentId: "custom-researcher",
+      agent: null,
+    }),
+    {
+      agentId: "custom-researcher",
     },
   );
 });
@@ -49,6 +76,7 @@ test("preserves apiUrl and optimistic placeholder intent for sidebar callers", (
     }),
     {
       agentId: "super-admin",
+      followDefaultModel: true,
       permissionMode: "default",
       apiUrl: "http://127.0.0.1:29653",
       optimisticPlaceholder: true,

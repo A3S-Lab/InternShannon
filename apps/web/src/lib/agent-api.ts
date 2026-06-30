@@ -380,6 +380,7 @@ export interface CreateSessionRequest {
   agentId?: string;
   title?: string;
   model?: string;
+  followDefaultModel?: boolean;
   permissionMode?: string;
   cwd?: string;
   systemPrompt?: string;

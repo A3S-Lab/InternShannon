@@ -40,6 +40,10 @@ import { WorkspaceGitService } from '@/modules/kernel/application/workspace-git.
 import { WorkspaceUploadService } from '@/modules/kernel/application/workspace-upload.service';
 import { MESSAGE_REPOSITORY } from '@/modules/kernel/domain/repositories/message.repository.interface';
 import { SESSION_REPOSITORY } from '@/modules/kernel/domain/repositories/session.repository.interface';
+import {
+    DESKTOP_MODEL_CONFIG_SYNC,
+    type IDesktopModelConfigSync,
+} from '@/modules/config/domain/services/desktop-model-config-sync.interface';
 import { AGENT_SPEC, type AgentSpec } from '@/modules/kernel/domain/services/agent-spec.interface';
 import { KERNEL_MESSAGE_RUN_SERVICE } from '@/modules/kernel/domain/services/kernel-message-run.service.interface';
 import { KERNEL_RUNTIME_CONFIG_SERVICE } from '@/modules/kernel/domain/services/kernel-runtime-config.service.interface';
@@ -59,6 +63,7 @@ import { DesktopConfigRuntimeModule } from './desktop-config-runtime.module';
 
 const CommandHandlers = [CreateSessionHandler, EndSessionHandler];
 const QueryHandlers = [GetSessionHandler, ListSessionsHandler, CountSessionsHandler, GetSessionMessagesHandler];
+const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE');
 
 @Module({
     imports: [
@@ -131,6 +136,19 @@ const QueryHandlers = [GetSessionHandler, ListSessionsHandler, CountSessionsHand
         KernelSessionRuntimeAccessService,
         KernelSessionRuntimeFactory,
         KernelSessionRuntimeStateService,
+        {
+            provide: DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE,
+            useFactory: (
+                modelConfigSync: IDesktopModelConfigSync,
+                runtimeState: KernelSessionRuntimeStateService,
+            ) => {
+                modelConfigSync.registerInvalidator((reason = 'llm-settings-sync') =>
+                    runtimeState.invalidateModelsConfig(reason),
+                );
+                return true;
+            },
+            inject: [DESKTOP_MODEL_CONFIG_SYNC, KernelSessionRuntimeStateService],
+        },
         KernelSessionSnapshotService,
         KernelSessionStatusService,
         KernelToolConfirmationService,

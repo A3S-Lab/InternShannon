@@ -4,6 +4,7 @@ import type {
   SearchSettings as BackendSearchSettings,
 } from "@/types/config";
 import type { NetworkSettings, SearchEngineId, StorageSettings } from "@/lib/constants";
+import { splitProviderModelRef } from "./settings-model-config-normalization.ts";
 import type { SearchConfig, SettingsState } from "./settings.model";
 
 const LEGACY_GLM_PROVIDER = "glm";
@@ -18,9 +19,9 @@ export function normalizeLegacyModelRef(rawModel?: string | unknown): string {
   const trimmed = rawModel.trim();
   if (!trimmed) return "";
   if (!trimmed.includes("/")) return trimmed;
-  const [providerName, modelId] = trimmed.split("/", 2);
-  if (providerName === LEGACY_GLM_PROVIDER && modelId) {
-    return `${ZHIPU_PROVIDER}/${modelId}`;
+  const parsed = splitProviderModelRef(trimmed);
+  if (parsed?.providerName === LEGACY_GLM_PROVIDER) {
+    return `${ZHIPU_PROVIDER}/${parsed.modelId}`;
   }
   return trimmed;
 }
