@@ -38,4 +38,34 @@ describe('WebSocketConfirmationManager', () => {
 
         await expect(approval).resolves.toBe(true);
     });
+
+    it('also targets the socket that initiated the message run', async () => {
+        const targetedRooms: string[] = [];
+        const server = {
+            to: (room: string) => {
+                targetedRooms.push(room);
+                return server;
+            },
+            emit: jest.fn(),
+        } as unknown as Server & { emit: jest.Mock };
+        const manager = new WebSocketConfirmationManager(server, 1_000);
+        const gate = manager.forClient('socket-1');
+
+        const approval = gate.requestConfirmation('session-a', 'Write', { file_path: '/tmp/a.txt' });
+
+        expect(targetedRooms).toEqual(['session:session-a', 'socket-1']);
+        expect(server.emit).toHaveBeenCalledWith(
+            'tool_confirmation_request',
+            expect.objectContaining({
+                sessionId: 'session-a',
+                toolName: 'Write',
+                toolInput: { file_path: '/tmp/a.txt' },
+            }),
+        );
+
+        const request = server.emit.mock.calls[0]?.[1] as { requestId: string };
+        manager.handleConfirmationResponse({ requestId: request.requestId, approved: false }, 'session-a');
+
+        await expect(approval).resolves.toBe(false);
+    });
 });

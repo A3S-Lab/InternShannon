@@ -183,6 +183,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
             switch (type) {
                 case 'user_message':
                     await this.handleUserMessage(
+                        client,
                         sessionId,
                         payload as {
                             content: string;
@@ -402,6 +403,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     }
 
     private async handleUserMessage(
+        client: Socket,
         sessionId: string,
         data: {
             content: string;
@@ -434,7 +436,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
             content: data.content,
             images: data.images,
             model: locked ? undefined : data.model,
-            confirmation: this.confirmationManager,
+            confirmation: this.confirmationManager?.forClient(client.id) ?? null,
             emit: message => this.broadcastToSession(sessionId, message),
         });
     }

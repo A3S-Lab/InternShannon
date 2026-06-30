@@ -868,6 +868,14 @@ export function connectSession(sessionId: string): void {
                 console.warn("[HITL] Ignoring malformed tool confirmation request", data);
                 return;
               }
+              if (request.sessionId !== sessionId) {
+                console.warn("[HITL] Ignoring tool confirmation request for another session", {
+                  currentSessionId: sessionId,
+                  requestSessionId: request.sessionId,
+                  requestId: request.requestId,
+                });
+                return;
+              }
               console.log(`[HITL] Received tool_confirmation_request for session ${sessionId}`, {
                 requestId: request.requestId,
                 toolName: request.toolName,

@@ -4,7 +4,7 @@ import { AssetAccessService } from '@/modules/assets/application/asset-access.se
 import { AssetServiceImpl } from '@/modules/assets/application/asset.service';
 import { AssetUrlResolverService } from '@/modules/assets/application/asset-url-resolver.service';
 import { ASSET_SERVICE } from '@/modules/assets/domain/services/asset.service.interface';
-import { DesktopAssetsController } from '@/modules/assets/infrastructure/desktop/desktop-assets.controller';
+import { DesktopAssetsController } from '@/modules/assets/presentation/controllers/desktop-assets.controller';
 import { DesktopConfigRuntimeModule } from './desktop-config-runtime.module';
 
 @Module({

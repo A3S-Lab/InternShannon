@@ -19,6 +19,7 @@ export interface ToolConfirmationResponse {
 
 interface ConfirmationRequestOptions {
   persistOnce?: boolean;
+  clientId?: string;
 }
 
 /**
@@ -97,9 +98,26 @@ export class WebSocketConfirmationManager {
 
       this.logger.log(`Requesting confirmation for tool ${toolName} in session ${sessionId}`);
 
-      // Send confirmation request to frontend after the pending slot exists.
-      this.server.to(`session:${sessionId}`).emit('tool_confirmation_request', request);
+      // Send confirmation request after the pending slot exists. Target the
+      // subscribed session room and, when available, the socket that initiated
+      // this message run. Socket.IO de-duplicates union rooms, so a client in
+      // both targets still receives a single request.
+      const target = options.clientId
+        ? this.server.to(`session:${sessionId}`).to(options.clientId)
+        : this.server.to(`session:${sessionId}`);
+      target.emit('tool_confirmation_request', request);
     });
+  }
+
+  forClient(clientId: string): {
+    requestConfirmation(sessionId: string, toolName: string, toolInput: Record<string, unknown>): Promise<boolean>;
+    clearTaskApprovals(sessionId: string): void;
+  } {
+    return {
+      requestConfirmation: (sessionId, toolName, toolInput) =>
+        this.requestConfirmation(sessionId, toolName, toolInput, { clientId }),
+      clearTaskApprovals: (sessionId) => this.clearTaskApprovals(sessionId),
+    };
   }
 
   /**
