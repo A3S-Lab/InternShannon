@@ -368,8 +368,9 @@ export class KernelRuntimeConfigBuilder {
 
     sessionMetadataOverrides(session: { metadata?: Record<string, unknown> }): SessionRuntimeOverrides {
         const metadata = session.metadata || {};
+        const followsDefaultModel = this.booleanMetadata(metadata, 'followDefaultModel') === true;
         return {
-            model: this.stringMetadata(metadata, 'model'),
+            model: followsDefaultModel ? undefined : this.stringMetadata(metadata, 'model'),
             systemPrompt: this.stringMetadata(metadata, 'systemPrompt'),
             role: this.stringMetadata(metadata, 'role'),
             guidelines: this.stringMetadata(metadata, 'guidelines'),

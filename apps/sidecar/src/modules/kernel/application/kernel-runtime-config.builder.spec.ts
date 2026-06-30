@@ -27,4 +27,40 @@ describe('KernelRuntimeConfigBuilder', () => {
         expect(hcl).toContain('models "bailian/deepseek-v4-pro"');
         expect(hcl).not.toContain('models "bailian"');
     });
+
+    it('ignores persisted model snapshots when a session follows the default model', () => {
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'openai/gpt-4o',
+            providers: [
+                {
+                    name: 'openai',
+                    apiKey: 'openai-key',
+                    models: [{ id: 'gpt-4o', name: 'GPT-4o', family: 'gpt-4o' }],
+                },
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    models: [{ id: 'glm-4.5', name: 'GLM-4.5', family: 'glm' }],
+                },
+            ],
+        });
+
+        expect(
+            builder.sessionMetadataOverrides({
+                metadata: {
+                    model: 'zhipu/glm-4.5',
+                    followDefaultModel: true,
+                },
+            }).model,
+        ).toBeUndefined();
+
+        expect(
+            builder.sessionMetadataOverrides({
+                metadata: {
+                    model: 'zhipu/glm-4.5',
+                    followDefaultModel: false,
+                },
+            }).model,
+        ).toBe('zhipu/glm-4.5');
+    });
 });

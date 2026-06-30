@@ -20,6 +20,7 @@ import {
   resolveAgentMessageExecuteAction,
   resolveAgentMessageExecuteFeedback,
 } from "./agent-message-inbox-state";
+import { buildRoutedSessionModelPatch } from "./session-model-selection";
 
 // =============================================================================
 // AuthStatusBanner
@@ -141,18 +142,24 @@ export function AgentMessageInbox({ apiUrl, sessionId }: { apiUrl?: string; sess
       const modelId = routed.modelId;
       const providerName = routed.providerName;
       const fullModel = providerName && modelId ? `${providerName}/${modelId}` : modelId;
+      const modelPatch = buildRoutedSessionModelPatch(fullModel, followDefaultModel);
       const runtimeDefaults = getSessionRuntimeDefaults(agentRegistryModel.getSessionAgent(sessionId));
       try {
         const result = await agentApi.configureSession(
           sessionId,
           {
             ...runtimeDefaults,
-            model: fullModel || undefined,
+            ...modelPatch,
           },
           apiUrl,
         );
         if (result?.model) {
-          agentModel.updateSession(sessionId, { model: result.model });
+          agentModel.updateSession(sessionId, {
+            model: result.model,
+            ...(typeof modelPatch.followDefaultModel === "boolean"
+              ? { followDefaultModel: modelPatch.followDefaultModel }
+              : {}),
+          });
         }
       } catch (e) {
         if (e instanceof AppError && e.code === 404) {
