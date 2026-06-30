@@ -298,6 +298,16 @@ export class KernelMessageRunnerService {
             }
             return toolId;
         };
+        const toolNameForId = (toolId: string): string | undefined => {
+            for (const [toolName, latestToolId] of latestToolIdByName.entries()) {
+                if (latestToolId === toolId) return toolName;
+            }
+            return undefined;
+        };
+        const mostRecentActiveToolId = (): string | undefined => {
+            const active = Array.from(activeToolIds);
+            return active.length > 0 ? active[active.length - 1] : undefined;
+        };
 
         const safeFailureBlocks = (failureText: string): AssistantContentBlock[] => {
             flushTextBlock();
@@ -724,18 +734,36 @@ export class KernelMessageRunnerService {
 
                         if (event.type === 'confirmation_required') {
                             const confirmation = this.extractConfirmationDetails(event);
+                            const fallbackToolId = confirmation.toolId || mostRecentActiveToolId();
+                            const fallbackToolInput =
+                                confirmation.toolInput ??
+                                (fallbackToolId
+                                    ? this.recordValue(toolInputById.get(fallbackToolId))
+                                    : undefined);
+                            const confirmationDetails = {
+                                ...confirmation,
+                                toolId: fallbackToolId,
+                                toolName:
+                                    confirmation.toolName ||
+                                    (fallbackToolId ? toolNameForId(fallbackToolId) : undefined),
+                                toolInput: fallbackToolInput,
+                            };
+                            const activeConfirmationKey =
+                                confirmationDetails.toolId ||
+                                confirmationDetails.toolName ||
+                                'pending-confirmation';
                             const lockedAuto = isLockedAgent(activeSession.agentId);
-                            activeToolIds.add(confirmation.toolId || confirmation.toolName || 'pending-confirmation');
+                            activeToolIds.add(activeConfirmationKey);
                             emitMainActivity({
                                 status: lockedAuto ? 'running' : 'waiting',
                                 phase: lockedAuto ? 'tool_auto_authorize' : 'tool_authorization',
                                 label: lockedAuto ? '自动授权工具' : '等待工具授权',
                                 detail: lockedAuto
-                                    ? confirmation.toolName
-                                        ? `锁定智能体 ${activeSession.agentId} 自动放行工具 ${confirmation.toolName}`
+                                    ? confirmationDetails.toolName
+                                        ? `锁定智能体 ${activeSession.agentId} 自动放行工具 ${confirmationDetails.toolName}`
                                         : `锁定智能体 ${activeSession.agentId} 自动放行工具调用`
-                                    : confirmation.toolName
-                                      ? `工具 ${confirmation.toolName} 需要用户确认后才能继续`
+                                    : confirmationDetails.toolName
+                                      ? `工具 ${confirmationDetails.toolName} 需要用户确认后才能继续`
                                       : '工具调用需要用户确认后才能继续',
                                 source: lockedAuto ? '锁定智能体自动确认' : '工具授权',
                             });
@@ -743,12 +771,12 @@ export class KernelMessageRunnerService {
                                 emitToolActivity({
                                     status: 'waiting',
                                     phase: 'authorization',
-                                    toolUseId: confirmation.toolId,
-                                    toolName: confirmation.toolName,
-                                    label: confirmation.toolName
-                                        ? `等待授权：${confirmation.toolName}`
+                                    toolUseId: confirmationDetails.toolId,
+                                    toolName: confirmationDetails.toolName,
+                                    label: confirmationDetails.toolName
+                                        ? `等待授权：${confirmationDetails.toolName}`
                                         : '等待工具授权',
-                                    detail: this.previewValue(confirmation.toolInput),
+                                    detail: this.previewValue(confirmationDetails.toolInput),
                                 });
                             }
                             const approved = await this.toolConfirmation.handleConfirmationRequired({
@@ -757,11 +785,12 @@ export class KernelMessageRunnerService {
                                 session: activeSession.session,
                                 event,
                                 confirmation: input.confirmation ?? null,
+                                fallbackToolId: confirmationDetails.toolId,
+                                fallbackToolName: confirmationDetails.toolName,
+                                fallbackToolInput: confirmationDetails.toolInput,
                                 emit,
                             });
-                            activeToolIds.delete(
-                                confirmation.toolId || confirmation.toolName || 'pending-confirmation',
-                            );
+                            activeToolIds.delete(activeConfirmationKey);
                             emitToolActivity({
                                 status: approved ? 'completed' : 'failed',
                                 phase: lockedAuto
@@ -771,8 +800,8 @@ export class KernelMessageRunnerService {
                                     : approved
                                       ? 'authorized'
                                       : 'authorization_denied',
-                                toolUseId: confirmation.toolId,
-                                toolName: confirmation.toolName,
+                                toolUseId: confirmationDetails.toolId,
+                                toolName: confirmationDetails.toolName,
                                 label: lockedAuto
                                     ? approved
                                         ? '工具自动授权通过'
@@ -780,7 +809,7 @@ export class KernelMessageRunnerService {
                                     : approved
                                       ? '工具授权通过'
                                       : '工具授权被拒绝',
-                                detail: confirmation.toolName,
+                                detail: confirmationDetails.toolName,
                             });
                             emitMainActivity({
                                 status: 'running',
@@ -1803,6 +1832,12 @@ export class KernelMessageRunnerService {
 
     private stringValue(value: unknown): string {
         return typeof value === 'string' && value.trim() ? value.trim() : '';
+    }
+
+    private recordValue(value: unknown): Record<string, unknown> | undefined {
+        return value && typeof value === 'object' && !Array.isArray(value)
+            ? (value as Record<string, unknown>)
+            : undefined;
     }
 
     private numberValue(value: unknown): number | undefined {

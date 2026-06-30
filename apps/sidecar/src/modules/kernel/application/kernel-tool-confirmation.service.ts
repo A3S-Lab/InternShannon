@@ -12,6 +12,9 @@ export interface KernelConfirmationRequiredInput {
     session: Session;
     event: AgentEvent;
     confirmation?: ToolConfirmationGate | null;
+    fallbackToolId?: string;
+    fallbackToolName?: string;
+    fallbackToolInput?: Record<string, unknown>;
     emit: (message: unknown) => void;
 }
 
@@ -36,11 +39,17 @@ export class KernelToolConfirmationService {
 
         const toolId =
             pickNonEmptyString(data, 'toolId', 'tool_id', 'toolUseId', 'tool_use_id', 'id') ||
-            (typeof event.toolId === 'string' ? event.toolId : '');
+            nonEmptyString(event.toolId) ||
+            nonEmptyString(input.fallbackToolId) ||
+            '';
         const toolName =
             pickNonEmptyString(data, 'toolName', 'tool_name', 'name', 'tool') ||
-            (typeof event.toolName === 'string' ? event.toolName : '');
-        const toolInput = extractToolInputForConfirmation(data, data);
+            nonEmptyString(event.toolName) ||
+            nonEmptyString(input.fallbackToolName) ||
+            '';
+        const extractedToolInput = extractToolInputForConfirmation(data, data);
+        const toolInput =
+            Object.keys(extractedToolInput).length > 0 ? extractedToolInput : (input.fallbackToolInput ?? {});
 
         if (!toolId) {
             this.logger.warn(`confirmation_required event missing toolId for session ${sessionId}`);
@@ -114,8 +123,12 @@ export class KernelToolConfirmationService {
 
 function pickNonEmptyString(data: Record<string, unknown>, ...keys: string[]): string | undefined {
     for (const key of keys) {
-        const value = data[key];
-        if (typeof value === 'string' && value.trim()) return value;
+        const value = nonEmptyString(data[key]);
+        if (value) return value;
     }
     return undefined;
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
