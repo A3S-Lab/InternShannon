@@ -358,6 +358,7 @@ export class KernelMessageRunnerService {
             durationMs: Date.now() - startedAt,
             totalTokens,
             toolCalls: announcedToolIds.size,
+            activeToolCount: activeToolIds.size,
             openPlanTasks,
             contextUsedPercent,
         });
@@ -373,7 +374,7 @@ export class KernelMessageRunnerService {
                 contextUsedPercent,
             );
             this.logger.log(
-                `[kernel.run.outcome] sessionId=${sessionId} status=${verdict.status} stopReason=${verdict.stopReason} retryable=${verdict.retryable} durationMs=${data.durationMs} totalTokens=${totalTokens ?? 'n/a'} toolCalls=${announcedToolIds.size} openPlanTasks=${openPlanTasks} contextUsedPercent=${contextUsedPercent ?? 'n/a'}`,
+                `[kernel.run.outcome] sessionId=${sessionId} status=${verdict.status} stopReason=${verdict.stopReason} retryable=${verdict.retryable} durationMs=${data.durationMs} totalTokens=${totalTokens ?? 'n/a'} toolCalls=${announcedToolIds.size} activeToolCount=${activeToolIds.size} openPlanTasks=${openPlanTasks} contextUsedPercent=${contextUsedPercent ?? 'n/a'}`,
             );
         };
 

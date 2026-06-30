@@ -82,6 +82,7 @@ test("normalizes run verdict summary fields before InternShannon renders stop re
       duration_ms: "1234",
       total_tokens: "552000",
       tool_calls: "34",
+      active_tool_count: "1",
       open_plan_tasks: "2",
       is_error: true,
       message: "运行提前结束，未收到明确完成信号",
@@ -94,6 +95,7 @@ test("normalizes run verdict summary fields before InternShannon renders stop re
         lastRunDurationMs: 1234,
         lastRunTotalTokens: 552000,
         lastRunToolCalls: 34,
+        lastRunActiveToolCount: 1,
         lastRunOpenPlanTasks: 2,
       },
       isError: true,
@@ -127,6 +129,67 @@ test("suppresses chat error rows for text-only missing SDK stop signal", () => {
       isError: true,
       errorContent: "运行提前结束，未收到明确完成信号",
       shouldAppendErrorMessage: false,
+      runStatus: "incomplete",
+      stopReason: "sdk_stream_ended_without_stop_reason",
+      retryable: true,
+    },
+  );
+});
+
+test("suppresses missing SDK stop signal when tool work has settled", () => {
+  assert.deepEqual(
+    normalizeResultMessageData({
+      status: "incomplete",
+      stopReason: "sdk_stream_ended_without_stop_reason",
+      retryable: true,
+      toolCalls: 5,
+      activeToolCount: 0,
+      openPlanTasks: 0,
+      is_error: true,
+      message: "运行提前结束，未收到明确完成信号",
+    }),
+    {
+      sessionPatch: {
+        lastRunToolCalls: 5,
+        lastRunActiveToolCount: 0,
+        lastRunOpenPlanTasks: 0,
+        lastRunStatus: "incomplete",
+        lastStopReason: "sdk_stream_ended_without_stop_reason",
+        lastRunRetryable: true,
+      },
+      isError: true,
+      errorContent: "运行提前结束，未收到明确完成信号",
+      shouldAppendErrorMessage: false,
+      runStatus: "incomplete",
+      stopReason: "sdk_stream_ended_without_stop_reason",
+      retryable: true,
+    },
+  );
+});
+
+test("keeps missing SDK stop signal visible while tools are still active", () => {
+  assert.deepEqual(
+    normalizeResultMessageData({
+      status: "incomplete",
+      stopReason: "sdk_stream_ended_without_stop_reason",
+      retryable: true,
+      toolCalls: 5,
+      activeToolCount: 1,
+      openPlanTasks: 0,
+      is_error: true,
+      message: "运行提前结束，未收到明确完成信号",
+    }),
+    {
+      sessionPatch: {
+        lastRunToolCalls: 5,
+        lastRunActiveToolCount: 1,
+        lastRunOpenPlanTasks: 0,
+        lastRunStatus: "incomplete",
+        lastStopReason: "sdk_stream_ended_without_stop_reason",
+        lastRunRetryable: true,
+      },
+      isError: true,
+      errorContent: "运行提前结束，未收到明确完成信号",
       runStatus: "incomplete",
       stopReason: "sdk_stream_ended_without_stop_reason",
       retryable: true,

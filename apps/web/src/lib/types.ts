@@ -37,6 +37,7 @@ export interface AgentSessionState {
   lastRunDurationMs?: number;
   lastRunTotalTokens?: number;
   lastRunToolCalls?: number;
+  lastRunActiveToolCount?: number;
   lastRunOpenPlanTasks?: number;
 }
 

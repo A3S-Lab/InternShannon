@@ -41,10 +41,12 @@ export function normalizeResultMessageData(value: unknown): NormalizedResultMess
   const lastRunDurationMs = normalizeNumberField(value, ["durationMs", "duration_ms"]);
   const lastRunTotalTokens = normalizeNumberField(value, ["totalTokens", "total_tokens"]);
   const lastRunToolCalls = normalizeNumberField(value, ["toolCalls", "tool_calls"]);
+  const lastRunActiveToolCount = normalizeNumberField(value, ["activeToolCount", "active_tool_count"]);
   const lastRunOpenPlanTasks = normalizeNumberField(value, ["openPlanTasks", "open_plan_tasks"]);
   if (lastRunDurationMs !== undefined) sessionPatch.lastRunDurationMs = lastRunDurationMs;
   if (lastRunTotalTokens !== undefined) sessionPatch.lastRunTotalTokens = lastRunTotalTokens;
   if (lastRunToolCalls !== undefined) sessionPatch.lastRunToolCalls = lastRunToolCalls;
+  if (lastRunActiveToolCount !== undefined) sessionPatch.lastRunActiveToolCount = lastRunActiveToolCount;
   if (lastRunOpenPlanTasks !== undefined) sessionPatch.lastRunOpenPlanTasks = lastRunOpenPlanTasks;
 
   const runStatus = normalizeRunStatus(value.status ?? value.runStatus ?? value.run_status);
@@ -63,7 +65,7 @@ export function normalizeResultMessageData(value: unknown): NormalizedResultMess
     runStatus === "incomplete" &&
     stopReason === "sdk_stream_ended_without_stop_reason" &&
     lastRunOpenPlanTasks === 0 &&
-    lastRunToolCalls === 0
+    (lastRunActiveToolCount === 0 || (lastRunActiveToolCount === undefined && lastRunToolCalls === 0))
   ) {
     normalized.shouldAppendErrorMessage = false;
   }
