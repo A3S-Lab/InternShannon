@@ -8,6 +8,13 @@ knowledge-base management.
 The goal is not to make the product look more "AI". The goal is to make a
 powerful system feel calm, legible, trustworthy, and operational.
 
+Product usability comes before test convenience. Tests are guardrails for the
+intended user experience; they are not the product goal. When a behavior feels
+wrong in real use, do not reshape the product merely to satisfy a narrow test or
+make an implementation easy to verify. First define the normal user workflow and
+the expectation that would make the product feel natural, then design the code
+and tests to protect that workflow.
+
 ## 1. Design Thesis
 
 internShannon should feel like a serious workbench with a quiet intelligence inside.
