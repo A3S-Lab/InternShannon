@@ -41,9 +41,23 @@ describe('KernelSessionRuntimeFactory HITL session options', () => {
         expect(harness.capturedOptions?.permissionPolicy).toEqual({ defaultDecision: 'allow' });
         expect(harness.activeSession?.nativeConfirmationEnabled).toBe(false);
     });
+
+    it('adds file guidance without disabling the SDK read tool', async () => {
+        const harness = createHarness({ extra: 'custom extra' });
+
+        await harness.factory.getOrCreateSession({
+            sessionId: 'session-file-guidance',
+            emit: jest.fn(),
+        });
+
+        expect(harness.capturedOptions?.extra).toContain('custom extra');
+        expect(harness.capturedOptions?.extra).toContain('Prefer that provided context before re-reading');
+        expect(harness.capturedOptions?.extra).toContain('Use read for UTF-8 text files');
+        expect(harness.capturedOptions?.extra).not.toContain('OCR');
+    });
 });
 
-function createHarness(): {
+function createHarness(options: { extra?: string } = {}): {
     factory: KernelSessionRuntimeFactory;
     capturedOptions?: SessionOptions;
     activeSession?: { nativeConfirmationEnabled: boolean };
@@ -55,7 +69,7 @@ function createHarness(): {
     const runtimeConfig = {
         assistantDefaultOverrides: jest.fn().mockReturnValue({}),
         buildAgentConfig: jest.fn().mockReturnValue('agent-config'),
-        composeExtraSlot: jest.fn().mockReturnValue(undefined),
+        composeExtraSlot: jest.fn().mockReturnValue(options.extra),
         mergeRuntimeOverrides: jest.fn((...items: Array<SessionRuntimeOverrides | undefined>) =>
             Object.assign({}, ...items.filter(Boolean)),
         ),

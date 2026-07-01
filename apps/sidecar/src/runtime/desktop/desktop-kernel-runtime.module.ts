@@ -16,6 +16,7 @@ import { EndSessionHandler } from '@/modules/kernel/application/commands/end-ses
 import { KernelBtwQueryService } from '@/modules/kernel/application/kernel-btw-query.service';
 import { KernelConversationLogService } from '@/modules/kernel/application/kernel-conversation-log.service';
 import { KernelLifecycleFeedbackService } from '@/modules/kernel/application/kernel-lifecycle-feedback.service';
+import { KernelMessageFileContextService } from '@/modules/kernel/application/kernel-message-file-context.service';
 import { KernelMessageRunCancellationService } from '@/modules/kernel/application/kernel-message-run-cancellation.service';
 import { KernelMessageRunIntakeService } from '@/modules/kernel/application/kernel-message-run-intake.service';
 import { KernelMessageRunnerService } from '@/modules/kernel/application/kernel-message-runner.service';
@@ -112,6 +113,7 @@ const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_IN
         KernelBtwQueryService,
         KernelConversationLogService,
         KernelLifecycleFeedbackService,
+        KernelMessageFileContextService,
         KernelMessageRunCancellationService,
         KernelMessageRunIntakeService,
         {

@@ -45,6 +45,7 @@ export class DesktopKernelRuntimeConfigService
               headers: model.headers ?? null,
               sessionIdHeader: model.sessionIdHeader ?? null,
               attachment: model.attachment ?? null,
+              modalities: model.modalities ?? null,
               reasoning: model.reasoning ?? null,
               toolCall: model.toolCall ?? null,
               temperature: model.temperature ?? null,

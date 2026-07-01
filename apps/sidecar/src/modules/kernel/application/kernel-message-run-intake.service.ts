@@ -4,6 +4,7 @@ import type { IKernelMessageRunService, KernelMessageRunInput } from '../domain/
 import { type IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
 import { describeLockedRunViolation, isLockedAgent, LOCKED_AGENT_POLICY } from './agents/locked-agent.policy';
 import { KernelConversationLogService } from './kernel-conversation-log.service';
+import { KernelMessageFileContextService } from './kernel-message-file-context.service';
 import { KernelMessageRunnerService } from './kernel-message-runner.service';
 import { KernelSessionRuntimeAccessService } from './kernel-session-runtime-access.service';
 import { KernelSessionRuntimeStateService } from './kernel-session-runtime-state.service';
@@ -23,6 +24,7 @@ export class KernelMessageRunIntakeService implements IKernelMessageRunService {
         private readonly runtimeState: KernelSessionRuntimeStateService,
         private readonly runtimeAccess: KernelSessionRuntimeAccessService,
         private readonly messageRunner: KernelMessageRunnerService,
+        private readonly fileContext: KernelMessageFileContextService,
         @Inject(KERNEL_SERVICE)
         private readonly kernelService: IKernelService,
     ) {}
@@ -88,10 +90,28 @@ export class KernelMessageRunIntakeService implements IKernelMessageRunService {
             source: 'Kernel Runtime',
         });
 
+        const includeVisionAttachments = this.runtimeState
+            .runtimeConfigBuilder()
+            .modelSupportsAttachments(activeSession.resolvedModel);
+        const fileContextResult = await this.fileContext.appendMentionedFileContext({
+            content: input.content,
+            workspaceRoot: activeSession.storageWorkspace || activeSession.workspace,
+            includeVisionAttachments,
+        });
+        if (fileContextResult.fileCount > 0) {
+            this.logger.log(
+                `Appended readable context for ${fileContextResult.fileCount} mentioned file(s) in session ${input.sessionId}`,
+            );
+        }
+        const images = [
+            ...(input.images ?? []),
+            ...fileContextResult.images,
+        ];
+
         await this.messageRunner.runUserMessage({
             sessionId: input.sessionId,
-            content: input.content,
-            images: input.images,
+            content: fileContextResult.content,
+            images: images.length > 0 ? images : undefined,
             model: effectiveInput.model,
             activeSession,
             messageId: userMessage.id,

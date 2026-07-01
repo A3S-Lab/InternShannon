@@ -57,6 +57,7 @@ export interface KernelRuntimeModelConfig {
     headers?: Record<string, string> | null;
     sessionIdHeader?: string | null;
     attachment?: boolean | null;
+    modalities?: { input?: string[] | null; output?: string[] | null } | null;
     reasoning?: boolean | null;
     toolCall?: boolean | null;
     temperature?: boolean | null;

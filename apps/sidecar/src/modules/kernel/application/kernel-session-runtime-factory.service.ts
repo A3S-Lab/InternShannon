@@ -198,7 +198,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
             role: finalOverrides.role,
             guidelines: finalOverrides.guidelines,
             responseStyle: finalOverrides.responseStyle,
-            extra: runtimeConfig.composeExtraSlot(finalOverrides),
+            extra: this.composeRuntimeExtra(runtimeConfig.composeExtraSlot(finalOverrides)),
             // 3.2.x async-delegation primitives. When an agent registers
             // `workerAgents`, callers can offload long ops via
             // `session.task({ agent: '<name>', ... })` and cancel them per-task
@@ -295,6 +295,16 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
 
     private effectiveRuntimeOverrides(overrides: SessionRuntimeOverrides): SessionRuntimeOverrides {
         return overrides;
+    }
+
+    private composeRuntimeExtra(extra: string | undefined): string {
+        const fileToolGuidance = [
+            'Workspace file guidance:',
+            '- When the user mentions a workspace PDF or image, the host may already include readable text, metadata, and supported image attachments in the user message.',
+            '- Prefer that provided context before re-reading the same PDF or image with the SDK read tool.',
+            '- Use read for UTF-8 text files. For binary or format-specific files, use the provided file context, vision attachment, or a format-specific command-line tool when needed.',
+        ].join('\n');
+        return [extra?.trim(), fileToolGuidance].filter(Boolean).join('\n\n');
     }
 
     async resolveRuntimeWorkspace(sessionId: string, workspace?: string): Promise<string> {
