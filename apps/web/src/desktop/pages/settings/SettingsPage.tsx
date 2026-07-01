@@ -3,7 +3,7 @@
  * Uses shared SidebarLayout for consistent navigation.
  */
 
-import { Bot, Code2, FolderOpen, Globe, Info, Palette, PlugZap, RefreshCw } from "lucide-react";
+import { Bot, Code2, FolderOpen, Globe, Info, Palette, PlugZap, RefreshCw, ScanText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { SidebarLayout, type SidebarSection } from "@/desktop/layouts/sidebar-layout";
@@ -14,6 +14,7 @@ import { AiSection } from "./components/ai-section";
 import { AppearanceSection } from "./components/appearance-section";
 import { EditorSection } from "./components/editor-section";
 import { McpSection } from "./components/mcp-section";
+import { OcrSection } from "./components/ocr-section";
 import { SearchSection } from "./components/search-section";
 import { UpdateSection } from "./components/update-section";
 import { WorkspaceSection } from "./components/workspace-section";
@@ -36,6 +37,7 @@ const sections: SidebarSection<SettingsSectionId>[] = [
   },
   { id: "ai", label: "AI 服务", icon: Bot, description: "模型与认证" },
   { id: "mcp", label: "MCP 服务", icon: PlugZap, description: "工具服务" },
+  { id: "ocr", label: "OCR 服务", icon: ScanText, description: "文档识别" },
   {
     id: "search",
     label: "搜索引擎",
@@ -109,6 +111,7 @@ export default function SettingsPage() {
       {section === "appearance" && <AppearanceSection />}
       {section === "ai" && <AiSection />}
       {section === "mcp" && <McpSection />}
+      {section === "ocr" && <OcrSection />}
       {section === "search" && <SearchSection />}
       {section === "update" && <UpdateSection />}
       {section === "about" && <AboutSection />}

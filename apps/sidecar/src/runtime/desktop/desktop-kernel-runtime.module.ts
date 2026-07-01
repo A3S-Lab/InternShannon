@@ -16,6 +16,7 @@ import { EndSessionHandler } from '@/modules/kernel/application/commands/end-ses
 import { KernelBtwQueryService } from '@/modules/kernel/application/kernel-btw-query.service';
 import { KernelConversationLogService } from '@/modules/kernel/application/kernel-conversation-log.service';
 import { KernelLifecycleFeedbackService } from '@/modules/kernel/application/kernel-lifecycle-feedback.service';
+import { KernelMessageFileContextService } from '@/modules/kernel/application/kernel-message-file-context.service';
 import { KernelMessageRunCancellationService } from '@/modules/kernel/application/kernel-message-run-cancellation.service';
 import { KernelMessageRunIntakeService } from '@/modules/kernel/application/kernel-message-run-intake.service';
 import { KernelMessageRunnerService } from '@/modules/kernel/application/kernel-message-runner.service';
@@ -37,6 +38,7 @@ import { SessionService } from '@/modules/kernel/application/session.service';
 import { SessionWorkspaceFileUploadService } from '@/modules/kernel/application/session-workspace-file-upload.service';
 import { SessionWorkspaceSeedService } from '@/modules/kernel/application/session-workspace-seed.service';
 import { WorkspaceGitService } from '@/modules/kernel/application/workspace-git.service';
+import { WorkspaceOcrService } from '@/modules/kernel/application/workspace-ocr.service';
 import { WorkspaceUploadService } from '@/modules/kernel/application/workspace-upload.service';
 import { MESSAGE_REPOSITORY } from '@/modules/kernel/domain/repositories/message.repository.interface';
 import { SESSION_REPOSITORY } from '@/modules/kernel/domain/repositories/session.repository.interface';
@@ -112,6 +114,7 @@ const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_IN
         KernelBtwQueryService,
         KernelConversationLogService,
         KernelLifecycleFeedbackService,
+        KernelMessageFileContextService,
         KernelMessageRunCancellationService,
         KernelMessageRunIntakeService,
         {
@@ -158,6 +161,7 @@ const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_IN
         SessionWorkspaceSeedService,
         SessionWorkspaceFileUploadService,
         WorkspaceGitService,
+        WorkspaceOcrService,
         WorkspaceUploadService,
     ],
     exports: [

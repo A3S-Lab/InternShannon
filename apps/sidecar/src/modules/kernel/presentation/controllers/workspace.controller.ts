@@ -12,6 +12,7 @@ import {
 } from '@/shared/api';
 import { DesktopOwnerId } from '@/shared/security/decorators/desktop-owner.decorator';
 import { DesktopApi } from '@/shared/security/desktop-access';
+import { WorkspaceOcrService } from '../../application/workspace-ocr.service';
 import { WorkspaceUploadService } from '../../application/workspace-upload.service';
 import { IWorkspaceStorage, WORKSPACE_STORAGE } from '../../domain/services/workspace-storage.interface';
 import {
@@ -36,6 +37,7 @@ import {
     SearchInFilesQueryDto,
     SearchResultDto,
     WorkspaceUploadDto,
+    WorkspaceOcrDto,
     WriteBinaryDto,
     WriteFileDto,
 } from '../dto/workspace.dto';
@@ -47,6 +49,7 @@ export class WorkspaceController {
     constructor(
         @Inject(WORKSPACE_STORAGE) private readonly storage: IWorkspaceStorage,
         private readonly uploads: WorkspaceUploadService,
+        private readonly ocr: WorkspaceOcrService,
     ) {}
 
     @Get('default-root')
@@ -147,6 +150,22 @@ export class WorkspaceController {
     async readFile(@Query() query: ReadFileQueryDto, @DesktopOwnerId() userId?: string) {
         await this.assertWorkspacePathAccess(query.path, userId);
         return { content: await this.storage.readFile(query.path) };
+    }
+
+    @Post('ocr')
+    @ApiOkResponse({
+        summary: '显式 OCR 识别',
+        description:
+            '对指定工作区文件执行显式 OCR。该接口不会被 readFile 自动调用；只有显式请求时才会读取二进制文件并访问已配置的 OCR 后端。',
+        responseDescription: '返回 OCR 文本、页面、块与后端元数据',
+    })
+    @ApiBadRequestResponse({ description: '请求参数无效、未配置 OCR 或 OCR 后端失败' })
+    @ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
+    @ApiNotFoundResponse({ description: '文件不存在' })
+    @ApiServerErrorResponse()
+    async recognizeOcr(@Body() body: WorkspaceOcrDto, @DesktopOwnerId() userId?: string) {
+        await this.assertWorkspacePathAccess(body.path, userId);
+        return this.ocr.recognize(body);
     }
 
     @Get('exists')

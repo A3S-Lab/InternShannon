@@ -3,6 +3,7 @@ export const SETTINGS_SECTION_IDS = [
   "appearance",
   "ai",
   "mcp",
+  "ocr",
   "editor",
   "search",
   "update",

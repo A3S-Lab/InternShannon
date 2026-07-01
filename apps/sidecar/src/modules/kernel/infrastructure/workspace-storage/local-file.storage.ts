@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { existsSync, promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { TextDecoder } from 'util';
 import {
     IWorkspaceStorage,
     ReplaceResult,
@@ -15,6 +16,7 @@ import {
 @Injectable()
 export class LocalFileStorage implements IWorkspaceStorage {
     readonly storageKind = 'local' as const;
+    private static readonly MAX_READ_TEXT_BYTES = 512 * 1024;
 
     private readonly textExtensions = new Set([
         '.acl',
@@ -50,6 +52,17 @@ export class LocalFileStorage implements IWorkspaceStorage {
         '.yaml',
         '.yml',
         '.zsh',
+    ]);
+    private readonly imageExtensions = new Set([
+        '.avif',
+        '.bmp',
+        '.gif',
+        '.ico',
+        '.jpeg',
+        '.jpg',
+        '.png',
+        '.svg',
+        '.webp',
     ]);
 
     private fileExtension(name: string): string {
@@ -246,7 +259,16 @@ export class LocalFileStorage implements IWorkspaceStorage {
 
     async readFile(pathStr: string): Promise<string> {
         const normalized = this.normalizeUserPath(pathStr.trim());
-        return fs.readFile(normalized, 'utf-8');
+        const ext = this.fileExtension(normalized);
+        if (ext === '.pdf') {
+            return this.readPdfText(normalized);
+        }
+        if (this.imageExtensions.has(ext)) {
+            return this.describeImageFile(normalized, ext);
+        }
+
+        const data = await fs.readFile(normalized);
+        return this.decodeUtf8Text(data, normalized);
     }
 
     async exists(pathStr: string): Promise<boolean> {
@@ -331,6 +353,177 @@ export class LocalFileStorage implements IWorkspaceStorage {
     async readBinaryFile(pathStr: string): Promise<Buffer> {
         const normalized = this.normalizeUserPath(pathStr.trim());
         return fs.readFile(normalized);
+    }
+
+    private async readPdfText(filePath: string): Promise<string> {
+        const data = await fs.readFile(filePath);
+        const { PDFParse } = await import('pdf-parse');
+        const parser = new PDFParse({ data });
+        try {
+            const result = await parser.getText();
+            const text = result.text.trim();
+            const pageCount = typeof result.total === 'number' ? result.total : undefined;
+            const header = [
+                `File: ${filePath}`,
+                `Type: PDF document`,
+                pageCount !== undefined ? `Pages: ${pageCount}` : undefined,
+                '',
+            ].filter((line): line is string => line !== undefined);
+            if (!text) {
+                return `${header.join('\n')}\nNo extractable text was found in this PDF. It may be scanned or image-only; use OCR to read visual text.`;
+            }
+            const truncated = this.truncateReadText(text);
+            return `${header.join('\n')}\n${truncated}`;
+        } catch (error) {
+            return [
+                `File: ${filePath}`,
+                'Type: PDF document',
+                `Size: ${data.length} bytes`,
+                '',
+                `PDF text extraction failed: ${error instanceof Error ? error.message : String(error)}`,
+                'The file may be encrypted, corrupted, or image-only. Use OCR or a PDF-specific preview path to inspect it.',
+            ].join('\n');
+        } finally {
+            await parser.destroy().catch(() => undefined);
+        }
+    }
+
+    private async describeImageFile(filePath: string, ext: string): Promise<string> {
+        const data = await fs.readFile(filePath);
+        const dimensions = this.imageDimensions(data, ext);
+        return [
+            `File: ${filePath}`,
+            `Type: ${this.imageTypeLabel(ext)}`,
+            `Size: ${data.length} bytes`,
+            dimensions ? `Dimensions: ${dimensions.width}x${dimensions.height}` : undefined,
+            '',
+            'This is an image file. Binary image bytes cannot be read as UTF-8 text.',
+            'Use an explicit OCR or vision-capable attachment path to analyze visible content.',
+        ].filter((line): line is string => line !== undefined).join('\n');
+    }
+
+    private decodeUtf8Text(data: Buffer, filePath: string): string {
+        try {
+            const text = new TextDecoder('utf-8', { fatal: true }).decode(data);
+            return this.truncateReadText(text);
+        } catch {
+            return [
+                `File: ${filePath}`,
+                `Type: binary or non-UTF-8 file`,
+                `Size: ${data.length} bytes`,
+                '',
+                'This file could not be decoded as UTF-8 text.',
+                'Use a binary reader, OCR, or a format-specific parser instead of the text read tool.',
+            ].join('\n');
+        }
+    }
+
+    private truncateReadText(text: string): string {
+        const bytes = Buffer.byteLength(text, 'utf8');
+        if (bytes <= LocalFileStorage.MAX_READ_TEXT_BYTES) {
+            return text;
+        }
+
+        let used = 0;
+        let output = '';
+        for (const char of text) {
+            const size = Buffer.byteLength(char, 'utf8');
+            if (used + size > LocalFileStorage.MAX_READ_TEXT_BYTES) break;
+            used += size;
+            output += char;
+        }
+        return `${output}\n\n[Read output truncated after ${LocalFileStorage.MAX_READ_TEXT_BYTES} bytes.]`;
+    }
+
+    private imageTypeLabel(ext: string): string {
+        switch (ext) {
+            case '.png':
+                return 'PNG image';
+            case '.jpg':
+            case '.jpeg':
+                return 'JPEG image';
+            case '.gif':
+                return 'GIF image';
+            case '.webp':
+                return 'WebP image';
+            case '.svg':
+                return 'SVG image';
+            case '.bmp':
+                return 'BMP image';
+            case '.ico':
+                return 'ICO image';
+            case '.avif':
+                return 'AVIF image';
+            default:
+                return 'image file';
+        }
+    }
+
+    private imageDimensions(data: Buffer, ext: string): { width: number; height: number } | null {
+        if (ext === '.png') {
+            return this.pngDimensions(data);
+        }
+        if (ext === '.jpg' || ext === '.jpeg') {
+            return this.jpegDimensions(data);
+        }
+        if (ext === '.gif') {
+            return data.length >= 10 ? { width: data.readUInt16LE(6), height: data.readUInt16LE(8) } : null;
+        }
+        if (ext === '.webp') {
+            return this.webpDimensions(data);
+        }
+        return null;
+    }
+
+    private pngDimensions(data: Buffer): { width: number; height: number } | null {
+        const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+        if (data.length < 24 || !data.subarray(0, 8).equals(pngSignature)) return null;
+        return { width: data.readUInt32BE(16), height: data.readUInt32BE(20) };
+    }
+
+    private jpegDimensions(data: Buffer): { width: number; height: number } | null {
+        if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) return null;
+        let offset = 2;
+        while (offset + 9 < data.length) {
+            if (data[offset] !== 0xff) return null;
+            const marker = data[offset + 1];
+            const length = data.readUInt16BE(offset + 2);
+            if (length < 2) return null;
+            if (
+                (marker >= 0xc0 && marker <= 0xc3) ||
+                (marker >= 0xc5 && marker <= 0xc7) ||
+                (marker >= 0xc9 && marker <= 0xcb) ||
+                (marker >= 0xcd && marker <= 0xcf)
+            ) {
+                return { width: data.readUInt16BE(offset + 7), height: data.readUInt16BE(offset + 5) };
+            }
+            offset += 2 + length;
+        }
+        return null;
+    }
+
+    private webpDimensions(data: Buffer): { width: number; height: number } | null {
+        if (
+            data.length < 30 ||
+            data.toString('ascii', 0, 4) !== 'RIFF' ||
+            data.toString('ascii', 8, 12) !== 'WEBP'
+        ) {
+            return null;
+        }
+        const chunkType = data.toString('ascii', 12, 16);
+        if (chunkType === 'VP8X' && data.length >= 30) {
+            return {
+                width: 1 + data.readUIntLE(24, 3),
+                height: 1 + data.readUIntLE(27, 3),
+            };
+        }
+        if (chunkType === 'VP8 ' && data.length >= 30) {
+            return {
+                width: data.readUInt16LE(26) & 0x3fff,
+                height: data.readUInt16LE(28) & 0x3fff,
+            };
+        }
+        return null;
     }
 
     async writeBinaryFile(pathStr: string, data: Buffer): Promise<void> {
