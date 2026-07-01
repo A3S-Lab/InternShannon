@@ -87,6 +87,13 @@ export const DEFAULT_MAX_EXECUTION_TIME_MS = 300_000;
 /** Max consecutive malformed tool-call / parser recovery attempts before abort. */
 export const DEFAULT_MAX_PARSE_RETRIES = 2;
 
+/**
+ * Max model↔tool exchange rounds per SDK run. Coding tasks regularly need
+ * read/edit/test/fix cycles across several files, so the SDK's conservative
+ * fallback of 12 is too easy to hit for normal desktop work.
+ */
+export const DEFAULT_MAX_TOOL_ROUNDS = 50;
+
 /** Max consecutive LLM API failures before the SDK circuit breaker aborts the run. */
 export const DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 2;
 

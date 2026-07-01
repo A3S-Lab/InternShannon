@@ -25,6 +25,7 @@ import {
     type ActiveSession,
     DEFAULT_MAX_EXECUTION_TIME_MS,
     DEFAULT_MAX_PARSE_RETRIES,
+    DEFAULT_MAX_TOOL_ROUNDS,
     DEFAULT_CIRCUIT_BREAKER_THRESHOLD,
     DEFAULT_TOOL_TIMEOUT_MS,
     type RuntimeMcpInitError,
@@ -165,7 +166,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
             skillDirs: runtimeSkillDirs,
             planningMode: planningModeForRuntime(finalOverrides),
             goalTracking: finalOverrides.goalTracking,
-            maxToolRounds: finalOverrides.maxToolRounds ?? 12,
+            maxToolRounds: finalOverrides.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS,
             maxParseRetries: this.clampNonNegativeInteger(finalOverrides.maxParseRetries) ?? DEFAULT_MAX_PARSE_RETRIES,
             toolTimeoutMs: this.clampPositiveMs(finalOverrides.toolTimeoutMs) ?? DEFAULT_TOOL_TIMEOUT_MS,
             // Local (a1040668): config-driven via session metadata / settings; defaults to

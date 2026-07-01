@@ -39,6 +39,7 @@ import {
     DEFAULT_STREAM_STALL_HARD_MS,
     DEFAULT_STREAM_STALL_WARNING_MS,
     DEFAULT_TOOL_TIMEOUT_MS,
+    type SessionRuntimeOverrides,
 } from './session-runtime.types';
 import type { ToolConfirmationGate } from './tool-confirmation-gate';
 
@@ -60,6 +61,12 @@ export interface KernelMessageRunInput extends KernelUserMessageInput {
 interface ToolOutputLimitState {
     bytes: number;
     truncated: boolean;
+}
+
+interface EventStreamOptions {
+    content?: string;
+    images?: { mediaType: string; data: string }[];
+    usePersistedHistory?: boolean;
 }
 
 type RunFinalStatus = 'succeeded' | 'incomplete' | 'failed' | 'cancelled';
@@ -85,6 +92,7 @@ interface RunVerdict {
 }
 
 const MAX_CLIENT_TOOL_OUTPUT_BYTES = 64 * 1024;
+const DEFAULT_MAX_TOOL_ROUND_AUTO_CONTINUATIONS = 1;
 const TOOL_OUTPUT_TRUNCATION_NOTICE =
     '\n\n[Tool output truncated for display after 64 KB. Use a narrower path, query, or filter to inspect more.]';
 
@@ -615,6 +623,9 @@ export class KernelMessageRunnerService {
                 maxStreamRetriesOverride >= 0
                     ? Math.floor(maxStreamRetriesOverride)
                     : DEFAULT_MAX_STREAM_RETRIES;
+            const maxToolRoundAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
+            let maxToolRoundAutoContinuesUsed = 0;
+            let streamOptions: EventStreamOptions | undefined;
             // Reassigned at the top of each retry attempt. `watchedNext`,
             // `cancelCurrentRun`, and the inner event loop all close over
             // these bindings, so updates here flow through automatically.
@@ -713,579 +724,628 @@ export class KernelMessageRunnerService {
             // `maxStreamRetries` times before surfacing the failure. Any other
             // stall (tool-active, mid-output) bypasses retry — see the catch
             // gate below.
-            for (let attempt = 0; attempt <= maxStreamRetries; attempt++) {
-                if (attempt > 0) {
-                    // Wipe everything the first attempt accumulated. Safe only
-                    // because we gate retry on `!outputStarted`: the user UI
-                    // has nothing to lose because no assistant tokens or tool
-                    // events were ever emitted.
-                    assistantText.length = 0;
-                    assistantBlocks.length = 0;
-                    seenToolUses.clear();
-                    pendingText = '';
-                    totalTokens = undefined;
-                    activeToolIds.clear();
-                    announcedToolIds.clear();
-                    toolStartedAt.clear();
-                    toolNameById.clear();
-                    toolInputStartedAt.clear();
-                    toolLastInputAt.clear();
-                    toolInputDeltaCount.clear();
-                    toolExecStartedAt.clear();
-                    latestToolIdByName.clear();
-                    toolInputById.clear();
-                    lastToolUpdateAt.clear();
-                    lastToolInputActivityAt.clear();
-                    toolOutputLimitById.clear();
-                    eventTypeTally.clear();
-                    outputStarted = false;
-                    streamStopReason = null;
-                    contextUsedPercent = undefined;
-                    consecutiveErrorsByTool = new Map<string, number>();
-                    currentRunId = null;
-                    lastHeartbeatAt = null;
+            while (true) {
+                streamStopReason = null;
+                currentRunId = null;
 
-                    this.logger.warn(
-                        `[kernel.stream.retry] sessionId=${sessionId} attempt=${attempt + 1} maxAttempts=${maxStreamRetries + 1} model=${resolvedModel} reason=event_stream_stalled`,
-                    );
-                    this.metrics?.incCounter('kernel_stream_retry_total', {
-                        reason: 'event_stream_stalled',
-                    });
-                    emit({
-                        type: 'stream_event',
-                        event: {
-                            type: 'stream_retry',
-                            sessionId,
-                            attempt: attempt + 1,
-                            maxAttempts: maxStreamRetries + 1,
+                for (let attempt = 0; attempt <= maxStreamRetries; attempt++) {
+                    if (attempt > 0) {
+                        // Wipe everything the first attempt accumulated. Safe only
+                        // because we gate retry on `!outputStarted`: the user UI
+                        // has nothing to lose because no assistant tokens or tool
+                        // events were ever emitted.
+                        assistantText.length = 0;
+                        assistantBlocks.length = 0;
+                        seenToolUses.clear();
+                        pendingText = '';
+                        totalTokens = undefined;
+                        activeToolIds.clear();
+                        announcedToolIds.clear();
+                        toolStartedAt.clear();
+                        toolNameById.clear();
+                        toolInputStartedAt.clear();
+                        toolLastInputAt.clear();
+                        toolInputDeltaCount.clear();
+                        toolExecStartedAt.clear();
+                        latestToolIdByName.clear();
+                        toolInputById.clear();
+                        lastToolUpdateAt.clear();
+                        lastToolInputActivityAt.clear();
+                        toolOutputLimitById.clear();
+                        eventTypeTally.clear();
+                        outputStarted = false;
+                        streamStopReason = null;
+                        contextUsedPercent = undefined;
+                        consecutiveErrorsByTool = new Map<string, number>();
+                        currentRunId = null;
+                        lastHeartbeatAt = null;
+
+                        this.logger.warn(
+                            `[kernel.stream.retry] sessionId=${sessionId} attempt=${attempt + 1} maxAttempts=${maxStreamRetries + 1} model=${resolvedModel} reason=event_stream_stalled`,
+                        );
+                        this.metrics?.incCounter('kernel_stream_retry_total', {
                             reason: 'event_stream_stalled',
-                            timestamp: Date.now(),
-                        },
-                    });
+                        });
+                        emit({
+                            type: 'stream_event',
+                            event: {
+                                type: 'stream_retry',
+                                sessionId,
+                                attempt: attempt + 1,
+                                maxAttempts: maxStreamRetries + 1,
+                                reason: 'event_stream_stalled',
+                                timestamp: Date.now(),
+                            },
+                        });
+                        emitMainActivity({
+                            status: 'running',
+                            phase: 'model_retry',
+                            label: '自动重试请求模型',
+                            detail: `上次请求模型长时间无响应，正在自动发起第 ${attempt + 1} 次尝试`,
+                            source: 'a3s-code runtime',
+                        });
+                    }
+
+                    this.logger.log(
+                        `Creating event stream for session ${sessionId}, model=${resolvedModel}${attempt > 0 ? ` (retry ${attempt})` : ''}${maxToolRoundAutoContinuesUsed > 0 ? ` (tool-round continuation ${maxToolRoundAutoContinuesUsed})` : ''}`,
+                    );
+                    eventStream = await this.createEventStream(input, streamOptions);
+                    this.logger.log(`Event stream created for session ${sessionId}, waiting for events...`);
+
+                    // Capture the SDK's run id for this stream so the watchdog can
+                    // do surgical per-run cancellation (`cancelRun(runId)`).
+                    // Best-effort: 3.2.x exposes `currentRun()` but if the SDK
+                    // can't resolve the id (resumed-session race etc.) we fall
+                    // back to the session-level cancel inside `cancelCurrentRun`.
+                    try {
+                        const run = await activeSession.session.currentRun();
+                        const id = (run as { id?: unknown } | null)?.id;
+                        if (typeof id === 'string' && id) currentRunId = id;
+                    } catch (error) {
+                        this.logger.warn(
+                            `currentRun() failed for session ${sessionId}: ${error instanceof Error ? error.message : String(error)} — falling back to session.cancel() on watchdog trips`,
+                        );
+                    }
+
                     emitMainActivity({
                         status: 'running',
-                        phase: 'model_retry',
-                        label: '自动重试请求模型',
-                        detail: `上次请求模型长时间无响应，正在自动发起第 ${attempt + 1} 次尝试`,
+                        phase: 'model_stream',
+                        label: '等待模型输出',
+                        detail: '运行时已开始流式返回事件，正在等待首个输出或工具调用',
                         source: 'a3s-code runtime',
                     });
-                }
 
-                this.logger.log(
-                    `Creating event stream for session ${sessionId}, model=${resolvedModel}${attempt > 0 ? ` (retry ${attempt})` : ''}`,
-                );
-                eventStream = await this.createEventStream(input);
-                this.logger.log(`Event stream created for session ${sessionId}, waiting for events...`);
+                    // Reset the stall clock now that the stream is actually live
+                    // — otherwise the seconds spent awaiting createEventStream
+                    // would count against the watchdog threshold.
+                    lastEventAt = Date.now();
+                    lastHeartbeatAt = null;
 
-                // Capture the SDK's run id for this stream so the watchdog can
-                // do surgical per-run cancellation (`cancelRun(runId)`).
-                // Best-effort: 3.2.x exposes `currentRun()` but if the SDK
-                // can't resolve the id (resumed-session race etc.) we fall
-                // back to the session-level cancel inside `cancelCurrentRun`.
-                try {
-                    const run = await activeSession.session.currentRun();
-                    const id = (run as { id?: unknown } | null)?.id;
-                    if (typeof id === 'string' && id) currentRunId = id;
-                } catch (error) {
-                    this.logger.warn(
-                        `currentRun() failed for session ${sessionId}: ${error instanceof Error ? error.message : String(error)} — falling back to session.cancel() on watchdog trips`,
-                    );
-                }
+                    try {
+                        while (true) {
+                            if (this.runtimeState.isCancelled(sessionId)) {
+                                cancelCurrentRun('user_cancelled');
+                                break;
+                            }
 
-                emitMainActivity({
-                    status: 'running',
-                    phase: 'model_stream',
-                    label: '等待模型输出',
-                    detail: '运行时已开始流式返回事件，正在等待首个输出或工具调用',
-                    source: 'a3s-code runtime',
-                });
+                            const result = await watchedNext();
+                            if (result.done) break;
 
-                // Reset the stall clock now that the stream is actually live
-                // — otherwise the seconds spent awaiting createEventStream
-                // would count against the watchdog threshold.
-                lastEventAt = Date.now();
-                lastHeartbeatAt = null;
+                            if (this.runtimeState.isCancelled(sessionId)) {
+                                cancelCurrentRun('user_cancelled');
+                                break;
+                            }
 
-                try {
-                    while (true) {
-                        if (this.runtimeState.isCancelled(sessionId)) {
-                            cancelCurrentRun('user_cancelled');
-                            break;
-                        }
+                            const event = result.value;
+                            if (!event) continue;
 
-                        const result = await watchedNext();
-                        if (result.done) break;
+                            if (typeof event.type === 'string') {
+                                eventTypeTally.set(event.type, (eventTypeTally.get(event.type) ?? 0) + 1);
+                            }
 
-                        if (this.runtimeState.isCancelled(sessionId)) {
-                            cancelCurrentRun('user_cancelled');
-                            break;
-                        }
+                            if (!outputStarted) {
+                                this.logger.log(
+                                    `[stream:${sessionId}] event type="${event.type}" text="${event.text?.substring(0, 50) || ''}" toolName="${event.toolName || ''}" data="${event.data?.substring(0, 100) || ''}"`,
+                                );
+                            }
 
-                        const event = result.value;
-                        if (!event) continue;
-
-                        if (typeof event.type === 'string') {
-                            eventTypeTally.set(event.type, (eventTypeTally.get(event.type) ?? 0) + 1);
-                        }
-
-                        if (!outputStarted) {
-                            this.logger.log(
-                                `[stream:${sessionId}] event type="${event.type}" text="${event.text?.substring(0, 50) || ''}" toolName="${event.toolName || ''}" data="${event.data?.substring(0, 100) || ''}"`,
-                            );
-                        }
-
-                        if (event.type === 'confirmation_required') {
-                            const confirmation = this.extractConfirmationDetails(event);
-                            const fallbackToolId = confirmation.toolId || mostRecentActiveToolId();
-                            const fallbackToolInput =
-                                confirmation.toolInput ??
-                                (fallbackToolId
-                                    ? this.recordValue(toolInputById.get(fallbackToolId))
-                                    : undefined);
-                            const confirmationDetails = {
-                                ...confirmation,
-                                toolId: fallbackToolId,
-                                toolName:
-                                    confirmation.toolName ||
-                                    (fallbackToolId ? toolNameForId(fallbackToolId) : undefined),
-                                toolInput: fallbackToolInput,
-                            };
-                            const activeConfirmationKey =
-                                confirmationDetails.toolId ||
-                                confirmationDetails.toolName ||
-                                'pending-confirmation';
-                            const lockedAuto = isLockedAgent(activeSession.agentId);
-                            activeToolIds.add(activeConfirmationKey);
-                            emitMainActivity({
-                                status: lockedAuto ? 'running' : 'waiting',
-                                phase: lockedAuto ? 'tool_auto_authorize' : 'tool_authorization',
-                                label: lockedAuto ? '自动授权工具' : '等待工具授权',
-                                detail: lockedAuto
-                                    ? confirmationDetails.toolName
-                                        ? `锁定智能体 ${activeSession.agentId} 自动放行工具 ${confirmationDetails.toolName}`
-                                        : `锁定智能体 ${activeSession.agentId} 自动放行工具调用`
-                                    : confirmationDetails.toolName
-                                      ? `工具 ${confirmationDetails.toolName} 需要用户确认后才能继续`
-                                      : '工具调用需要用户确认后才能继续',
-                                source: lockedAuto ? '锁定智能体自动确认' : '工具授权',
-                            });
-                            if (!lockedAuto) {
+                            if (event.type === 'confirmation_required') {
+                                const confirmation = this.extractConfirmationDetails(event);
+                                const fallbackToolId = confirmation.toolId || mostRecentActiveToolId();
+                                const fallbackToolInput =
+                                    confirmation.toolInput ??
+                                    (fallbackToolId
+                                        ? this.recordValue(toolInputById.get(fallbackToolId))
+                                        : undefined);
+                                const confirmationDetails = {
+                                    ...confirmation,
+                                    toolId: fallbackToolId,
+                                    toolName:
+                                        confirmation.toolName ||
+                                        (fallbackToolId ? toolNameForId(fallbackToolId) : undefined),
+                                    toolInput: fallbackToolInput,
+                                };
+                                const activeConfirmationKey =
+                                    confirmationDetails.toolId ||
+                                    confirmationDetails.toolName ||
+                                    'pending-confirmation';
+                                const lockedAuto = isLockedAgent(activeSession.agentId);
+                                activeToolIds.add(activeConfirmationKey);
+                                emitMainActivity({
+                                    status: lockedAuto ? 'running' : 'waiting',
+                                    phase: lockedAuto ? 'tool_auto_authorize' : 'tool_authorization',
+                                    label: lockedAuto ? '自动授权工具' : '等待工具授权',
+                                    detail: lockedAuto
+                                        ? confirmationDetails.toolName
+                                            ? `锁定智能体 ${activeSession.agentId} 自动放行工具 ${confirmationDetails.toolName}`
+                                            : `锁定智能体 ${activeSession.agentId} 自动放行工具调用`
+                                        : confirmationDetails.toolName
+                                          ? `工具 ${confirmationDetails.toolName} 需要用户确认后才能继续`
+                                          : '工具调用需要用户确认后才能继续',
+                                    source: lockedAuto ? '锁定智能体自动确认' : '工具授权',
+                                });
+                                if (!lockedAuto) {
+                                    emitToolActivity({
+                                        status: 'waiting',
+                                        phase: 'authorization',
+                                        toolUseId: confirmationDetails.toolId,
+                                        toolName: confirmationDetails.toolName,
+                                        label: confirmationDetails.toolName
+                                            ? `等待授权：${confirmationDetails.toolName}`
+                                            : '等待工具授权',
+                                        detail: this.previewValue(confirmationDetails.toolInput),
+                                    });
+                                }
+                                const approved = await this.toolConfirmation.handleConfirmationRequired({
+                                    sessionId,
+                                    agentId: activeSession.agentId,
+                                    session: activeSession.session,
+                                    event,
+                                    confirmation: input.confirmation ?? null,
+                                    fallbackToolId: confirmationDetails.toolId,
+                                    fallbackToolName: confirmationDetails.toolName,
+                                    fallbackToolInput: confirmationDetails.toolInput,
+                                    emit,
+                                });
+                                activeToolIds.delete(activeConfirmationKey);
                                 emitToolActivity({
-                                    status: 'waiting',
-                                    phase: 'authorization',
+                                    status: approved ? 'completed' : 'failed',
+                                    phase: lockedAuto
+                                        ? approved
+                                            ? 'auto_authorized'
+                                            : 'auto_authorization_failed'
+                                        : approved
+                                          ? 'authorized'
+                                          : 'authorization_denied',
                                     toolUseId: confirmationDetails.toolId,
                                     toolName: confirmationDetails.toolName,
-                                    label: confirmationDetails.toolName
-                                        ? `等待授权：${confirmationDetails.toolName}`
-                                        : '等待工具授权',
-                                    detail: this.previewValue(confirmationDetails.toolInput),
+                                    label: lockedAuto
+                                        ? approved
+                                            ? '工具自动授权通过'
+                                            : '工具自动授权失败'
+                                        : approved
+                                          ? '工具授权通过'
+                                          : '工具授权被拒绝',
+                                    detail: confirmationDetails.toolName,
                                 });
-                            }
-                            const approved = await this.toolConfirmation.handleConfirmationRequired({
-                                sessionId,
-                                agentId: activeSession.agentId,
-                                session: activeSession.session,
-                                event,
-                                confirmation: input.confirmation ?? null,
-                                fallbackToolId: confirmationDetails.toolId,
-                                fallbackToolName: confirmationDetails.toolName,
-                                fallbackToolInput: confirmationDetails.toolInput,
-                                emit,
-                            });
-                            activeToolIds.delete(activeConfirmationKey);
-                            emitToolActivity({
-                                status: approved ? 'completed' : 'failed',
-                                phase: lockedAuto
-                                    ? approved
-                                        ? 'auto_authorized'
-                                        : 'auto_authorization_failed'
-                                    : approved
-                                      ? 'authorized'
-                                      : 'authorization_denied',
-                                toolUseId: confirmationDetails.toolId,
-                                toolName: confirmationDetails.toolName,
-                                label: lockedAuto
-                                    ? approved
-                                        ? '工具自动授权通过'
-                                        : '工具自动授权失败'
-                                    : approved
-                                      ? '工具授权通过'
-                                      : '工具授权被拒绝',
-                                detail: confirmationDetails.toolName,
-                            });
-                            emitMainActivity({
-                                status: 'running',
-                                phase: lockedAuto
-                                    ? approved
-                                        ? 'tool_auto_authorized'
-                                        : 'tool_auto_denied'
-                                    : approved
-                                      ? 'tool_authorized'
-                                      : 'tool_denied',
-                                label: lockedAuto
-                                    ? approved
-                                        ? '工具自动授权通过'
-                                        : '工具自动授权失败'
-                                    : approved
-                                      ? '工具授权通过'
-                                      : '工具授权未通过',
-                                detail: confirmation.toolName,
-                                source: lockedAuto ? '锁定智能体自动确认' : '工具授权',
-                            });
-                            // Interactive confirmation can take minutes (Feishu card,
-                            // pager, etc). Reset the stall watchdog so the next
-                            // `watchedNext` doesn't immediately fail with
-                            // `event_stream_stalled` based on the pre-confirmation
-                            // timestamp — the wait was legitimate, not a stuck SDK.
-                            lastEventAt = Date.now();
-                            lastHeartbeatAt = null;
-                            continue;
-                        }
-
-                        const eventData = parseAgentEventData(event);
-                        let normalizedEvent = normalizeStreamEvent(event.type, event, eventData);
-                        streamStopReason =
-                            this.extractRunStopReason(event, eventData, normalizedEvent) ?? streamStopReason;
-                        contextUsedPercent =
-                            this.extractContextUsedPercent(event, eventData) ?? contextUsedPercent;
-                        normalizedEvent = this.withBoundedToolOutput(
-                            normalizedEvent,
-                            toolOutputLimitById,
-                            latestToolIdByName,
-                        );
-                        // Additive, fire-and-forget tap: persist memory_stored/recalled/cleared events
-                        // into the per-user memory base. READ-ONLY w.r.t. `normalizedEvent` — it never
-                        // mutates the object emitted to the browser, and never throws into this loop.
-                        this.tapMemoryEvent(normalizedEvent, { userId: activeSession.userId, sessionId });
-                        if (!normalizedEvent && !isKnownEventType(event.type)) {
-                            this.logger.warn(
-                                `[stream:${sessionId}] unhandled event type="${event.type}" text="${event.text?.substring(0, 80) || ''}" data="${event.data?.substring(0, 200) || ''}"`,
-                            );
-                        }
-                        if (isPlanningProgressEvent(normalizedEvent)) {
-                            planningTracker.observe(normalizedEvent);
-                        }
-                        if (normalizedEvent?.type !== 'input_json_delta') {
-                            flushCoalescedToolInputDelta();
-                        }
-
-                        if (normalizedEvent?.type === 'text_delta' && typeof normalizedEvent.text === 'string') {
-                            if (!outputStarted) {
-                                outputStarted = true;
                                 emitMainActivity({
                                     status: 'running',
-                                    phase: 'model_output',
-                                    label: '接收模型输出',
-                                    detail: '主智能体已收到首个模型文本增量',
-                                    source: 'a3s-code runtime',
+                                    phase: lockedAuto
+                                        ? approved
+                                            ? 'tool_auto_authorized'
+                                            : 'tool_auto_denied'
+                                        : approved
+                                          ? 'tool_authorized'
+                                          : 'tool_denied',
+                                    label: lockedAuto
+                                        ? approved
+                                            ? '工具自动授权通过'
+                                            : '工具自动授权失败'
+                                        : approved
+                                          ? '工具授权通过'
+                                          : '工具授权未通过',
+                                    detail: confirmation.toolName,
+                                    source: lockedAuto ? '锁定智能体自动确认' : '工具授权',
                                 });
-                            }
-                            assistantText.push(normalizedEvent.text);
-                            pendingText += normalizedEvent.text;
-                            if (streamCtx && agentSpec?.onStreamText) {
-                                agentSpec.onStreamText(streamCtx, assistantText.join(''), normalizedEvent.text);
-                            }
-                        }
-                        if (
-                            (normalizedEvent?.type === 'tool_use_start' || normalizedEvent?.type === 'tool_use') &&
-                            typeof normalizedEvent.toolName === 'string'
-                        ) {
-                            const toolUseId =
-                                typeof normalizedEvent.toolId === 'string'
-                                    ? normalizedEvent.toolId
-                                    : `${normalizedEvent.toolName}-${assistantBlocks.length}`;
-                            if (!announcedToolIds.has(toolUseId)) {
-                                announcedToolIds.add(toolUseId);
-                                latestToolIdByName.set(normalizedEvent.toolName, toolUseId);
-                                if (normalizedEvent.input !== undefined) {
-                                    toolInputById.set(toolUseId, normalizedEvent.input);
-                                }
-                                toolStartedAt.set(toolUseId, Date.now());
-                                toolNameById.set(toolUseId, normalizedEvent.toolName);
-                                activeToolIds.add(toolUseId);
-                                emitMainActivity({
-                                    status: 'running',
-                                    phase: 'tool_input_streaming',
-                                    label: `生成工具参数：${normalizedEvent.toolName}`,
-                                    detail: '模型已选择工具，正在生成完整工具参数',
-                                    source: '模型输出',
-                                });
-                                emitToolActivity({
-                                    status: 'running',
-                                    phase: 'input_streaming',
-                                    toolUseId,
-                                    toolName: normalizedEvent.toolName,
-                                    label: `生成参数：${normalizedEvent.toolName}`,
-                                    detail: this.previewValue(normalizedEvent.input),
-                                    elapsedMs: 0,
-                                });
-                            }
-                            if (normalizedEvent.input !== undefined && !toolInputById.has(toolUseId)) {
-                                toolInputById.set(toolUseId, normalizedEvent.input);
-                            }
-                            ensureToolUseBlock(toolUseId, normalizedEvent.toolName, normalizedEvent.input);
-                            const planningUpdate = planningTracker.toolStarted(normalizedEvent.toolName);
-                            if (planningUpdate) {
-                                emitPlanningProgressUpdate(planningUpdate);
-                            }
-                        }
-                        if (normalizedEvent?.type === 'input_json_delta') {
-                            const toolUseId = findCurrentToolId();
-                            if (toolUseId) {
-                                markToolInputStreaming(toolUseId, toolNameById.get(toolUseId));
-                            }
-                            if (queueCoalescedToolInputDelta(normalizedEvent)) {
+                                // Interactive confirmation can take minutes (Feishu card,
+                                // pager, etc). Reset the stall watchdog so the next
+                                // `watchedNext` doesn't immediately fail with
+                                // `event_stream_stalled` based on the pre-confirmation
+                                // timestamp — the wait was legitimate, not a stuck SDK.
+                                lastEventAt = Date.now();
+                                lastHeartbeatAt = null;
                                 continue;
                             }
-                        }
-                        if (
-                            normalizedEvent?.type === 'tool_output_delta' &&
-                            typeof normalizedEvent.toolName === 'string'
-                        ) {
-                            const toolUseId =
-                                typeof normalizedEvent.toolUseId === 'string' && normalizedEvent.toolUseId
-                                    ? normalizedEvent.toolUseId
-                                    : latestToolIdByName.get(normalizedEvent.toolName) || normalizedEvent.toolName;
-                            markToolExecutionStarted(toolUseId);
-                            emitMainActivity({
-                                status: 'running',
-                                phase: 'tool_exec',
-                                label: `执行工具：${normalizedEvent.toolName}`,
-                                detail: '工具已开始执行，正在接收输出',
-                                source: '工具运行器',
-                            });
-                            const now = Date.now();
-                            const last = lastToolUpdateAt.get(toolUseId) ?? 0;
-                            if (now - last > 1000) {
-                                lastToolUpdateAt.set(toolUseId, now);
-                                emitToolActivity({
-                                    status: 'running',
-                                    phase: 'output',
-                                    toolUseId,
-                                    toolName: normalizedEvent.toolName,
-                                    label: `接收输出：${normalizedEvent.toolName}`,
-                                    detail: this.previewValue(normalizedEvent.delta),
-                                    elapsedMs: toolStartedAt.has(toolUseId)
-                                        ? now - toolStartedAt.get(toolUseId)!
-                                        : undefined,
-                                });
-                            }
-                        }
-                        if (normalizedEvent?.type === 'tool_end' && typeof normalizedEvent.toolName === 'string') {
-                            const toolId =
-                                typeof normalizedEvent.toolId === 'string' && normalizedEvent.toolId
-                                    ? normalizedEvent.toolId
-                                    : latestToolIdByName.get(normalizedEvent.toolName) ||
-                                      `${normalizedEvent.toolName}-${assistantBlocks.length}`;
-                            markToolExecutionStarted(toolId);
-                            ensureToolUseBlock(toolId, normalizedEvent.toolName);
-                            flushTextBlock();
-                            const isError =
-                                typeof normalizedEvent.exitCode === 'number' ? normalizedEvent.exitCode !== 0 : false;
-                            assistantBlocks.push({
-                                type: 'tool_result',
-                                toolUseId: toolId,
-                                content: typeof normalizedEvent.output === 'string' ? normalizedEvent.output : '',
-                                isError: isError || undefined,
-                            });
-                            activeToolIds.delete(toolId);
-                            const reportedDurationMs =
-                                typeof normalizedEvent.durationMs === 'number' && Number.isFinite(normalizedEvent.durationMs)
-                                    ? normalizedEvent.durationMs
-                                    : undefined;
-                            const toolDurationMs = estimateToolExecutionDurationMs(toolId, reportedDurationMs);
-                            if (toolDurationMs !== undefined) {
-                                normalizedEvent.durationMs = toolDurationMs;
-                            }
-                            // Track consecutive failures of the same tool so the agent
-                            // can't burn maxToolRounds re-trying a broken tool in a
-                            // tight loop while the user stares at a frozen UI.
-                            if (isError) {
-                                const consecutive = (consecutiveErrorsByTool.get(normalizedEvent.toolName) ?? 0) + 1;
-                                consecutiveErrorsByTool.set(normalizedEvent.toolName, consecutive);
-                                const toolErrorReason =
-                                    typeof normalizedEvent.error === 'string'
-                                        ? normalizedEvent.error
-                                        : typeof normalizedEvent.output === 'string'
-                                          ? normalizedEvent.output.slice(0, 1_000)
-                                          : 'Tool execution failed';
-                                // Structured log so operators can aggregate "tool X
-                                // fails most often" via log pipelines (Loki / ELK).
-                                // Format keeps key=value pairs stable for grep/parse.
+
+                            const eventData = parseAgentEventData(event);
+                            let normalizedEvent = normalizeStreamEvent(event.type, event, eventData);
+                            streamStopReason =
+                                this.extractRunStopReason(event, eventData, normalizedEvent) ?? streamStopReason;
+                            contextUsedPercent =
+                                this.extractContextUsedPercent(event, eventData) ?? contextUsedPercent;
+                            normalizedEvent = this.withBoundedToolOutput(
+                                normalizedEvent,
+                                toolOutputLimitById,
+                                latestToolIdByName,
+                            );
+                            // Additive, fire-and-forget tap: persist memory_stored/recalled/cleared events
+                            // into the per-user memory base. READ-ONLY w.r.t. `normalizedEvent` — it never
+                            // mutates the object emitted to the browser, and never throws into this loop.
+                            this.tapMemoryEvent(normalizedEvent, { userId: activeSession.userId, sessionId });
+                            if (!normalizedEvent && !isKnownEventType(event.type)) {
                                 this.logger.warn(
-                                    `[kernel.tool.error] sessionId=${sessionId} toolName=${normalizedEvent.toolName} toolId=${toolId} exitCode=${normalizedEvent.exitCode ?? 'n/a'} durationMs=${toolDurationMs ?? 'n/a'} consecutive=${consecutive} reason="${toolErrorReason.replace(/"/g, '\\"').slice(0, 200)}"`,
+                                    `[stream:${sessionId}] unhandled event type="${event.type}" text="${event.text?.substring(0, 80) || ''}" data="${event.data?.substring(0, 200) || ''}"`,
                                 );
-                                this.metrics?.incCounter('kernel_tool_errors_total', {
-                                    tool: normalizedEvent.toolName,
-                                });
-                                if (toolDurationMs !== undefined) {
-                                    this.metrics?.observeHistogram(
-                                        'kernel_tool_duration_seconds',
-                                        toolDurationMs / 1_000,
-                                        {
-                                            tool: normalizedEvent.toolName,
-                                            status: 'error',
-                                        },
-                                    );
+                            }
+                            if (isPlanningProgressEvent(normalizedEvent)) {
+                                planningTracker.observe(normalizedEvent);
+                            }
+                            if (normalizedEvent?.type !== 'input_json_delta') {
+                                flushCoalescedToolInputDelta();
+                            }
+
+                            if (normalizedEvent?.type === 'text_delta' && typeof normalizedEvent.text === 'string') {
+                                if (!outputStarted) {
+                                    outputStarted = true;
+                                    emitMainActivity({
+                                        status: 'running',
+                                        phase: 'model_output',
+                                        label: '接收模型输出',
+                                        detail: '主智能体已收到首个模型文本增量',
+                                        source: 'a3s-code runtime',
+                                    });
                                 }
-                                // Surface an explicit tool_error stream event alongside
-                                // the canonical tool_end so frontends can render "tool
-                                // X failed after 30s: <reason>" without re-deriving
-                                // failure from the exit code or scraping output.
-                                //
-                                // `errorKind` (when present) is v3's structured failure
-                                // discriminant — `{type: "timeout", op, duration_ms}` /
-                                // `{type: "remote_git_conflict", ...}` etc. — so the
-                                // UI can show "工具超时" vs "版本冲突" instead of just
-                                // dumping the captured stderr.
-                                const errorKind =
-                                    normalizedEvent.errorKind &&
-                                    typeof normalizedEvent.errorKind === 'object' &&
-                                    !Array.isArray(normalizedEvent.errorKind)
-                                        ? (normalizedEvent.errorKind as Record<string, unknown>)
-                                        : undefined;
-                                emit({
-                                    type: 'stream_event',
-                                    event: {
-                                        type: 'tool_error',
+                                assistantText.push(normalizedEvent.text);
+                                pendingText += normalizedEvent.text;
+                                if (streamCtx && agentSpec?.onStreamText) {
+                                    agentSpec.onStreamText(streamCtx, assistantText.join(''), normalizedEvent.text);
+                                }
+                            }
+                            if (
+                                (normalizedEvent?.type === 'tool_use_start' || normalizedEvent?.type === 'tool_use') &&
+                                typeof normalizedEvent.toolName === 'string'
+                            ) {
+                                const toolUseId =
+                                    typeof normalizedEvent.toolId === 'string'
+                                        ? normalizedEvent.toolId
+                                        : `${normalizedEvent.toolName}-${assistantBlocks.length}`;
+                                if (!announcedToolIds.has(toolUseId)) {
+                                    announcedToolIds.add(toolUseId);
+                                    latestToolIdByName.set(normalizedEvent.toolName, toolUseId);
+                                    if (normalizedEvent.input !== undefined) {
+                                        toolInputById.set(toolUseId, normalizedEvent.input);
+                                    }
+                                    toolStartedAt.set(toolUseId, Date.now());
+                                    toolNameById.set(toolUseId, normalizedEvent.toolName);
+                                    activeToolIds.add(toolUseId);
+                                    emitMainActivity({
+                                        status: 'running',
+                                        phase: 'tool_input_streaming',
+                                        label: `生成工具参数：${normalizedEvent.toolName}`,
+                                        detail: '模型已选择工具，正在生成完整工具参数',
+                                        source: '模型输出',
+                                    });
+                                    emitToolActivity({
+                                        status: 'running',
+                                        phase: 'input_streaming',
+                                        toolUseId,
                                         toolName: normalizedEvent.toolName,
-                                        toolId,
-                                        reason: toolErrorReason,
-                                        exitCode: normalizedEvent.exitCode,
-                                        durationMs: toolDurationMs,
-                                        consecutiveFailures: consecutive,
-                                        errorKind,
-                                        sessionId,
-                                        timestamp: Date.now(),
-                                    },
+                                        label: `生成参数：${normalizedEvent.toolName}`,
+                                        detail: this.previewValue(normalizedEvent.input),
+                                        elapsedMs: 0,
+                                    });
+                                }
+                                if (normalizedEvent.input !== undefined && !toolInputById.has(toolUseId)) {
+                                    toolInputById.set(toolUseId, normalizedEvent.input);
+                                }
+                                ensureToolUseBlock(toolUseId, normalizedEvent.toolName, normalizedEvent.input);
+                                const planningUpdate = planningTracker.toolStarted(normalizedEvent.toolName);
+                                if (planningUpdate) {
+                                    emitPlanningProgressUpdate(planningUpdate);
+                                }
+                            }
+                            if (normalizedEvent?.type === 'input_json_delta') {
+                                const toolUseId = findCurrentToolId();
+                                if (toolUseId) {
+                                    markToolInputStreaming(toolUseId, toolNameById.get(toolUseId));
+                                }
+                                if (queueCoalescedToolInputDelta(normalizedEvent)) {
+                                    continue;
+                                }
+                            }
+                            if (
+                                normalizedEvent?.type === 'tool_output_delta' &&
+                                typeof normalizedEvent.toolName === 'string'
+                            ) {
+                                const toolUseId =
+                                    typeof normalizedEvent.toolUseId === 'string' && normalizedEvent.toolUseId
+                                        ? normalizedEvent.toolUseId
+                                        : latestToolIdByName.get(normalizedEvent.toolName) || normalizedEvent.toolName;
+                                markToolExecutionStarted(toolUseId);
+                                emitMainActivity({
+                                    status: 'running',
+                                    phase: 'tool_exec',
+                                    label: `执行工具：${normalizedEvent.toolName}`,
+                                    detail: '工具已开始执行，正在接收输出',
+                                    source: '工具运行器',
                                 });
-                                if (consecutive >= maxConsecutiveToolErrors) {
-                                    // Existing warn was free-form; tag with the same
-                                    // [kernel.*] structured prefix as the other lines
-                                    // so all kernel-runtime events grep together.
+                                const now = Date.now();
+                                const last = lastToolUpdateAt.get(toolUseId) ?? 0;
+                                if (now - last > 1000) {
+                                    lastToolUpdateAt.set(toolUseId, now);
+                                    emitToolActivity({
+                                        status: 'running',
+                                        phase: 'output',
+                                        toolUseId,
+                                        toolName: normalizedEvent.toolName,
+                                        label: `接收输出：${normalizedEvent.toolName}`,
+                                        detail: this.previewValue(normalizedEvent.delta),
+                                        elapsedMs: toolStartedAt.has(toolUseId)
+                                            ? now - toolStartedAt.get(toolUseId)!
+                                            : undefined,
+                                    });
+                                }
+                            }
+                            if (normalizedEvent?.type === 'tool_end' && typeof normalizedEvent.toolName === 'string') {
+                                const toolId =
+                                    typeof normalizedEvent.toolId === 'string' && normalizedEvent.toolId
+                                        ? normalizedEvent.toolId
+                                        : latestToolIdByName.get(normalizedEvent.toolName) ||
+                                          `${normalizedEvent.toolName}-${assistantBlocks.length}`;
+                                markToolExecutionStarted(toolId);
+                                ensureToolUseBlock(toolId, normalizedEvent.toolName);
+                                flushTextBlock();
+                                const isError =
+                                    typeof normalizedEvent.exitCode === 'number' ? normalizedEvent.exitCode !== 0 : false;
+                                assistantBlocks.push({
+                                    type: 'tool_result',
+                                    toolUseId: toolId,
+                                    content: typeof normalizedEvent.output === 'string' ? normalizedEvent.output : '',
+                                    isError: isError || undefined,
+                                });
+                                activeToolIds.delete(toolId);
+                                const reportedDurationMs =
+                                    typeof normalizedEvent.durationMs === 'number' && Number.isFinite(normalizedEvent.durationMs)
+                                        ? normalizedEvent.durationMs
+                                        : undefined;
+                                const toolDurationMs = estimateToolExecutionDurationMs(toolId, reportedDurationMs);
+                                if (toolDurationMs !== undefined) {
+                                    normalizedEvent.durationMs = toolDurationMs;
+                                }
+                                // Track consecutive failures of the same tool so the agent
+                                // can't burn maxToolRounds re-trying a broken tool in a
+                                // tight loop while the user stares at a frozen UI.
+                                if (isError) {
+                                    const consecutive = (consecutiveErrorsByTool.get(normalizedEvent.toolName) ?? 0) + 1;
+                                    consecutiveErrorsByTool.set(normalizedEvent.toolName, consecutive);
+                                    const toolErrorReason =
+                                        typeof normalizedEvent.error === 'string'
+                                            ? normalizedEvent.error
+                                            : typeof normalizedEvent.output === 'string'
+                                              ? normalizedEvent.output.slice(0, 1_000)
+                                              : 'Tool execution failed';
+                                    // Structured log so operators can aggregate "tool X
+                                    // fails most often" via log pipelines (Loki / ELK).
+                                    // Format keeps key=value pairs stable for grep/parse.
                                     this.logger.warn(
-                                        `[kernel.tool.circuit_open] sessionId=${sessionId} toolName=${normalizedEvent.toolName} consecutive=${consecutive} threshold=${maxConsecutiveToolErrors}`,
+                                        `[kernel.tool.error] sessionId=${sessionId} toolName=${normalizedEvent.toolName} toolId=${toolId} exitCode=${normalizedEvent.exitCode ?? 'n/a'} durationMs=${toolDurationMs ?? 'n/a'} consecutive=${consecutive} reason="${toolErrorReason.replace(/"/g, '\\"').slice(0, 200)}"`,
                                     );
-                                    this.metrics?.incCounter('kernel_tool_circuit_open_total', {
+                                    this.metrics?.incCounter('kernel_tool_errors_total', {
                                         tool: normalizedEvent.toolName,
                                     });
+                                    if (toolDurationMs !== undefined) {
+                                        this.metrics?.observeHistogram(
+                                            'kernel_tool_duration_seconds',
+                                            toolDurationMs / 1_000,
+                                            {
+                                                tool: normalizedEvent.toolName,
+                                                status: 'error',
+                                            },
+                                        );
+                                    }
+                                    // Surface an explicit tool_error stream event alongside
+                                    // the canonical tool_end so frontends can render "tool
+                                    // X failed after 30s: <reason>" without re-deriving
+                                    // failure from the exit code or scraping output.
+                                    //
+                                    // `errorKind` (when present) is v3's structured failure
+                                    // discriminant — `{type: "timeout", op, duration_ms}` /
+                                    // `{type: "remote_git_conflict", ...}` etc. — so the
+                                    // UI can show "工具超时" vs "版本冲突" instead of just
+                                    // dumping the captured stderr.
+                                    const errorKind =
+                                        normalizedEvent.errorKind &&
+                                        typeof normalizedEvent.errorKind === 'object' &&
+                                        !Array.isArray(normalizedEvent.errorKind)
+                                            ? (normalizedEvent.errorKind as Record<string, unknown>)
+                                            : undefined;
                                     emit({
                                         type: 'stream_event',
                                         event: {
-                                            type: 'tool_circuit_open',
+                                            type: 'tool_error',
                                             toolName: normalizedEvent.toolName,
+                                            toolId,
+                                            reason: toolErrorReason,
+                                            exitCode: normalizedEvent.exitCode,
+                                            durationMs: toolDurationMs,
                                             consecutiveFailures: consecutive,
+                                            errorKind,
                                             sessionId,
                                             timestamp: Date.now(),
                                         },
                                     });
-                                    cancelCurrentRun(`tool_circuit_open:${normalizedEvent.toolName}`);
-                                    throw new Error(
-                                        `tool_circuit_open: '${normalizedEvent.toolName}' failed ${consecutive} times in this run`,
-                                    );
-                                }
-                            } else {
-                                consecutiveErrorsByTool.delete(normalizedEvent.toolName);
-                                if (toolDurationMs !== undefined) {
-                                    this.metrics?.observeHistogram(
-                                        'kernel_tool_duration_seconds',
-                                        toolDurationMs / 1_000,
-                                        {
+                                    if (consecutive >= maxConsecutiveToolErrors) {
+                                        // Existing warn was free-form; tag with the same
+                                        // [kernel.*] structured prefix as the other lines
+                                        // so all kernel-runtime events grep together.
+                                        this.logger.warn(
+                                            `[kernel.tool.circuit_open] sessionId=${sessionId} toolName=${normalizedEvent.toolName} consecutive=${consecutive} threshold=${maxConsecutiveToolErrors}`,
+                                        );
+                                        this.metrics?.incCounter('kernel_tool_circuit_open_total', {
                                             tool: normalizedEvent.toolName,
-                                            status: 'success',
-                                        },
-                                    );
+                                        });
+                                        emit({
+                                            type: 'stream_event',
+                                            event: {
+                                                type: 'tool_circuit_open',
+                                                toolName: normalizedEvent.toolName,
+                                                consecutiveFailures: consecutive,
+                                                sessionId,
+                                                timestamp: Date.now(),
+                                            },
+                                        });
+                                        cancelCurrentRun(`tool_circuit_open:${normalizedEvent.toolName}`);
+                                        throw new Error(
+                                            `tool_circuit_open: '${normalizedEvent.toolName}' failed ${consecutive} times in this run`,
+                                        );
+                                    }
+                                } else {
+                                    consecutiveErrorsByTool.delete(normalizedEvent.toolName);
+                                    if (toolDurationMs !== undefined) {
+                                        this.metrics?.observeHistogram(
+                                            'kernel_tool_duration_seconds',
+                                            toolDurationMs / 1_000,
+                                            {
+                                                tool: normalizedEvent.toolName,
+                                                status: 'success',
+                                            },
+                                        );
+                                    }
                                 }
+                                emitToolActivity({
+                                    status: isError ? 'failed' : 'completed',
+                                    phase: 'completed',
+                                    toolUseId: toolId,
+                                    toolName: normalizedEvent.toolName,
+                                    label: isError
+                                        ? `工具失败：${normalizedEvent.toolName}`
+                                        : `工具完成：${normalizedEvent.toolName}`,
+                                    detail: this.previewValue(normalizedEvent.output),
+                                    elapsedMs: toolDurationMs,
+                                });
+                                emitMainActivity({
+                                    status: 'running',
+                                    phase: activeToolIds.size > 0 ? 'tool_exec' : 'model_stream',
+                                    label: activeToolIds.size > 0 ? '继续执行工具' : '回到模型生成',
+                                    detail: isError
+                                        ? '工具执行失败，主智能体将根据错误继续处理'
+                                        : '工具结果已返回给主智能体',
+                                    source: '工具运行器',
+                                });
+                                const planningUpdate = planningTracker.toolEnded(normalizedEvent.toolName, isError);
+                                if (planningUpdate) {
+                                    emitPlanningProgressUpdate(planningUpdate);
+                                }
+                                toolInputById.delete(toolId);
+                                toolNameById.delete(toolId);
+                                toolStartedAt.delete(toolId);
+                                toolInputStartedAt.delete(toolId);
+                                toolLastInputAt.delete(toolId);
+                                toolInputDeltaCount.delete(toolId);
+                                toolExecStartedAt.delete(toolId);
+                                lastToolInputActivityAt.delete(toolId);
                             }
-                            emitToolActivity({
-                                status: isError ? 'failed' : 'completed',
-                                phase: 'completed',
-                                toolUseId: toolId,
-                                toolName: normalizedEvent.toolName,
-                                label: isError
-                                    ? `工具失败：${normalizedEvent.toolName}`
-                                    : `工具完成：${normalizedEvent.toolName}`,
-                                detail: this.previewValue(normalizedEvent.output),
-                                elapsedMs: toolDurationMs,
-                            });
-                            emitMainActivity({
-                                status: 'running',
-                                phase: activeToolIds.size > 0 ? 'tool_exec' : 'model_stream',
-                                label: activeToolIds.size > 0 ? '继续执行工具' : '回到模型生成',
-                                detail: isError
-                                    ? '工具执行失败，主智能体将根据错误继续处理'
-                                    : '工具结果已返回给主智能体',
-                                source: '工具运行器',
-                            });
-                            const planningUpdate = planningTracker.toolEnded(normalizedEvent.toolName, isError);
-                            if (planningUpdate) {
-                                emitPlanningProgressUpdate(planningUpdate);
+                            const nextTotalTokens = this.extractTotalTokens(event, eventData);
+                            if (nextTotalTokens !== undefined) {
+                                totalTokens = nextTotalTokens;
+                                emit({
+                                    type: 'stream_event',
+                                    event: {
+                                        type: 'usage_update',
+                                        totalTokens,
+                                        timestamp: Date.now(),
+                                    },
+                                });
                             }
-                            toolInputById.delete(toolId);
-                            toolNameById.delete(toolId);
-                            toolStartedAt.delete(toolId);
-                            toolInputStartedAt.delete(toolId);
-                            toolLastInputAt.delete(toolId);
-                            toolInputDeltaCount.delete(toolId);
-                            toolExecStartedAt.delete(toolId);
-                            lastToolInputActivityAt.delete(toolId);
-                        }
-                        const nextTotalTokens = this.extractTotalTokens(event, eventData);
-                        if (nextTotalTokens !== undefined) {
-                            totalTokens = nextTotalTokens;
-                            emit({
-                                type: 'stream_event',
-                                event: {
-                                    type: 'usage_update',
-                                    totalTokens,
-                                    timestamp: Date.now(),
-                                },
-                            });
-                        }
 
-                        if (event.type === 'tool_use' || (event.type === 'tool_start' && event.toolName)) {
-                            const toolName = event.toolName as string;
-                            const toolId = event.toolId as string | undefined;
-                            emit({
-                                type: 'stream_event',
-                                event: normalizedEvent ?? {
-                                    type: 'tool_use_start',
-                                    toolName,
-                                    toolId,
-                                },
-                            });
+                            if (event.type === 'tool_use' || (event.type === 'tool_start' && event.toolName)) {
+                                const toolName = event.toolName as string;
+                                const toolId = event.toolId as string | undefined;
+                                emit({
+                                    type: 'stream_event',
+                                    event: normalizedEvent ?? {
+                                        type: 'tool_use_start',
+                                        toolName,
+                                        toolId,
+                                    },
+                                });
+                                continue;
+                            }
+
+                            const browserMsg = normalizedEvent
+                                ? {
+                                      type: 'stream_event',
+                                      event: normalizedEvent,
+                                  }
+                                : event.type === 'error' || !isKnownEventType(event.type)
+                                  ? mapAgentEvent(event.type, event)
+                                  : null;
+                            if (browserMsg && !textDedupe.shouldDrop(browserMsg)) {
+                                emit(browserMsg);
+                            }
+                        }
+                    } catch (innerErr) {
+                        flushCoalescedToolInputDelta();
+                        // Only the "model thinking" wedge is retryable, and only
+                        // when nothing has been streamed yet. Tool-active stalls,
+                        // partial-output stalls, tool circuit-breaker failures,
+                        // and unrelated errors fall through to the outer catch.
+                        const message = innerErr instanceof Error ? innerErr.message : String(innerErr);
+                        const isStall = message.startsWith('event_stream_stalled');
+                        if (
+                            isStall &&
+                            !outputStarted &&
+                            attempt < maxStreamRetries &&
+                            !this.runtimeState.isCancelled(sessionId)
+                        ) {
                             continue;
                         }
+                        throw innerErr;
+                    }
 
-                        const browserMsg = normalizedEvent
-                            ? {
-                                  type: 'stream_event',
-                                  event: normalizedEvent,
-                              }
-                            : event.type === 'error' || !isKnownEventType(event.type)
-                              ? mapAgentEvent(event.type, event)
-                              : null;
-                        if (browserMsg && !textDedupe.shouldDrop(browserMsg)) {
-                            emit(browserMsg);
-                        }
-                    }
-                } catch (innerErr) {
+                    break;
+                }
+
+                if (
+                    this.shouldAutoContinueAfterMaxToolRounds({
+                        stopReason: streamStopReason,
+                        activeToolCount: activeToolIds.size,
+                        used: maxToolRoundAutoContinuesUsed,
+                        limit: maxToolRoundAutoContinues,
+                        wasCancelled: this.runtimeState.isCancelled(sessionId),
+                    })
+                ) {
+                    maxToolRoundAutoContinuesUsed += 1;
+                    streamOptions = {
+                        content: this.maxToolRoundContinuationPrompt(
+                            maxToolRoundAutoContinuesUsed,
+                            maxToolRoundAutoContinues,
+                        ),
+                        images: [],
+                        usePersistedHistory: false,
+                    };
                     flushCoalescedToolInputDelta();
-                    // Only the "model thinking" wedge is retryable, and only
-                    // when nothing has been streamed yet. Tool-active stalls,
-                    // partial-output stalls, tool circuit-breaker failures,
-                    // and unrelated errors fall through to the outer catch.
-                    const message = innerErr instanceof Error ? innerErr.message : String(innerErr);
-                    const isStall = message.startsWith('event_stream_stalled');
-                    if (
-                        isStall &&
-                        !outputStarted &&
-                        attempt < maxStreamRetries &&
-                        !this.runtimeState.isCancelled(sessionId)
-                    ) {
-                        continue;
-                    }
-                    throw innerErr;
+                    this.logger.warn(
+                        `[kernel.run.auto_continue] sessionId=${sessionId} reason=max_tool_rounds attempt=${maxToolRoundAutoContinuesUsed} maxAttempts=${maxToolRoundAutoContinues}`,
+                    );
+                    this.metrics?.incCounter('kernel_run_auto_continue_total', {
+                        reason: 'max_tool_rounds',
+                    });
+                    emitStreamEvent({
+                        type: 'run_auto_continue',
+                        reason: 'max_tool_rounds',
+                        attempt: maxToolRoundAutoContinuesUsed,
+                        maxAttempts: maxToolRoundAutoContinues,
+                        timestamp: Date.now(),
+                    });
+                    emitMainActivity({
+                        status: 'running',
+                        phase: 'auto_continue',
+                        label: '自动续跑',
+                        detail: '本轮达到工具轮次上限，正在继续剩余步骤',
+                        source: 'Kernel Runtime',
+                    });
+                    continue;
                 }
 
                 break;
@@ -1616,6 +1676,43 @@ export class KernelMessageRunnerService {
         };
     }
 
+    private maxToolRoundAutoContinueLimit(
+        overrides: Pick<SessionRuntimeOverrides, 'continuationEnabled' | 'maxContinuationTurns'> | null | undefined,
+    ): number {
+        if (overrides?.continuationEnabled === false) return 0;
+        const configured = overrides?.maxContinuationTurns;
+        if (typeof configured === 'number' && Number.isFinite(configured) && configured > 0) {
+            return Math.min(DEFAULT_MAX_TOOL_ROUND_AUTO_CONTINUATIONS, Math.floor(configured));
+        }
+        return DEFAULT_MAX_TOOL_ROUND_AUTO_CONTINUATIONS;
+    }
+
+    private shouldAutoContinueAfterMaxToolRounds(input: {
+        stopReason: RunStopReason | null;
+        activeToolCount: number;
+        used: number;
+        limit: number;
+        wasCancelled: boolean;
+    }): boolean {
+        return (
+            input.stopReason === 'max_tool_rounds' &&
+            input.activeToolCount === 0 &&
+            input.used < input.limit &&
+            !input.wasCancelled
+        );
+    }
+
+    private maxToolRoundContinuationPrompt(attempt: number, maxAttempts: number): string {
+        return [
+            'Continue the previous user task from the current workspace and session state.',
+            `The prior SDK run stopped because it reached the tool-round limit; this is automatic continuation ${attempt}/${maxAttempts}.`,
+            'First inspect what is already complete, then do only the remaining work. Do not repeat completed file writes or duplicate generated data.',
+            'For large mechanical changes, prefer one script or a batch edit over many small read/write cycles.',
+            'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
+            'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
+        ].join('\n');
+    }
+
     private failedVerdictFromError(error: unknown): RunVerdict {
         const message = error instanceof Error ? error.message : String(error);
         const stopReason = this.normalizeRunStopReason(message) ?? 'unknown';
@@ -1774,9 +1871,13 @@ export class KernelMessageRunnerService {
         }
     }
 
-    private async createEventStream(input: KernelMessageRunInput): Promise<AsyncIterator<AgentEvent>> {
-        const attachments = this.toAttachments(input.images);
-        const history = await this.resolveRuntimeHistory(input);
+    private async createEventStream(
+        input: KernelMessageRunInput,
+        options?: EventStreamOptions,
+    ): Promise<AsyncIterator<AgentEvent>> {
+        const content = options?.content ?? input.content;
+        const attachments = this.toAttachments(options?.images ?? input.images);
+        const history = options?.usePersistedHistory === false ? [] : await this.resolveRuntimeHistory(input);
         const historySummary = this.summarizeRuntimeHistory(history);
         this.logger.log(
             `Calling session.stream for session ${input.sessionId}, hasAttachments=${attachments.length > 0}, historyMessages=${history.length}`,
@@ -1787,11 +1888,11 @@ export class KernelMessageRunnerService {
         const stream =
             attachments.length > 0
                 ? history.length > 0
-                    ? await input.activeSession.session.streamWithAttachments(input.content, attachments, history)
-                    : await input.activeSession.session.streamWithAttachments(input.content, attachments)
+                    ? await input.activeSession.session.streamWithAttachments(content, attachments, history)
+                    : await input.activeSession.session.streamWithAttachments(content, attachments)
                 : history.length > 0
-                  ? await input.activeSession.session.stream(input.content, history)
-                  : await input.activeSession.session.stream(input.content);
+                  ? await input.activeSession.session.stream(content, history)
+                  : await input.activeSession.session.stream(content);
         this.logger.log(`session.stream returned for session ${input.sessionId}`);
         return stream as AsyncIterator<AgentEvent>;
     }

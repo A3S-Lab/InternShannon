@@ -19,6 +19,18 @@ type RunnerInternals = {
         stopReason: string;
         retryable: boolean;
     }): string;
+    maxToolRoundAutoContinueLimit(overrides?: {
+        continuationEnabled?: boolean;
+        maxContinuationTurns?: number;
+    }): number;
+    shouldAutoContinueAfterMaxToolRounds(input: {
+        stopReason: string | null;
+        activeToolCount: number;
+        used: number;
+        limit: number;
+        wasCancelled: boolean;
+    }): boolean;
+    maxToolRoundContinuationPrompt(attempt: number, maxAttempts: number): string;
 };
 
 function createRunner(): RunnerInternals {
@@ -72,5 +84,56 @@ describe('KernelMessageRunnerService run stop reasons', () => {
             retryable: true,
         });
         expect(runner.runVerdictMessage(verdict)).toBe('本轮达到续跑或工具轮次上限，任务尚未确认完成');
+    });
+
+    it('allows one host-level auto continuation for max tool rounds by default', () => {
+        const runner = createRunner();
+
+        const limit = runner.maxToolRoundAutoContinueLimit({});
+
+        expect(limit).toBe(1);
+        expect(
+            runner.shouldAutoContinueAfterMaxToolRounds({
+                stopReason: 'max_tool_rounds',
+                activeToolCount: 0,
+                used: 0,
+                limit,
+                wasCancelled: false,
+            }),
+        ).toBe(true);
+    });
+
+    it('does not auto continue max tool rounds when continuation is disabled or unsafe', () => {
+        const runner = createRunner();
+
+        expect(runner.maxToolRoundAutoContinueLimit({ continuationEnabled: false })).toBe(0);
+        expect(
+            runner.shouldAutoContinueAfterMaxToolRounds({
+                stopReason: 'max_tool_rounds',
+                activeToolCount: 1,
+                used: 0,
+                limit: 1,
+                wasCancelled: false,
+            }),
+        ).toBe(false);
+        expect(
+            runner.shouldAutoContinueAfterMaxToolRounds({
+                stopReason: 'max_tool_rounds',
+                activeToolCount: 0,
+                used: 1,
+                limit: 1,
+                wasCancelled: false,
+            }),
+        ).toBe(false);
+    });
+
+    it('prompts max tool round continuation to inspect before continuing', () => {
+        const runner = createRunner();
+
+        const prompt = runner.maxToolRoundContinuationPrompt(1, 1);
+
+        expect(prompt).toContain('First inspect what is already complete');
+        expect(prompt).toContain('batch edit');
+        expect(prompt).toContain('Do not write scratch files to arbitrary absolute paths');
     });
 });

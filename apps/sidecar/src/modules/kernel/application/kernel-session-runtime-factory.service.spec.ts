@@ -3,7 +3,7 @@ import { KernelSessionRuntimeFactory } from './kernel-session-runtime-factory.se
 import type { AgentRegistry } from './agents/agent-registry';
 import type { KernelSessionRuntimeStateService } from './kernel-session-runtime-state.service';
 import type { IKernelService } from '../domain/services/kernel-service.interface';
-import type { SessionRuntimeOverrides } from './session-runtime.types';
+import { DEFAULT_MAX_TOOL_ROUNDS, type SessionRuntimeOverrides } from './session-runtime.types';
 
 describe('KernelSessionRuntimeFactory HITL session options', () => {
     it('passes the query-lane confirmation policy to the SDK in default mode', async () => {
@@ -40,6 +40,27 @@ describe('KernelSessionRuntimeFactory HITL session options', () => {
         expect(harness.capturedOptions?.confirmationPolicy).toBeUndefined();
         expect(harness.capturedOptions?.permissionPolicy).toEqual({ defaultDecision: 'allow' });
         expect(harness.activeSession?.nativeConfirmationEnabled).toBe(false);
+    });
+
+    it('uses the coding-friendly tool round default while preserving explicit overrides', async () => {
+        const defaultHarness = createHarness();
+
+        await defaultHarness.factory.getOrCreateSession({
+            sessionId: 'session-default-rounds',
+            emit: jest.fn(),
+        });
+
+        expect(defaultHarness.capturedOptions?.maxToolRounds).toBe(DEFAULT_MAX_TOOL_ROUNDS);
+
+        const overrideHarness = createHarness();
+
+        await overrideHarness.factory.getOrCreateSession({
+            sessionId: 'session-custom-rounds',
+            overrides: { maxToolRounds: 24 },
+            emit: jest.fn(),
+        });
+
+        expect(overrideHarness.capturedOptions?.maxToolRounds).toBe(24);
     });
 });
 
