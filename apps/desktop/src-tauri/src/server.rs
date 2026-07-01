@@ -4,6 +4,7 @@
 /// in the app resources directory. During development, we spawn it directly.
 use std::fmt;
 use std::fs;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
@@ -93,14 +94,67 @@ fn sidecar_log_path(stream: &str) -> PathBuf {
     ))
 }
 
-fn open_sidecar_log(path: &PathBuf) -> Result<Stdio, SidecarStartupFailure> {
-    fs::File::create(path).map(Stdio::from).map_err(|error| {
+fn create_sidecar_log(path: &PathBuf) -> Result<fs::File, SidecarStartupFailure> {
+    fs::File::create(path).map_err(|error| {
         SidecarStartupFailure::new(
             "spawn",
             "sidecar_log_failed",
             format!("Failed to create sidecar log {}: {error}", path.display()),
         )
     })
+}
+
+fn mirror_sidecar_logs_to_parent() -> bool {
+    std::env::var("INTERNSHANNON_SIDECAR_MIRROR_LOGS")
+        .ok()
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(cfg!(debug_assertions))
+}
+
+fn capture_sidecar_stream<R>(
+    stream: &'static str,
+    mut reader: R,
+    mut log_file: fs::File,
+    mirror_to_parent: bool,
+) where
+    R: Read + Send + 'static,
+{
+    std::thread::spawn(move || {
+        let mut buffer = [0_u8; 8192];
+        loop {
+            match reader.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(len) => {
+                    let chunk = &buffer[..len];
+                    let _ = log_file.write_all(chunk);
+                    let _ = log_file.flush();
+                    if mirror_to_parent {
+                        if stream == "stderr" {
+                            let mut mirror = std::io::stderr().lock();
+                            let _ = mirror.write_all(chunk);
+                            let _ = mirror.flush();
+                        } else {
+                            let mut mirror = std::io::stdout().lock();
+                            let _ = mirror.write_all(chunk);
+                            let _ = mirror.flush();
+                        }
+                    }
+                }
+                Err(error) => {
+                    let _ = writeln!(
+                        std::io::stderr(),
+                        "Failed to capture InternShannon sidecar {stream}: {error}"
+                    );
+                    break;
+                }
+            }
+        }
+    });
 }
 
 fn read_sidecar_log(path: &PathBuf, max_len: usize) -> Option<String> {
@@ -700,10 +754,11 @@ where
     // Spawn the sidecar process with node
     let stdout_log_path = sidecar_log_path("stdout");
     let stderr_log_path = sidecar_log_path("stderr");
-    let stdout_log = open_sidecar_log(&stdout_log_path)?;
-    let stderr_log = open_sidecar_log(&stderr_log_path)?;
+    let stdout_log = create_sidecar_log(&stdout_log_path)?;
+    let stderr_log = create_sidecar_log(&stderr_log_path)?;
+    let mirror_logs = mirror_sidecar_logs_to_parent();
 
-    let child: Child = {
+    let mut child: Child = {
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
@@ -719,8 +774,8 @@ where
                 .env("NODE_ENV", node_env)
                 .env("APP_VERSION", env!("CARGO_PKG_VERSION"))
                 .env("RUST_LOG", "info")
-                .stdout(stdout_log)
-                .stderr(stderr_log)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
                 .creation_flags(CREATE_NO_WINDOW)
                 .spawn()
                 .map_err(|e| {
@@ -740,14 +795,31 @@ where
                 .env("NODE_ENV", node_env)
                 .env("APP_VERSION", env!("CARGO_PKG_VERSION"))
                 .env("RUST_LOG", "info")
-                .stdout(stdout_log)
-                .stderr(stderr_log)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
                 .spawn()
                 .map_err(|e| {
                     SidecarStartupFailure::new("spawn", "sidecar_spawn_failed", e.to_string())
                 })?
         }
     };
+
+    let stdout = child.stdout.take().ok_or_else(|| {
+        SidecarStartupFailure::new(
+            "spawn",
+            "sidecar_stdout_unavailable",
+            "Sidecar stdout pipe was not available after spawn",
+        )
+    })?;
+    let stderr = child.stderr.take().ok_or_else(|| {
+        SidecarStartupFailure::new(
+            "spawn",
+            "sidecar_stderr_unavailable",
+            "Sidecar stderr pipe was not available after spawn",
+        )
+    })?;
+    capture_sidecar_stream("stdout", stdout, stdout_log, mirror_logs);
+    capture_sidecar_stream("stderr", stderr, stderr_log, mirror_logs);
 
     tracing::info!(
         "InternShannon API sidecar spawned: pid={} node {} on port 29653",
