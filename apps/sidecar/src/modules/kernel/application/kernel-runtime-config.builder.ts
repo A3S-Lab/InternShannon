@@ -219,6 +219,16 @@ export class KernelRuntimeConfigBuilder {
         return !this.hasModelApiKey(ref);
     }
 
+    modelSupportsAttachments(model: string | null | undefined): boolean {
+        const ref = this.parseModelRef(model);
+        if (!ref) return false;
+        const provider = this.modelsConfig?.providers?.find(item => item.name === ref.providerName);
+        const configured = provider?.models?.find(item => item.id === ref.modelId);
+        if (configured?.attachment === true) return true;
+        const inputModalities = configured?.modalities?.input ?? [];
+        return inputModalities.some(item => ['image', 'vision'].includes(item.trim().toLowerCase()));
+    }
+
     private firstCredentialedModel(): { providerName: string; modelId: string } | null {
         for (const provider of this.modelsConfig?.providers ?? []) {
             for (const model of provider.models ?? []) {

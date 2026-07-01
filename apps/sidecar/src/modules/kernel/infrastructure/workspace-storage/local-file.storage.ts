@@ -1,10 +1,8 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
-import { createOcrRegistry, OcrBackendError } from '@a3s-lab/ocr';
+import { Injectable } from '@nestjs/common';
 import { existsSync, promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { TextDecoder } from 'util';
-import { CONFIG_SERVICE, ConfigService } from '../../../config/domain/services/config-service.interface';
 import {
     IWorkspaceStorage,
     ReplaceResult,
@@ -19,12 +17,6 @@ import {
 export class LocalFileStorage implements IWorkspaceStorage {
     readonly storageKind = 'local' as const;
     private static readonly MAX_READ_TEXT_BYTES = 512 * 1024;
-
-    constructor(
-        @Optional()
-        @Inject(CONFIG_SERVICE)
-        private readonly config?: ConfigService,
-    ) {}
 
     private readonly textExtensions = new Set([
         '.acl',
@@ -277,9 +269,6 @@ export class LocalFileStorage implements IWorkspaceStorage {
         }
 
         const data = await fs.readFile(normalized);
-        if (ext && !this.textExtensions.has(ext)) {
-            return this.unsupportedBinaryReadMessage(normalized, data.length, ext);
-        }
         return this.decodeUtf8Text(data, normalized);
     }
 
@@ -403,7 +392,6 @@ export class LocalFileStorage implements IWorkspaceStorage {
     private async describeImageFile(filePath: string, ext: string): Promise<string> {
         const data = await fs.readFile(filePath);
         const dimensions = this.imageDimensions(data, ext);
-        const ocrText = await this.readImageOcrText(filePath, data, ext);
         return [
             `File: ${filePath}`,
             `Type: ${this.imageTypeLabel(ext)}`,
@@ -411,52 +399,8 @@ export class LocalFileStorage implements IWorkspaceStorage {
             dimensions ? `Dimensions: ${dimensions.width}x${dimensions.height}` : undefined,
             '',
             'This is an image file. Binary image bytes cannot be read as UTF-8 text.',
-            ocrText,
+            'Use an explicit OCR or vision-capable attachment path to analyze visible content.',
         ].filter((line): line is string => line !== undefined).join('\n');
-    }
-
-    private async readImageOcrText(filePath: string, data: Buffer, ext: string): Promise<string> {
-        const settings = await this.config?.getSettings().catch(() => null);
-        const ocrSettings = settings?.ocr;
-        const enabledBackends = ocrSettings?.backends?.filter(backend => backend.enabled) ?? [];
-        if (!ocrSettings || enabledBackends.length === 0) {
-            return 'OCR is not configured. Enable an OCR backend in settings to extract visible text from this image.';
-        }
-
-        try {
-            const registry = createOcrRegistry(ocrSettings);
-            const result = await registry.recognize({
-                data,
-                filename: path.basename(filePath),
-                mimeType: this.imageMimeType(ext),
-            });
-            const text = (result.markdown || result.text || '').trim();
-            if (!text) {
-                return 'OCR completed, but no visible text was recognized in this image.';
-            }
-            return [
-                'OCR text:',
-                this.truncateReadText(text),
-            ].join('\n');
-        } catch (error) {
-            const detail = error instanceof Error ? error.message : String(error);
-            const backend =
-                error instanceof OcrBackendError && error.backend
-                    ? ` (${error.backend}${error.status ? ` HTTP ${error.status}` : ''})`
-                    : '';
-            return `OCR failed${backend}: ${detail}`;
-        }
-    }
-
-    private unsupportedBinaryReadMessage(filePath: string, size: number, ext: string): string {
-        return [
-            `File: ${filePath}`,
-            `Type: binary file (${ext.slice(1).toUpperCase()})`,
-            `Size: ${size} bytes`,
-            '',
-            'This file is not a UTF-8 text document and cannot be read with the text read tool.',
-            'Use the binary preview/download path or a format-specific parser for this file type.',
-        ].join('\n');
     }
 
     private decodeUtf8Text(data: Buffer, filePath: string): string {
@@ -513,28 +457,6 @@ export class LocalFileStorage implements IWorkspaceStorage {
                 return 'AVIF image';
             default:
                 return 'image file';
-        }
-    }
-
-    private imageMimeType(ext: string): string {
-        switch (ext) {
-            case '.png':
-                return 'image/png';
-            case '.jpg':
-            case '.jpeg':
-                return 'image/jpeg';
-            case '.gif':
-                return 'image/gif';
-            case '.webp':
-                return 'image/webp';
-            case '.bmp':
-                return 'image/bmp';
-            case '.ico':
-                return 'image/x-icon';
-            case '.avif':
-                return 'image/avif';
-            default:
-                return 'application/octet-stream';
         }
     }
 

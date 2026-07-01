@@ -38,6 +38,7 @@ import { SessionService } from '@/modules/kernel/application/session.service';
 import { SessionWorkspaceFileUploadService } from '@/modules/kernel/application/session-workspace-file-upload.service';
 import { SessionWorkspaceSeedService } from '@/modules/kernel/application/session-workspace-seed.service';
 import { WorkspaceGitService } from '@/modules/kernel/application/workspace-git.service';
+import { WorkspaceOcrService } from '@/modules/kernel/application/workspace-ocr.service';
 import { WorkspaceUploadService } from '@/modules/kernel/application/workspace-upload.service';
 import { MESSAGE_REPOSITORY } from '@/modules/kernel/domain/repositories/message.repository.interface';
 import { SESSION_REPOSITORY } from '@/modules/kernel/domain/repositories/session.repository.interface';
@@ -107,7 +108,7 @@ const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_IN
         },
         {
             provide: WORKSPACE_STORAGE,
-            useClass: LocalFileStorage,
+            useFactory: () => new LocalFileStorage(),
         },
         KernelGateway,
         KernelBtwQueryService,
@@ -160,6 +161,7 @@ const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_IN
         SessionWorkspaceSeedService,
         SessionWorkspaceFileUploadService,
         WorkspaceGitService,
+        WorkspaceOcrService,
         WorkspaceUploadService,
     ],
     exports: [
