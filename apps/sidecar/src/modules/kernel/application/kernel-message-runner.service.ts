@@ -1667,6 +1667,20 @@ export class KernelMessageRunnerService {
             const normalized = this.normalizeRunStopReason(candidate);
             if (normalized) return normalized;
         }
+        if (event.type === 'error') {
+            const errorCandidates = [
+                eventRecord.message,
+                eventRecord.error,
+                data.message,
+                data.error,
+                normalizedEvent?.message,
+                normalizedEvent?.error,
+            ];
+            for (const candidate of errorCandidates) {
+                const normalized = this.normalizeRunStopReason(candidate);
+                if (normalized) return normalized;
+            }
+        }
         return null;
     }
 
@@ -1710,7 +1724,14 @@ export class KernelMessageRunnerService {
         if (compact === 'max_execution_time' || compact === 'timeout' || compact === 'timed_out') {
             return 'max_execution_time';
         }
-        if (compact === 'max_tool_rounds' || compact === 'tool_round_limit') return 'max_tool_rounds';
+        if (
+            compact === 'max_tool_rounds' ||
+            compact === 'tool_round_limit' ||
+            compact.includes('max_tool_rounds') ||
+            compact.includes('tool_round_limit')
+        ) {
+            return 'max_tool_rounds';
+        }
         if (compact === 'continuation_exhausted' || compact === 'max_continuation_turns') {
             return 'continuation_exhausted';
         }

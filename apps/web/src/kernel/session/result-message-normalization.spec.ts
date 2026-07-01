@@ -167,6 +167,36 @@ test("suppresses missing SDK stop signal when tool work has settled", () => {
   );
 });
 
+test("keeps max tool rounds verdict visible when tool work has settled", () => {
+  assert.deepEqual(
+    normalizeResultMessageData({
+      status: "incomplete",
+      stopReason: "max_tool_rounds",
+      retryable: true,
+      toolCalls: 18,
+      activeToolCount: 0,
+      openPlanTasks: 0,
+      is_error: true,
+      message: "本轮达到续跑或工具轮次上限，任务尚未确认完成",
+    }),
+    {
+      sessionPatch: {
+        lastRunToolCalls: 18,
+        lastRunActiveToolCount: 0,
+        lastRunOpenPlanTasks: 0,
+        lastRunStatus: "incomplete",
+        lastStopReason: "max_tool_rounds",
+        lastRunRetryable: true,
+      },
+      isError: true,
+      errorContent: "本轮达到续跑或工具轮次上限，任务尚未确认完成",
+      runStatus: "incomplete",
+      stopReason: "max_tool_rounds",
+      retryable: true,
+    },
+  );
+});
+
 test("keeps missing SDK stop signal visible while tools are still active", () => {
   assert.deepEqual(
     normalizeResultMessageData({
