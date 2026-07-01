@@ -21,14 +21,19 @@ import type {
 import { exposeWorkspacePath as exposeRuntimeWorkspacePath } from "@/lib/workspace-path";
 import { normalizePersistedSdkSessions, normalizePersistedSessionNames } from "./agent-session-persistence";
 
+export type ToolProgressPhase = "input_streaming" | "executing" | "output";
+
 export interface ToolProgress {
   toolUseId: string;
   toolName: string;
   elapsedTimeSeconds: number;
+  phase?: ToolProgressPhase;
   /** Tool input summary (e.g. file path, command) */
   input?: string;
   /** Streaming tool output (when available) */
   output?: string;
+  inputDeltaCount?: number;
+  inputStreamingMs?: number;
 }
 
 /** A completed tool call shown during streaming */
@@ -56,12 +61,14 @@ export interface AuthStatus {
   error?: string;
 }
 
-export type StreamSlowStage = "frontend_send" | "model_first_token" | "tool_exec" | "unknown";
+export type StreamSlowStage = "frontend_send" | "model_first_token" | "tool_input_streaming" | "tool_exec" | "unknown";
 
 export interface StreamPerfHint {
   turn_id: number;
   slow_stage: StreamSlowStage;
   to_first_delta_ms?: number;
+  to_first_tool_input_delta_ms?: number;
+  tool_input_stream_ms?: number;
   to_result_ms?: number;
   updatedAt: number;
 }
@@ -1015,7 +1022,6 @@ const actions = {
   getPersistedAssistantBlocks(sessionId: string): Record<string, ContentBlock[]> {
     return persistedAssistantBlocks[sessionId] || {};
   },
-
 };
 
 onUserStorageScopeChange(reloadUserScopedAgentState);

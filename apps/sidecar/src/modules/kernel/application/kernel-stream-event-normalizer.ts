@@ -172,6 +172,8 @@ export function normalizeStreamEvent(
             output: extractToolOutput(event, data),
             exitCode,
         };
+        const durationMs = pickNumber(data, 'durationMs', 'duration_ms');
+        if (durationMs !== undefined) result.durationMs = durationMs;
         // Surface a stable `error` field on failed completions so clients
         // don't have to re-derive failure from the exit code. The reason text
         // comes from either the SDK's explicit `error` field or the tool's

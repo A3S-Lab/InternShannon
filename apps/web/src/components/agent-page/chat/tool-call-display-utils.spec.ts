@@ -75,6 +75,10 @@ test("summarizes tool results as concise terminal receipts", () => {
 		"运行中...",
 	);
 	assert.equal(
+		summarizeToolResult("write", undefined, false, true, "input_streaming"),
+		"生成工具参数...",
+	);
+	assert.equal(
 		summarizeToolResult("read", "a\nb\n", false, false),
 		"读取 2 行",
 	);

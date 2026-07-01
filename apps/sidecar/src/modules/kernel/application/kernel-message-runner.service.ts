@@ -157,9 +157,15 @@ export class KernelMessageRunnerService {
         const activeToolIds = new Set<string>();
         const announcedToolIds = new Set<string>();
         const toolStartedAt = new Map<string, number>();
+        const toolNameById = new Map<string, string>();
+        const toolInputStartedAt = new Map<string, number>();
+        const toolLastInputAt = new Map<string, number>();
+        const toolInputDeltaCount = new Map<string, number>();
+        const toolExecStartedAt = new Map<string, number>();
         const latestToolIdByName = new Map<string, string>();
         const toolInputById = new Map<string, unknown>();
         const lastToolUpdateAt = new Map<string, number>();
+        const lastToolInputActivityAt = new Map<string, number>();
         const toolOutputLimitById = new Map<string, ToolOutputLimitState>();
         let outputStarted = false;
         let lifecycleClosed = false;
@@ -226,6 +232,59 @@ export class KernelMessageRunnerService {
                 runId: messageId,
                 ...activity,
             });
+        };
+        const findCurrentToolId = (preferredToolId?: string, preferredToolName?: string): string | undefined => {
+            if (preferredToolId && activeToolIds.has(preferredToolId)) return preferredToolId;
+            if (preferredToolName) {
+                const byName = latestToolIdByName.get(preferredToolName);
+                if (byName && activeToolIds.has(byName)) return byName;
+            }
+            if (activeToolIds.size === 1) return Array.from(activeToolIds)[0];
+            const activeIds = Array.from(activeToolIds);
+            return activeIds[activeIds.length - 1];
+        };
+        const markToolInputStreaming = (toolId: string, toolName?: string) => {
+            const now = Date.now();
+            if (!toolInputStartedAt.has(toolId)) {
+                toolInputStartedAt.set(toolId, now);
+            }
+            toolLastInputAt.set(toolId, now);
+            toolInputDeltaCount.set(toolId, (toolInputDeltaCount.get(toolId) ?? 0) + 1);
+            const last = lastToolInputActivityAt.get(toolId) ?? 0;
+            if (now - last > 1000) {
+                lastToolInputActivityAt.set(toolId, now);
+                emitMainActivity({
+                    status: 'running',
+                    phase: 'tool_input_streaming',
+                    label: toolName ? `生成工具参数：${toolName}` : '生成工具参数',
+                    detail: '模型正在流式生成工具参数，工具尚未开始执行',
+                    source: '模型输出',
+                });
+                emitToolActivity({
+                    status: 'running',
+                    phase: 'input_streaming',
+                    toolUseId: toolId,
+                    toolName,
+                    label: toolName ? `生成参数：${toolName}` : '生成参数',
+                    detail: `${toolInputDeltaCount.get(toolId) ?? 0} 段参数流`,
+                    elapsedMs: now - (toolInputStartedAt.get(toolId) ?? now),
+                });
+            }
+        };
+        const markToolExecutionStarted = (toolId: string) => {
+            if (!toolExecStartedAt.has(toolId)) {
+                toolExecStartedAt.set(toolId, toolLastInputAt.get(toolId) ?? toolStartedAt.get(toolId) ?? Date.now());
+            }
+        };
+        const estimateToolExecutionDurationMs = (
+            toolId: string,
+            reportedDurationMs?: number,
+        ): number | undefined => {
+            if (typeof reportedDurationMs === 'number' && Number.isFinite(reportedDurationMs)) {
+                return Math.max(0, reportedDurationMs);
+            }
+            const startedAt = toolExecStartedAt.get(toolId) ?? toolLastInputAt.get(toolId) ?? toolStartedAt.get(toolId);
+            return startedAt === undefined ? undefined : Math.max(0, Date.now() - startedAt);
         };
         emitMainActivity({
             status: 'running',
@@ -631,9 +690,15 @@ export class KernelMessageRunnerService {
                     activeToolIds.clear();
                     announcedToolIds.clear();
                     toolStartedAt.clear();
+                    toolNameById.clear();
+                    toolInputStartedAt.clear();
+                    toolLastInputAt.clear();
+                    toolInputDeltaCount.clear();
+                    toolExecStartedAt.clear();
                     latestToolIdByName.clear();
                     toolInputById.clear();
                     lastToolUpdateAt.clear();
+                    lastToolInputActivityAt.clear();
                     toolOutputLimitById.clear();
                     eventTypeTally.clear();
                     outputStarted = false;
@@ -896,20 +961,21 @@ export class KernelMessageRunnerService {
                                     toolInputById.set(toolUseId, normalizedEvent.input);
                                 }
                                 toolStartedAt.set(toolUseId, Date.now());
+                                toolNameById.set(toolUseId, normalizedEvent.toolName);
                                 activeToolIds.add(toolUseId);
                                 emitMainActivity({
                                     status: 'running',
-                                    phase: 'tool_exec',
-                                    label: `执行工具：${normalizedEvent.toolName}`,
-                                    detail: '模型已选择工具，后端正在执行并等待结果',
-                                    source: '工具运行器',
+                                    phase: 'tool_input_streaming',
+                                    label: `生成工具参数：${normalizedEvent.toolName}`,
+                                    detail: '模型已选择工具，正在生成完整工具参数',
+                                    source: '模型输出',
                                 });
                                 emitToolActivity({
                                     status: 'running',
-                                    phase: 'started',
+                                    phase: 'input_streaming',
                                     toolUseId,
                                     toolName: normalizedEvent.toolName,
-                                    label: `开始执行：${normalizedEvent.toolName}`,
+                                    label: `生成参数：${normalizedEvent.toolName}`,
                                     detail: this.previewValue(normalizedEvent.input),
                                     elapsedMs: 0,
                                 });
@@ -923,6 +989,12 @@ export class KernelMessageRunnerService {
                                 emitPlanningProgressUpdate(planningUpdate);
                             }
                         }
+                        if (normalizedEvent?.type === 'input_json_delta') {
+                            const toolUseId = findCurrentToolId();
+                            if (toolUseId) {
+                                markToolInputStreaming(toolUseId, toolNameById.get(toolUseId));
+                            }
+                        }
                         if (
                             normalizedEvent?.type === 'tool_output_delta' &&
                             typeof normalizedEvent.toolName === 'string'
@@ -931,6 +1003,14 @@ export class KernelMessageRunnerService {
                                 typeof normalizedEvent.toolUseId === 'string' && normalizedEvent.toolUseId
                                     ? normalizedEvent.toolUseId
                                     : latestToolIdByName.get(normalizedEvent.toolName) || normalizedEvent.toolName;
+                            markToolExecutionStarted(toolUseId);
+                            emitMainActivity({
+                                status: 'running',
+                                phase: 'tool_exec',
+                                label: `执行工具：${normalizedEvent.toolName}`,
+                                detail: '工具已开始执行，正在接收输出',
+                                source: '工具运行器',
+                            });
                             const now = Date.now();
                             const last = lastToolUpdateAt.get(toolUseId) ?? 0;
                             if (now - last > 1000) {
@@ -954,6 +1034,7 @@ export class KernelMessageRunnerService {
                                     ? normalizedEvent.toolId
                                     : latestToolIdByName.get(normalizedEvent.toolName) ||
                                       `${normalizedEvent.toolName}-${assistantBlocks.length}`;
+                            markToolExecutionStarted(toolId);
                             ensureToolUseBlock(toolId, normalizedEvent.toolName);
                             flushTextBlock();
                             const isError =
@@ -965,9 +1046,14 @@ export class KernelMessageRunnerService {
                                 isError: isError || undefined,
                             });
                             activeToolIds.delete(toolId);
-                            const toolDurationMs = toolStartedAt.has(toolId)
-                                ? Date.now() - toolStartedAt.get(toolId)!
-                                : undefined;
+                            const reportedDurationMs =
+                                typeof normalizedEvent.durationMs === 'number' && Number.isFinite(normalizedEvent.durationMs)
+                                    ? normalizedEvent.durationMs
+                                    : undefined;
+                            const toolDurationMs = estimateToolExecutionDurationMs(toolId, reportedDurationMs);
+                            if (toolDurationMs !== undefined) {
+                                normalizedEvent.durationMs = toolDurationMs;
+                            }
                             // Track consecutive failures of the same tool so the agent
                             // can't burn maxToolRounds re-trying a broken tool in a
                             // tight loop while the user stares at a frozen UI.
@@ -1093,6 +1179,13 @@ export class KernelMessageRunnerService {
                                 emitPlanningProgressUpdate(planningUpdate);
                             }
                             toolInputById.delete(toolId);
+                            toolNameById.delete(toolId);
+                            toolStartedAt.delete(toolId);
+                            toolInputStartedAt.delete(toolId);
+                            toolLastInputAt.delete(toolId);
+                            toolInputDeltaCount.delete(toolId);
+                            toolExecStartedAt.delete(toolId);
+                            lastToolInputActivityAt.delete(toolId);
                         }
                         const nextTotalTokens = this.extractTotalTokens(event, eventData);
                         if (nextTotalTokens !== undefined) {
@@ -1551,10 +1644,6 @@ export class KernelMessageRunnerService {
             item.finish_reason,
             ...(includeReason ? [item.reason] : []),
         ]);
-    }
-
-    private recordValue(value: unknown): Record<string, unknown> | null {
-        return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
     }
 
     private normalizeRunStopReason(value: unknown): RunStopReason | null {

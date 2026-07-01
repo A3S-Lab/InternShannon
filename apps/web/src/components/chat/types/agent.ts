@@ -50,12 +50,17 @@ export interface AgentChatMessage {
 	source?: string;
 }
 
+export type ToolProgressPhase = "input_streaming" | "executing" | "output";
+
 export interface ToolProgress {
 	toolUseId: string;
 	toolName: string;
 	elapsedTimeSeconds: number;
+	phase?: ToolProgressPhase;
 	input?: string;
 	output?: string;
+	inputDeltaCount?: number;
+	inputStreamingMs?: number;
 }
 
 export interface CompletedToolCall {

@@ -109,9 +109,15 @@ export function normalizeToolProgressSocketPayload(value: unknown): (ToolProgres
 
   const input = normalizeSocketFirstOptionalText(value.input, value.toolInput, value.tool_input);
   const output = normalizeSocketFirstOptionalText(value.output, value.toolOutput, value.tool_output, value.result);
+  const phase = normalizeToolProgressPhase(value.phase);
+  const inputDeltaCount = normalizeSocketOptionalInteger(value.inputDeltaCount ?? value.input_delta_count);
+  const inputStreamingMs = normalizeSocketFirstFiniteNumber([value.inputStreamingMs, value.input_streaming_ms]);
   const seq = normalizeSocketOptionalInteger(value.seq);
+  if (phase !== undefined) progress.phase = phase;
   if (input !== undefined) progress.input = input;
   if (output !== undefined) progress.output = output;
+  if (inputDeltaCount !== undefined) progress.inputDeltaCount = inputDeltaCount;
+  if (Number.isFinite(inputStreamingMs)) progress.inputStreamingMs = inputStreamingMs;
   if (seq !== undefined) progress.seq = seq;
 
   return progress;
@@ -211,6 +217,13 @@ function normalizeSocketFirstFiniteNumber(values: unknown[]): number {
 function normalizeSocketOptionalInteger(value: unknown): number | undefined {
   const parsed = normalizeSocketFiniteNumber(value, Number.NaN);
   return Number.isFinite(parsed) ? Math.max(1, Math.floor(parsed)) : undefined;
+}
+
+function normalizeToolProgressPhase(value: unknown): ToolProgress["phase"] | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "input_streaming" || normalized === "executing" || normalized === "output") return normalized;
+  return undefined;
 }
 
 function normalizeSocketFirstRecord(...values: unknown[]): Record<string, unknown> {

@@ -72,6 +72,7 @@ const desktopStateSpecs = [
   "src/kernel/session/message-history-replay.spec.ts",
   "src/kernel/session/result-message-normalization.spec.ts",
   "src/kernel/session/session-status-normalization.spec.ts",
+  "src/kernel/session/stream-perf.spec.ts",
   "src/kernel/session/stream-event-normalization.spec.ts",
   "src/kernel/session/stream-stalled-activity.spec.ts",
   "src/kernel/session/socket-message-normalization.spec.ts",

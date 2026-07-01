@@ -50,6 +50,7 @@ export interface ToolCallDisplayData {
 	filePath?: string;
 	durationMs?: number;
 	elapsedTimeSeconds?: number;
+	phase?: "input_streaming" | "executing" | "output";
 	active?: boolean;
 }
 
@@ -143,13 +144,16 @@ export function ToolCallDisplay({
 	);
 	const path = extractToolPath(data.input, data.filePath);
 	const isActive = !!data.active && !data.isError;
+	const isInputStreaming = isActive && data.phase === "input_streaming";
 	const isRunning = isActive && !data.output;
 	const hasLiveOutput = isActive && !!data.output;
-	const terminalVerb = getTerminalVerb(
-		kind,
-		isRunning || hasLiveOutput,
-		data.isError,
-	);
+	const terminalVerb = isInputStreaming
+		? "生成参数"
+		: getTerminalVerb(
+				kind,
+				isRunning || hasLiveOutput,
+				data.isError,
+			);
 	// 工具运行中的实时计时:服务端不一定推送 elapsed 增量,客户端每秒自增,呈现「正在执行 Ns」的活感;
 	// 工具结束(出现 durationMs)即停,改显最终耗时。
 	const [liveSeconds, setLiveSeconds] = useState(0);
@@ -206,6 +210,7 @@ export function ToolCallDisplay({
 		data.output,
 		data.isError,
 		data.active,
+		data.phase,
 	);
 
 	useEffect(() => {

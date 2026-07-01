@@ -210,7 +210,11 @@ export function summarizeToolResult(
 	output?: string,
 	isError?: boolean,
 	active?: boolean,
+	phase?: "input_streaming" | "executing" | "output",
 ): string {
+	if (active && phase === "input_streaming" && !output && !isError) {
+		return "生成工具参数...";
+	}
 	if (active && !output && !isError) return "运行中...";
 	if (isError) return "出错";
 	if (!output?.trim()) return "已完成";

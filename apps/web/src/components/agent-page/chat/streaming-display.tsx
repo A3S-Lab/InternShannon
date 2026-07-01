@@ -73,6 +73,7 @@ function ActiveToolSegment({
 				input: p.input,
 				output: p.output,
 				elapsedTimeSeconds: p.elapsedTimeSeconds,
+				phase: p.phase,
 				active,
 			}}
 		/>

@@ -64,12 +64,14 @@ test("preserves stream tool_end result aliases before InternShannon renders comp
       tool_name: "Read",
       result: "README contents from stream result alias",
       status: "completed",
+      duration_ms: "42",
     }),
     {
       toolUseId: "call-stream-result",
       toolName: "Read",
       output: "README contents from stream result alias",
       isError: false,
+      durationMs: 42,
     },
   );
 });
@@ -169,6 +171,9 @@ test("normalizes legacy stream tool_progress payloads", () => {
       tool_use_id: null,
       tool_name: " Grep ",
       elapsed_time_seconds: "4",
+      phase: "input_streaming",
+      input_delta_count: "9",
+      input_streaming_ms: "4100",
       input: { pattern: "Agent" },
       output: { matches: 2 },
     }),
@@ -176,8 +181,11 @@ test("normalizes legacy stream tool_progress payloads", () => {
       toolUseId: "",
       toolName: "Grep",
       elapsedTimeSeconds: 4,
+      phase: "input_streaming",
       input: JSON.stringify({ pattern: "Agent" }, null, 2),
       output: JSON.stringify({ matches: 2 }, null, 2),
+      inputDeltaCount: 9,
+      inputStreamingMs: 4100,
     },
   );
 });

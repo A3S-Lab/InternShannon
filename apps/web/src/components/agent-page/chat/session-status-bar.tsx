@@ -73,6 +73,7 @@ function formatElapsed(seconds?: number) {
 function slowStageLabel(stage?: string) {
   if (stage === "frontend_send") return "前端发送";
   if (stage === "model_first_token") return "模型首 token";
+  if (stage === "tool_input_streaming") return "模型生成工具参数";
   if (stage === "tool_exec") return "工具执行";
   return "未知阶段";
 }
@@ -296,11 +297,7 @@ export function SessionStatusBar({
     setSwitchingModel(true);
     try {
       const modelPatch = buildPinnedSessionModelPatch(target.value);
-      const result = await agentApi.configureSession(
-        sessionId,
-        modelPatch,
-        apiUrl,
-      );
+      const result = await agentApi.configureSession(sessionId, modelPatch, apiUrl);
       agentModel.updateSession(sessionId, {
         model: result?.model || modelPatch.model,
         followDefaultModel: false,
@@ -540,6 +537,12 @@ export function SessionStatusBar({
                           </span>
                         ) : null}
                       </div>
+                      {latestTool.phase === "input_streaming" ? (
+                        <p className="mt-1 text-[10px] text-muted-foreground">
+                          模型正在生成工具参数
+                          {latestTool.inputDeltaCount ? ` · ${latestTool.inputDeltaCount} 段` : ""}
+                        </p>
+                      ) : null}
                       {latestTool.input ? (
                         <p className="mt-1 truncate text-[10px] text-foreground/80">{latestTool.input}</p>
                       ) : null}

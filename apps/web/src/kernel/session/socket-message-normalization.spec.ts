@@ -315,6 +315,27 @@ test("converts tool_progress elapsedMs before InternShannon renders elapsed tool
   );
 });
 
+test("preserves tool_progress input streaming phase metadata", () => {
+  assert.deepEqual(
+    normalizeToolProgressSocketPayload({
+      toolId: "tool-input-stream",
+      toolName: "Write",
+      phase: "input_streaming",
+      elapsedMs: 0,
+      input_delta_count: "12",
+      input_streaming_ms: "4250",
+    }),
+    {
+      toolUseId: "tool-input-stream",
+      toolName: "Write",
+      elapsedTimeSeconds: 0,
+      phase: "input_streaming",
+      inputDeltaCount: 12,
+      inputStreamingMs: 4250,
+    },
+  );
+});
+
 test("preserves tool_progress tool_call_id before InternShannon pairs streaming updates", () => {
   assert.deepEqual(
     normalizeToolProgressSocketPayload({

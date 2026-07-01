@@ -22,6 +22,7 @@ export interface NormalizedStreamToolEndEvent {
   before?: string;
   after?: string;
   filePath?: string;
+  durationMs?: number;
 }
 
 export interface NormalizedStreamToolOutputDeltaEvent {
@@ -35,8 +36,11 @@ export interface NormalizedStreamToolProgressEvent {
   toolUseId: string;
   toolName: string;
   elapsedTimeSeconds: number;
+  phase?: "input_streaming" | "executing" | "output";
   input?: string;
   output?: string;
+  inputDeltaCount?: number;
+  inputStreamingMs?: number;
 }
 
 export function normalizeStreamToolStartEvent(
@@ -78,9 +82,11 @@ export function normalizeStreamToolEndEvent(
   const before = normalizeSocketOptionalText(event.before);
   const after = normalizeSocketOptionalText(event.after);
   const filePath = normalizeSocketOptionalText(event.filePath ?? event.file_path ?? event.path);
+  const durationMs = normalizeFirstOptionalFiniteNumber(event.durationMs, event.duration_ms);
   if (before !== undefined) normalized.before = before;
   if (after !== undefined) normalized.after = after;
   if (filePath !== undefined) normalized.filePath = filePath;
+  if (durationMs !== undefined) normalized.durationMs = durationMs;
   return normalized;
 }
 
@@ -120,15 +126,18 @@ export function normalizeStreamToolProgressEvent(
   };
   const input = normalizeStreamFirstOptionalText(event.input, event.toolInput, event.tool_input);
   const output = normalizeStreamFirstOptionalText(event.output, event.toolOutput, event.tool_output, event.result);
+  const phase = normalizeToolProgressPhase(event.phase);
+  const inputDeltaCount = normalizeFirstOptionalInteger(event.inputDeltaCount, event.input_delta_count);
+  const inputStreamingMs = normalizeFirstOptionalFiniteNumber(event.inputStreamingMs, event.input_streaming_ms);
+  if (phase !== undefined) normalized.phase = phase;
   if (input !== undefined) normalized.input = input;
   if (output !== undefined) normalized.output = output;
+  if (inputDeltaCount !== undefined) normalized.inputDeltaCount = inputDeltaCount;
+  if (inputStreamingMs !== undefined) normalized.inputStreamingMs = inputStreamingMs;
   return normalized;
 }
 
-function normalizeStreamToolName(
-  event: Record<string, unknown>,
-  options: StreamToolNormalizeOptions,
-): string | null {
+function normalizeStreamToolName(event: Record<string, unknown>, options: StreamToolNormalizeOptions): string | null {
   const toolName = normalizeStreamFirstText(event.toolName, event.tool_name, event.name, event.tool);
   if (toolName) return toolName;
   const fallback = typeof options.fallbackToolName === "string" ? options.fallbackToolName.trim() : "";
@@ -177,6 +186,11 @@ function normalizeFirstOptionalFiniteNumber(...values: unknown[]): number | unde
   return undefined;
 }
 
+function normalizeFirstOptionalInteger(...values: unknown[]): number | undefined {
+  const normalized = normalizeFirstOptionalFiniteNumber(...values);
+  return normalized === undefined ? undefined : Math.max(1, Math.floor(normalized));
+}
+
 function normalizeOptionalMillisecondsAsSeconds(value: unknown): number | undefined {
   const milliseconds = normalizeOptionalFiniteNumber(value);
   return milliseconds === undefined ? undefined : milliseconds / 1_000;
@@ -185,4 +199,11 @@ function normalizeOptionalMillisecondsAsSeconds(value: unknown): number | undefi
 function normalizeFirstOptionalMillisecondsAsSeconds(...values: unknown[]): number | undefined {
   const milliseconds = normalizeFirstOptionalFiniteNumber(...values);
   return milliseconds === undefined ? undefined : milliseconds / 1_000;
+}
+
+function normalizeToolProgressPhase(value: unknown): NormalizedStreamToolProgressEvent["phase"] | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "input_streaming" || normalized === "executing" || normalized === "output") return normalized;
+  return undefined;
 }

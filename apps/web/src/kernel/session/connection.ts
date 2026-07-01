@@ -54,6 +54,7 @@ import {
   normalizeStreamToolProgressEvent,
   normalizeStreamToolStartEvent,
 } from "./stream-event-normalization";
+import { computeToolInputStreamMs, inferStreamSlowStage } from "./stream-perf";
 import { normalizeStreamStalledActivity } from "./stream-stalled-activity";
 import { normalizeToolCircuitActivity } from "./tool-circuit-activity";
 import { normalizeToolErrorActivity } from "./tool-error-activity";
@@ -152,6 +153,9 @@ type TurnPerf = {
   messageStartAt?: number;
   firstDeltaAt?: number;
   firstToolStartAt?: number;
+  firstToolInputDeltaAt?: number;
+  lastToolInputDeltaAt?: number;
+  toolInputDeltaCount?: number;
   firstToolOutputAt?: number;
   firstToolEndAt?: number;
   assistantAt?: number;
@@ -223,11 +227,7 @@ function isPrimaryInternShannonSession(sessionId: string): boolean {
 }
 
 function recordPrimaryInternShannonMemoryTimelineEvent(sessionId: string, event: Record<string, unknown>): void {
-  if (
-    event.type !== "memory_stored" &&
-    event.type !== "memory_recalled" &&
-    event.type !== "memory_cleared"
-  ) {
+  if (event.type !== "memory_stored" && event.type !== "memory_recalled" && event.type !== "memory_cleared") {
     return;
   }
   if (!isPrimaryInternShannonSession(sessionId)) return;
@@ -247,6 +247,29 @@ function markTurnPerf(sessionId: string, field: keyof TurnPerf): void {
   }
 }
 
+function markToolInputDeltaPerf(sessionId: string): void {
+  const perf = turnPerfBySession.get(sessionId);
+  if (!perf) return;
+  const now = performance.now();
+  if (perf.firstToolInputDeltaAt == null) {
+    perf.firstToolInputDeltaAt = now;
+  }
+  perf.lastToolInputDeltaAt = now;
+  perf.toolInputDeltaCount = (perf.toolInputDeltaCount ?? 0) + 1;
+}
+
+function perfToolInputStreamMs(sessionId: string): number | undefined {
+  const perf = turnPerfBySession.get(sessionId);
+  if (!perf) return undefined;
+  const base = perf.wsSentAt ?? perf.startedAt;
+  const ms = (t?: number) => (typeof t === "number" ? Math.round(t - base) : null);
+  return computeToolInputStreamMs({
+    firstToolStartMs: ms(perf.firstToolStartAt),
+    firstToolInputDeltaMs: ms(perf.firstToolInputDeltaAt),
+    lastToolInputDeltaMs: ms(perf.lastToolInputDeltaAt),
+  });
+}
+
 function emitTurnPerf(sessionId: string, finalStage: "assistant" | "result"): void {
   if (!isStreamDebugEnabled()) return;
   const perf = turnPerfBySession.get(sessionId);
@@ -256,29 +279,38 @@ function emitTurnPerf(sessionId: string, finalStage: "assistant" | "result"): vo
   const ms = (t?: number) => (typeof t === "number" ? Math.round(t - base) : null);
   const firstDeltaMs = ms(perf.firstDeltaAt);
   const firstToolStartMs = ms(perf.firstToolStartAt);
+  const firstToolInputDeltaMs = ms(perf.firstToolInputDeltaAt);
+  const lastToolInputDeltaMs = ms(perf.lastToolInputDeltaAt);
+  const toolInputStreamMs = computeToolInputStreamMs({
+    firstToolStartMs,
+    firstToolInputDeltaMs,
+    lastToolInputDeltaMs,
+  });
   const resultMs = ms(perf.resultAt);
-  let inferredSlowStage: "frontend_send" | "model_first_token" | "tool_exec" | "unknown" = "unknown";
-  if (typeof firstDeltaMs === "number" && firstDeltaMs > 8000) {
-    inferredSlowStage = "model_first_token";
-  } else if (
-    typeof firstToolStartMs === "number" &&
-    typeof resultMs === "number" &&
-    resultMs - firstToolStartMs > 4000
-  ) {
-    inferredSlowStage = "tool_exec";
-  } else if (typeof perf.wsSentAt === "number" && perf.wsSentAt - perf.startedAt > 1500) {
-    inferredSlowStage = "frontend_send";
-  }
+  const transportOverheadMs = typeof perf.wsSentAt === "number" ? Math.round(perf.wsSentAt - perf.startedAt) : null;
+  const inferredSlowStage = inferStreamSlowStage({
+    transportOverheadMs,
+    firstDeltaMs,
+    firstToolStartMs,
+    firstToolInputDeltaMs,
+    lastToolInputDeltaMs,
+    firstToolOutputMs: ms(perf.firstToolOutputAt),
+    firstToolEndMs: ms(perf.firstToolEndAt),
+    resultMs,
+  });
 
   console.info(`[stream:${sessionId}] turn #${perf.turnId} timeline (${finalStage})`, {
     toMessageStartMs: ms(perf.messageStartAt),
     toFirstDeltaMs: firstDeltaMs,
     toFirstToolStartMs: firstToolStartMs,
+    toFirstToolInputDeltaMs: firstToolInputDeltaMs,
+    toolInputDeltaCount: perf.toolInputDeltaCount ?? 0,
+    toolInputStreamMs,
     toFirstToolOutputMs: ms(perf.firstToolOutputAt),
     toFirstToolEndMs: ms(perf.firstToolEndAt),
     toAssistantMs: ms(perf.assistantAt),
     toResultMs: resultMs,
-    transportOverheadMs: typeof perf.wsSentAt === "number" ? Math.round(perf.wsSentAt - perf.startedAt) : null,
+    transportOverheadMs,
     inferredSlowStage,
   });
 
@@ -286,6 +318,8 @@ function emitTurnPerf(sessionId: string, finalStage: "assistant" | "result"): vo
     turn_id: perf.turnId,
     slow_stage: inferredSlowStage,
     to_first_delta_ms: firstDeltaMs ?? undefined,
+    to_first_tool_input_delta_ms: firstToolInputDeltaMs ?? undefined,
+    tool_input_stream_ms: toolInputStreamMs,
     to_result_ms: resultMs ?? undefined,
     updatedAt: Date.now(),
   });
@@ -1199,6 +1233,7 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
       toolUseId: resolvedToolUseId,
       toolName: toolName,
       elapsedTimeSeconds: 0,
+      phase: "input_streaming" as const,
       input: existingInput ?? toolStart.input,
     };
     if (progress.input !== undefined) {
@@ -1250,6 +1285,7 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
       before,
       after,
       filePath: filePath,
+      durationMs: toolEnd.durationMs,
     };
 
     cacheToolInput(sessionId, resolvedToolUseId, completedTool.input);
@@ -1315,6 +1351,7 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
         toolUseId: resolvedToolUseId,
         toolName: toolName,
         elapsedTimeSeconds: 0,
+        phase: "input_streaming" as const,
         input: existingInput ?? blockInput,
       };
       if (progress.input !== undefined) {
@@ -1348,9 +1385,17 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
     }
     // input_json_delta inside content_block_delta - tool input streaming
     else if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") {
+      markToolInputDeltaPerf(sessionId);
       const tp = agentModel.state.activeToolProgress[sessionId];
       if (tp) {
-        const next = { ...tp, input: (tp.input || "") + delta.partial_json };
+        const inputDeltaCount = (tp.inputDeltaCount ?? 0) + 1;
+        const next = {
+          ...tp,
+          phase: "input_streaming" as const,
+          input: (tp.input || "") + delta.partial_json,
+          inputDeltaCount,
+          inputStreamingMs: perfToolInputStreamMs(sessionId),
+        };
         cacheToolInput(sessionId, tp.toolUseId, next.input);
         agentModel.upsertToolProgress(sessionId, next);
         agentModel.upsertStreamingToolProgressSegment(sessionId, next, seq);
@@ -1372,7 +1417,15 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
 
     const tp = agentModel.state.activeToolProgress[sessionId];
     if (tp) {
-      const next = { ...tp, input: (tp.input || "") + partialJson };
+      markToolInputDeltaPerf(sessionId);
+      const inputDeltaCount = (tp.inputDeltaCount ?? 0) + 1;
+      const next = {
+        ...tp,
+        phase: "input_streaming" as const,
+        input: (tp.input || "") + partialJson,
+        inputDeltaCount,
+        inputStreamingMs: perfToolInputStreamMs(sessionId),
+      };
       cacheToolInput(sessionId, tp.toolUseId, next.input);
       agentModel.upsertToolProgress(sessionId, next);
       agentModel.upsertStreamingToolProgressSegment(sessionId, next, seq);
@@ -1393,7 +1446,15 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
 
     const tp = agentModel.state.activeToolProgress[sessionId];
     if (tp) {
-      const next = { ...tp, input: (tp.input || "") + text };
+      markToolInputDeltaPerf(sessionId);
+      const inputDeltaCount = (tp.inputDeltaCount ?? 0) + 1;
+      const next = {
+        ...tp,
+        phase: "input_streaming" as const,
+        input: (tp.input || "") + text,
+        inputDeltaCount,
+        inputStreamingMs: perfToolInputStreamMs(sessionId),
+      };
       cacheToolInput(sessionId, tp.toolUseId, next.input);
       agentModel.upsertToolProgress(sessionId, next);
       agentModel.upsertStreamingToolProgressSegment(sessionId, next, seq);
@@ -1481,6 +1542,7 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
         const elapsed = outputDelta.elapsedTimeSeconds ?? tp.elapsedTimeSeconds;
         const next = {
           ...tp,
+          phase: "output" as const,
           output: appendToolOutputForUi(tp.output, deltaText),
           elapsedTimeSeconds: elapsed,
         };
@@ -1504,8 +1566,11 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
       toolUseId: toolUseId,
       toolName: toolName,
       elapsedTimeSeconds: progress.elapsedTimeSeconds,
+      phase: progress.phase ?? "executing",
       input: progress.input ?? (existing?.toolUseId === toolUseId ? existing.input : undefined),
       output: progress.output ?? (existing?.toolUseId === toolUseId ? existing.output : undefined),
+      inputDeltaCount: progress.inputDeltaCount ?? existing?.inputDeltaCount,
+      inputStreamingMs: progress.inputStreamingMs ?? existing?.inputStreamingMs,
     };
     agentModel.upsertToolProgress(sessionId, next);
     agentModel.upsertStreamingToolProgressSegment(sessionId, next, seq);
