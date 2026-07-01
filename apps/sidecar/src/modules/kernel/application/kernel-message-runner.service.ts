@@ -27,6 +27,7 @@ import { KernelSessionRuntimeStateService } from './kernel-session-runtime-state
 import { isKnownEventType, normalizeStreamEvent, parseAgentEventData } from './kernel-stream-event-normalizer';
 import { KernelStreamTextDedupe } from './kernel-stream-text-dedupe';
 import { KernelToolConfirmationService } from './kernel-tool-confirmation.service';
+import { KernelToolInputDeltaCoalescer } from './kernel-tool-input-delta-coalescer';
 import { toUserMemoryRecordInput } from './user-memory-event.mapper';
 import { UserMemoryService } from './user-memory.service';
 import {
@@ -482,6 +483,42 @@ export class KernelMessageRunnerService {
                   }
                 : undefined;
             const textDedupe = new KernelStreamTextDedupe();
+            const toolInputDeltaCoalescer = new KernelToolInputDeltaCoalescer();
+            let pendingToolInputEvent: Record<string, unknown> | null = null;
+            const emitStreamEvent = (streamEvent: Record<string, unknown>) => {
+                const browserMsg: Record<string, unknown> = {
+                    type: 'stream_event',
+                    event: streamEvent,
+                };
+                if (!textDedupe.shouldDrop(browserMsg)) {
+                    emit(browserMsg);
+                }
+            };
+            const emitCoalescedToolInputDelta = (partialJson: string) => {
+                emitStreamEvent({
+                    ...(pendingToolInputEvent ?? { type: 'input_json_delta' }),
+                    type: 'input_json_delta',
+                    partial_json: partialJson,
+                    coalesced: true,
+                });
+                pendingToolInputEvent = null;
+            };
+            const flushCoalescedToolInputDelta = () => {
+                const flushed = toolInputDeltaCoalescer.flush();
+                if (flushed) {
+                    emitCoalescedToolInputDelta(flushed);
+                }
+            };
+            const queueCoalescedToolInputDelta = (streamEvent: Record<string, unknown>): boolean => {
+                const partialJson = typeof streamEvent.partial_json === 'string' ? streamEvent.partial_json : '';
+                if (!partialJson) return false;
+                pendingToolInputEvent = streamEvent;
+                const flushed = toolInputDeltaCoalescer.push(partialJson);
+                if (flushed) {
+                    emitCoalescedToolInputDelta(flushed);
+                }
+                return true;
+            };
             // One-shot agent hook: only fires on the first attempt, never on
             // retry. The user's content didn't change; the agent already saw it.
             await agentSpec?.onUserMessage?.(
@@ -928,6 +965,9 @@ export class KernelMessageRunnerService {
                         if (isPlanningProgressEvent(normalizedEvent)) {
                             planningTracker.observe(normalizedEvent);
                         }
+                        if (normalizedEvent?.type !== 'input_json_delta') {
+                            flushCoalescedToolInputDelta();
+                        }
 
                         if (normalizedEvent?.type === 'text_delta' && typeof normalizedEvent.text === 'string') {
                             if (!outputStarted) {
@@ -993,6 +1033,9 @@ export class KernelMessageRunnerService {
                             const toolUseId = findCurrentToolId();
                             if (toolUseId) {
                                 markToolInputStreaming(toolUseId, toolNameById.get(toolUseId));
+                            }
+                            if (queueCoalescedToolInputDelta(normalizedEvent)) {
+                                continue;
                             }
                         }
                         if (
@@ -1227,6 +1270,7 @@ export class KernelMessageRunnerService {
                         }
                     }
                 } catch (innerErr) {
+                    flushCoalescedToolInputDelta();
                     // Only the "model thinking" wedge is retryable, and only
                     // when nothing has been streamed yet. Tool-active stalls,
                     // partial-output stalls, tool circuit-breaker failures,
