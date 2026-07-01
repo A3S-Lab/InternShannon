@@ -56,6 +56,7 @@ import {
 } from "./stream-event-normalization";
 import { computeToolInputStreamMs, inferStreamSlowStage } from "./stream-perf";
 import { normalizeStreamStalledActivity } from "./stream-stalled-activity";
+import { compactToolInputForUi } from "./tool-input-compaction";
 import { normalizeToolCircuitActivity } from "./tool-circuit-activity";
 import { normalizeToolErrorActivity } from "./tool-error-activity";
 import { canSendSessionSocketMessage, subscribedPayloadMatchesSession } from "./connection-readiness";
@@ -574,6 +575,12 @@ function sanitizeAssistantContentBlocks(blocks: ContentBlock[]): ContentBlock[] 
           content: truncateToolOutputForUi(block.content),
         };
       }
+      if (block.type === "tool_use") {
+        return {
+          ...block,
+          input: parseCachedToolInput(block.name, JSON.stringify(block.input ?? {}, null, 2)),
+        };
+      }
       return block;
     });
 }
@@ -694,20 +701,40 @@ function cacheToolInput(sessionId: string, toolUseId: string, input?: string): v
   }
 }
 
-function parseCachedToolInput(input: string): Record<string, unknown> {
+function getCachedToolInput(sessionId: string, toolUseId: string): string | undefined {
+  return toolInputCache.get(sessionId)?.get(toolUseId);
+}
+
+function compactCachedToolInput(sessionId: string, toolUseId: string, toolName: string, fallbackInput?: string): string {
+  return compactToolInputForUi(toolName, getCachedToolInput(sessionId, toolUseId) ?? fallbackInput ?? "");
+}
+
+function appendCachedToolInputDeltaForUi(
+  sessionId: string,
+  toolUseId: string,
+  toolName: string,
+  partialJson: string,
+): string {
+  const rawInput = `${getCachedToolInput(sessionId, toolUseId) ?? ""}${partialJson}`;
+  cacheToolInput(sessionId, toolUseId, rawInput);
+  return compactToolInputForUi(toolName, rawInput);
+}
+
+function parseCachedToolInput(toolName: string, input: string): Record<string, unknown> {
   // Handle empty string as special case - represents valid empty input for tools like ls
   if (input === "") {
     return {};
   }
+  const compacted = compactToolInputForUi(toolName, input);
   try {
-    const parsed = JSON.parse(input);
+    const parsed = JSON.parse(compacted);
     if (parsed && typeof parsed === "object") {
       return parsed as Record<string, unknown>;
     }
   } catch {
     // fall through
   }
-  return { __display: input };
+  return { __display: compacted };
 }
 
 function enrichToolUseInput(
@@ -733,7 +760,7 @@ function enrichToolUseInput(
     if (!cached) return block;
     return {
       ...block,
-      input: parseCachedToolInput(cached),
+      input: parseCachedToolInput(block.name, cached),
     };
   });
 }
@@ -1229,16 +1256,17 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
     // Preserve existing input if already accumulated (from input_json_delta events)
     // since upsertToolProgress does a full assignment that would otherwise lose it.
     const existingInput = existingActive?.input;
+    const rawInput = getCachedToolInput(sessionId, resolvedToolUseId) ?? toolStart.input ?? existingInput;
+    if (rawInput !== undefined) {
+      cacheToolInput(sessionId, resolvedToolUseId, rawInput);
+    }
     const progress = {
       toolUseId: resolvedToolUseId,
       toolName: toolName,
       elapsedTimeSeconds: 0,
       phase: "input_streaming" as const,
-      input: existingInput ?? toolStart.input,
+      input: compactToolInputForUi(toolName, rawInput),
     };
-    if (progress.input !== undefined) {
-      cacheToolInput(sessionId, resolvedToolUseId, progress.input);
-    }
     agentModel.upsertToolProgress(sessionId, progress);
     agentModel.upsertStreamingToolProgressSegment(sessionId, progress, seq);
     logToolDebug(sessionId, "tool_use_start", {
@@ -1279,7 +1307,7 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
     const completedTool = {
       toolUseId: resolvedToolUseId,
       toolName: toolName,
-      input: tp?.input || "",
+      input: compactCachedToolInput(sessionId, resolvedToolUseId, toolName, tp?.input),
       output,
       is_error: isError,
       before,
@@ -1288,7 +1316,6 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
       durationMs: toolEnd.durationMs,
     };
 
-    cacheToolInput(sessionId, resolvedToolUseId, completedTool.input);
     agentModel.addCompletedTool(sessionId, completedTool);
     agentModel.replaceStreamingToolProgressWithCompleted(sessionId, resolvedToolUseId, completedTool, seq);
     agentModel.removeToolProgress(sessionId, resolvedToolUseId);
@@ -1347,16 +1374,17 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
       // Preserve existing input if already accumulated (from input_json_delta events)
       // since upsertToolProgress does a full assignment that would otherwise lose it.
       const existingInput = existingActive?.input;
+      const rawInput = getCachedToolInput(sessionId, resolvedToolUseId) ?? blockInput ?? existingInput;
+      if (rawInput !== undefined) {
+        cacheToolInput(sessionId, resolvedToolUseId, rawInput);
+      }
       const progress = {
         toolUseId: resolvedToolUseId,
         toolName: toolName,
         elapsedTimeSeconds: 0,
         phase: "input_streaming" as const,
-        input: existingInput ?? blockInput,
+        input: compactToolInputForUi(toolName, rawInput),
       };
-      if (progress.input !== undefined) {
-        cacheToolInput(sessionId, resolvedToolUseId, progress.input);
-      }
       agentModel.upsertToolProgress(sessionId, progress);
       agentModel.upsertStreamingToolProgressSegment(sessionId, progress, seq);
     }
@@ -1392,11 +1420,10 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
         const next = {
           ...tp,
           phase: "input_streaming" as const,
-          input: (tp.input || "") + delta.partial_json,
+          input: appendCachedToolInputDeltaForUi(sessionId, tp.toolUseId, tp.toolName, delta.partial_json),
           inputDeltaCount,
           inputStreamingMs: perfToolInputStreamMs(sessionId),
         };
-        cacheToolInput(sessionId, tp.toolUseId, next.input);
         agentModel.upsertToolProgress(sessionId, next);
         agentModel.upsertStreamingToolProgressSegment(sessionId, next, seq);
       }
@@ -1422,11 +1449,10 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
       const next = {
         ...tp,
         phase: "input_streaming" as const,
-        input: (tp.input || "") + partialJson,
+        input: appendCachedToolInputDeltaForUi(sessionId, tp.toolUseId, tp.toolName, partialJson),
         inputDeltaCount,
         inputStreamingMs: perfToolInputStreamMs(sessionId),
       };
-      cacheToolInput(sessionId, tp.toolUseId, next.input);
       agentModel.upsertToolProgress(sessionId, next);
       agentModel.upsertStreamingToolProgressSegment(sessionId, next, seq);
     }
@@ -1451,11 +1477,10 @@ function handleStreamEventPayload(sessionId: string, event: Record<string, unkno
       const next = {
         ...tp,
         phase: "input_streaming" as const,
-        input: (tp.input || "") + text,
+        input: appendCachedToolInputDeltaForUi(sessionId, tp.toolUseId, tp.toolName, text),
         inputDeltaCount,
         inputStreamingMs: perfToolInputStreamMs(sessionId),
       };
-      cacheToolInput(sessionId, tp.toolUseId, next.input);
       agentModel.upsertToolProgress(sessionId, next);
       agentModel.upsertStreamingToolProgressSegment(sessionId, next, seq);
     }

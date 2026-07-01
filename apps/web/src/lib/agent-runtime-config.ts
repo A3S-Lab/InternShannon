@@ -233,6 +233,7 @@ function buildRuntimeSystemPrompt(
 			"For coding tasks, inspect the relevant files before editing. Prefer repository-local patterns, existing helpers, and nearby abstractions over inventing new ones.",
 			"Keep changes scoped to the user's request. Do not rewrite unrelated files, rename unrelated APIs, or clean up unrelated legacy code unless the user asks.",
 			"Assume the workspace may contain user changes. Never revert or overwrite user work unless the user explicitly asks for that exact operation.",
+			"When changing existing files, prefer edit/patch-style tools that send only the changed ranges. Use full-file write tools mainly for new files or intentional full replacements, and avoid re-emitting large unchanged file contents.",
 			"After making code changes, run the most relevant available build, test, typecheck, or lint command. If verification cannot run because of missing services, credentials, network, or platform tools, say so briefly.",
 			"Report what changed, what was verified, and any remaining risk. Keep summaries concise.",
 			"Treat short follow-up messages as constraints on the active task when the conversation context makes the intent clear. Execute the task directly instead of restarting discovery.",
