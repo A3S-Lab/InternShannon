@@ -78,7 +78,7 @@ describe('LocalFileStorage.readFile', () => {
         expect(result).toContain('PDF text extraction failed: parse failed');
     });
 
-    it('describes images without invoking OCR by default', async () => {
+    it('describes images as metadata instead of decoding them as text', async () => {
         const filePath = path.join(root, 'image.png');
         await writeFile(
             filePath,
@@ -92,8 +92,7 @@ describe('LocalFileStorage.readFile', () => {
 
         expect(result).toContain('Type: PNG image');
         expect(result).toContain('Dimensions: 2x3');
-        expect(result).toContain('Use an explicit OCR or vision-capable attachment path');
-        expect(result).not.toContain('OCR text:');
-        expect(result).not.toContain('OCR failed');
+        expect(result).toContain('Use an image preview or vision-capable attachment path');
+        expect(result).not.toContain('stream did not contain valid UTF-8');
     });
 });

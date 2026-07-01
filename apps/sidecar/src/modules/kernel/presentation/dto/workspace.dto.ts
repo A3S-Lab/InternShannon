@@ -57,22 +57,6 @@ export class ReadFileQueryDto {
     path!: string;
 }
 
-export class WorkspaceOcrDto {
-    @IsString()
-    path!: string;
-
-    @IsOptional()
-    @IsString()
-    backend?: string;
-
-    @IsOptional()
-    @IsIn(['text', 'markdown', 'json'])
-    outputFormat?: 'text' | 'markdown' | 'json';
-
-    @IsOptional()
-    timeoutMs?: number;
-}
-
 export class FileExistsQueryDto {
     @IsString()
     path!: string;

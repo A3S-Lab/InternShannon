@@ -371,7 +371,7 @@ export class LocalFileStorage implements IWorkspaceStorage {
                 '',
             ].filter((line): line is string => line !== undefined);
             if (!text) {
-                return `${header.join('\n')}\nNo extractable text was found in this PDF. It may be scanned or image-only; use OCR to read visual text.`;
+                return `${header.join('\n')}\nNo extractable text was found in this PDF. It may be scanned, image-only, or otherwise not text-based.`;
             }
             const truncated = this.truncateReadText(text);
             return `${header.join('\n')}\n${truncated}`;
@@ -382,7 +382,7 @@ export class LocalFileStorage implements IWorkspaceStorage {
                 `Size: ${data.length} bytes`,
                 '',
                 `PDF text extraction failed: ${error instanceof Error ? error.message : String(error)}`,
-                'The file may be encrypted, corrupted, or image-only. Use OCR or a PDF-specific preview path to inspect it.',
+                'The file may be encrypted, corrupted, or image-only. Use a PDF-specific preview or format-specific parser to inspect it.',
             ].join('\n');
         } finally {
             await parser.destroy().catch(() => undefined);
@@ -399,7 +399,7 @@ export class LocalFileStorage implements IWorkspaceStorage {
             dimensions ? `Dimensions: ${dimensions.width}x${dimensions.height}` : undefined,
             '',
             'This is an image file. Binary image bytes cannot be read as UTF-8 text.',
-            'Use an explicit OCR or vision-capable attachment path to analyze visible content.',
+            'Use an image preview or vision-capable attachment path to analyze visible content.',
         ].filter((line): line is string => line !== undefined).join('\n');
     }
 
@@ -414,7 +414,7 @@ export class LocalFileStorage implements IWorkspaceStorage {
                 `Size: ${data.length} bytes`,
                 '',
                 'This file could not be decoded as UTF-8 text.',
-                'Use a binary reader, OCR, or a format-specific parser instead of the text read tool.',
+                'Use a binary reader or a format-specific parser instead of the text read tool.',
             ].join('\n');
         }
     }

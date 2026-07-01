@@ -1,7 +1,6 @@
 import * as path from 'node:path';
 import type { IWorkspaceStorage, WsDirEntry } from '../domain/services/workspace-storage.interface';
 import { KernelMessageFileContextService } from './kernel-message-file-context.service';
-import type { WorkspaceOcrService } from './workspace-ocr.service';
 
 class MemoryWorkspaceStorage implements IWorkspaceStorage {
     readonly storageKind = 'local' as const;
@@ -87,26 +86,11 @@ describe('KernelMessageFileContextService', () => {
     let root: string;
     let storage: MemoryWorkspaceStorage;
     let service: KernelMessageFileContextService;
-    let ocr: { recognize: jest.Mock };
 
     beforeEach(() => {
         root = '/tmp/internshannon-context';
         storage = new MemoryWorkspaceStorage();
-        ocr = {
-            recognize: jest.fn(async () => ({
-                file: {
-                    path: path.join(root, 'diagram.png'),
-                    name: 'diagram.png',
-                    size: 4,
-                    mimeType: 'image/png',
-                },
-                text: 'OCR_TEXT_OK',
-                markdown: 'OCR_MARKDOWN_OK',
-                pages: [],
-                blocks: [],
-            })),
-        };
-        service = new KernelMessageFileContextService(storage, ocr as unknown as WorkspaceOcrService);
+        service = new KernelMessageFileContextService(storage);
     });
 
     it('wraps mentioned file content as untrusted context', async () => {
@@ -137,11 +121,10 @@ describe('KernelMessageFileContextService', () => {
 
         expect(result.images).toHaveLength(0);
         expect(storage.readBinaryCalls).toBe(0);
-        expect(ocr.recognize).not.toHaveBeenCalled();
         expect(result.content).toContain('not included because the current model does not support image attachments');
     });
 
-    it('runs explicit OCR for mentioned image files only when the user asks for OCR', async () => {
+    it('keeps file context and attachments available without calling an external recognition backend', async () => {
         const filePath = path.join(root, 'diagram.png');
         storage.addFile(filePath, Buffer.from([1, 2, 3, 4]));
 
@@ -151,39 +134,9 @@ describe('KernelMessageFileContextService', () => {
             includeVisionAttachments: false,
         });
 
-        expect(ocr.recognize).toHaveBeenCalledWith({ path: filePath, outputFormat: 'markdown' });
-        expect(result.content).toContain('----- BEGIN EXPLICIT OCR RESULT -----');
-        expect(result.content).toContain('OCR_MARKDOWN_OK');
-    });
-
-    it('does not run OCR for ordinary mentioned image analysis', async () => {
-        const filePath = path.join(root, 'diagram.png');
-        storage.addFile(filePath, Buffer.from([1, 2, 3, 4]));
-
-        await service.appendMentionedFileContext({
-            content: `分析图片内容 @/${filePath}`,
-            workspaceRoot: root,
-            includeVisionAttachments: false,
-        });
-
-        expect(ocr.recognize).not.toHaveBeenCalled();
-    });
-
-    it('returns an OCR failure instead of passing the request to the model when configured OCR fails', async () => {
-        const filePath = path.join(root, 'scan.pdf');
-        storage.addFile(filePath, Buffer.from('%PDF-1.7'));
-        ocr.recognize.mockRejectedValueOnce(new Error('OCR 后端不可用'));
-
-        const result = await service.appendMentionedFileContext({
-            content: `使用OCR工具识别 @/${filePath}`,
-            workspaceRoot: root,
-        });
-
-        expect(result.ocrFailure).toEqual({
-            filePath,
-            message: 'OCR 后端不可用',
-        });
-        expect(result.content).toBe(`使用OCR工具识别 @/${filePath}`);
+        expect(result.fileCount).toBe(1);
+        expect(result.content).toContain('Type: PNG image');
+        expect(result.content).not.toContain('EXPLICIT TEXT RECOGNITION RESULT');
     });
 
     it('attaches mentioned images when allowed and keeps a conservative image count limit', async () => {

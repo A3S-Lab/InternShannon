@@ -103,17 +103,6 @@ export class KernelMessageRunIntakeService implements IKernelMessageRunService {
                 `Appended readable context for ${fileContextResult.fileCount} mentioned file(s) in session ${input.sessionId}`,
             );
         }
-        if (fileContextResult.ocrFailure) {
-            await this.replyWithOcrBackendUnavailable({
-                sessionId: input.sessionId,
-                model: effectiveInput.model || activeSession.resolvedModel,
-                emit: input.emit,
-                startedAt,
-                filePath: fileContextResult.ocrFailure.filePath,
-                reason: fileContextResult.ocrFailure.message,
-            });
-            return;
-        }
         const images = [
             ...(input.images ?? []),
             ...fileContextResult.images,
@@ -130,71 +119,6 @@ export class KernelMessageRunIntakeService implements IKernelMessageRunService {
             emit: input.emit,
             onCleanup: () => input.confirmation?.clearTaskApprovals?.(input.sessionId),
         });
-    }
-
-    private async replyWithOcrBackendUnavailable(input: {
-        sessionId: string;
-        model?: string;
-        emit: (message: unknown) => void;
-        startedAt: number;
-        filePath: string;
-        reason: string;
-    }): Promise<void> {
-        const content = [
-            `配置的 OCR 后端当前不可用，未继续让模型自行调用本地 OCR 命令。`,
-            '',
-            `文件：${input.filePath}`,
-            `失败原因：${input.reason}`,
-            '',
-            '请先确认「设置 > OCR 服务」中的后端服务可访问，或明确回复允许我使用本机命令行方案（例如安装/调用 Tesseract、pdftoppm）后再继续。',
-        ].join('\n');
-        const timestamp = Date.now();
-        const messageId = `msg-${timestamp}-${Math.random().toString(36).slice(2, 8)}`;
-        const contentBlocks = [{ type: 'text' as const, text: content }];
-
-        input.emit({
-            type: 'assistant',
-            parentToolUseId: null,
-            message: {
-                id: messageId,
-                role: 'assistant',
-                model: input.model || '',
-                content: contentBlocks,
-                stopReason: 'ocr_backend_unavailable',
-                durationMs: Date.now() - input.startedAt,
-                meta: {
-                    source: 'kernel:ocr_backend_unavailable',
-                    filePath: input.filePath,
-                    reason: input.reason,
-                },
-                usage: null,
-            },
-            timestamp,
-        });
-        await this.conversationLog.recordAssistantMessage({
-            id: messageId,
-            sessionId: input.sessionId,
-            content,
-            contentBlocks,
-            source: 'kernel:ocr_backend_unavailable',
-        });
-        input.emit({
-            type: 'result',
-            data: {
-                is_error: true,
-                status: 'failed',
-                stopReason: 'ocr_backend_unavailable',
-                retryable: true,
-                message: 'OCR 后端不可用',
-                durationMs: Date.now() - input.startedAt,
-                totalTokens: undefined,
-                toolCalls: 0,
-                activeToolCount: 0,
-                openPlanTasks: 0,
-            },
-        });
-        input.emit({ type: 'status_change', status: null });
-        input.emit({ type: 'cli_connected' });
     }
 
     private async getActiveSession(input: KernelMessageRunIntakeInput): Promise<ActiveSession | null> {
