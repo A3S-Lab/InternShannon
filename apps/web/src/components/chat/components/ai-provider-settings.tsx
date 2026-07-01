@@ -58,6 +58,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "../../ui";
+import { DEFAULT_MODEL_CONTEXT_LIMIT, DEFAULT_MODEL_OUTPUT_LIMIT } from "../../../lib/llm-model-limits.ts";
 import {
   ProviderDefaultPill,
   ProviderEmptyState,
@@ -73,6 +74,8 @@ import {
   pruneProviderConnectionDrafts,
   readProviderConnectionDraftMemory,
   resolveProviderConnectionDraft,
+  resolveEditableModelLimit,
+  resolveModelLimitDraftAfterModelIdChange,
   storeProviderConnectionDraft,
   type ProviderConnectionDraft,
   type ProviderModelImportFilter,
@@ -489,8 +492,10 @@ function ModelDialog({
   const [family, setFamily] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
-  const [context, setContext] = useState("128000");
-  const [output, setOutput] = useState("4096");
+  const [context, setContext] = useState(String(DEFAULT_MODEL_CONTEXT_LIMIT));
+  const [output, setOutput] = useState(String(DEFAULT_MODEL_OUTPUT_LIMIT));
+  const [contextTouched, setContextTouched] = useState(false);
+  const [outputTouched, setOutputTouched] = useState(false);
   const [toolCall, setToolCall] = useState(true);
   const [temperature, setTemperature] = useState(true);
   const [attachment, setAttachment] = useState(false);
@@ -514,8 +519,11 @@ function ModelDialog({
     setFamily(initialModel?.family || "");
     setApiKey(initialModel?.apiKey || "");
     setBaseUrl(initialModel?.baseUrl || "");
-    setContext(String(initialModel?.limit?.context || 128000));
-    setOutput(String(initialModel?.limit?.output || 4096));
+    const limit = resolveEditableModelLimit(initialModel);
+    setContext(String(limit.context || DEFAULT_MODEL_CONTEXT_LIMIT));
+    setOutput(String(limit.output || DEFAULT_MODEL_OUTPUT_LIMIT));
+    setContextTouched(false);
+    setOutputTouched(false);
     setToolCall(initialModel?.toolCall ?? true);
     setTemperature(initialModel?.temperature ?? true);
     setAttachment(initialModel?.attachment ?? false);
@@ -542,7 +550,17 @@ function ModelDialog({
               className="h-9 font-mono"
               placeholder="如 gpt-4o-mini…"
               value={id}
-              onChange={(e) => setId(e.target.value)}
+              onChange={(e) => {
+                const nextId = e.target.value;
+                setId(nextId);
+                const nextLimitDraft = resolveModelLimitDraftAfterModelIdChange(
+                  nextId,
+                  { context, output },
+                  { context: contextTouched, output: outputTouched },
+                );
+                setContext(nextLimitDraft.context);
+                setOutput(nextLimitDraft.output);
+              }}
             />
           </div>
           <div className="space-y-1.5">
@@ -620,7 +638,10 @@ function ModelDialog({
               type="number"
               min={1}
               value={context}
-              onChange={(e) => setContext(e.target.value)}
+              onChange={(e) => {
+                setContextTouched(true);
+                setContext(e.target.value);
+              }}
             />
           </div>
           <div className="space-y-1.5">
@@ -636,7 +657,10 @@ function ModelDialog({
               type="number"
               min={1}
               value={output}
-              onChange={(e) => setOutput(e.target.value)}
+              onChange={(e) => {
+                setOutputTouched(true);
+                setOutput(e.target.value);
+              }}
             />
           </div>
           <div className="grid gap-2 sm:col-span-2 sm:grid-cols-2">
@@ -683,6 +707,13 @@ function ModelDialog({
                 toast.error(`模型 "${nextId}" 已存在`);
                 return;
               }
+              const nextLimit = resolveEditableModelLimit({
+                id: nextId,
+                limit: {
+                  context: Number(context) || undefined,
+                  output: Number(output) || undefined,
+                },
+              });
               if (isEdit) {
                 onSubmit({
                   id: nextId,
@@ -694,10 +725,7 @@ function ModelDialog({
                   temperature,
                   attachment,
                   reasoning,
-                  limit: {
-                    context: Number(context) || 128000,
-                    output: Number(output) || 4096,
-                  },
+                  limit: nextLimit,
                 });
                 return;
               }
@@ -713,10 +741,7 @@ function ModelDialog({
                 attachment,
                 reasoning,
                 modalities: { input: ["text"], output: ["text"] },
-                limit: {
-                  context: Number(context) || 128000,
-                  output: Number(output) || 4096,
-                },
+                limit: nextLimit,
               } satisfies ModelConfig);
             }}
           >

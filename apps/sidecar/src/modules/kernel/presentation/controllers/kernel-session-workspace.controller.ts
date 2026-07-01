@@ -44,6 +44,12 @@ export class KernelSessionWorkspaceController {
 	constructor(private readonly uploads: SessionWorkspaceFileUploadService) {}
 
 	@Post('files/upload')
+	@ApiCreatedResponse({
+	    summary: '上传文件到当前会话工作区',
+	    description: '根据 sessionId 校验会话归属，并把 multipart 文件写入该会话 cwd 下的相对路径。',
+	    responseDescription: '返回会话工作区内的文件路径',
+	    type: SessionWorkspaceUploadFileResponseDto,
+	})
 	// UploadSizeLimit:按平台配置(uploadMaxWorkspaceFileMb)实时限额并提前拒绝;512MB 仅 multer 绝对内存兜底。
 	@UseInterceptors(
 		UploadSizeLimit('uploadMaxWorkspaceFileMb'),
@@ -70,12 +76,6 @@ export class KernelSessionWorkspaceController {
 		},
 	})
 	@ApiParam({ name: 'sessionId', description: '会话 ID' })
-	@ApiCreatedResponse({
-	    summary: '上传文件到当前会话工作区',
-	    description: '根据 sessionId 校验会话归属，并把 multipart 文件写入该会话 cwd 下的相对路径。',
-	    responseDescription: '返回会话工作区内的文件路径',
-	    type: SessionWorkspaceUploadFileResponseDto,
-	})
 	@ApiBadRequestResponse({ description: '请求参数无效、缺少文件或路径不安全' })
 	@ApiUnauthorizedResponse({ description: '未授权或 Token 无效' })
 	@ApiNotFoundResponse({ description: '会话不存在或不属于当前用户' })

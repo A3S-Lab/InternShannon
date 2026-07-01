@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { DesktopOwnerId } from '@/shared/security/decorators/desktop-owner.decorator';
 import { DesktopApi } from '@/shared/security/desktop-access';
 import { BadRequestException, NotFoundException } from '@/shared/common/errors';
+import { ApiCreatedResponse, ApiOkResponse } from '@/shared/api/openapi';
 import { ASSET_SERVICE, type IAssetService } from '@/modules/assets/domain/services/asset.service.interface';
 import type { Asset } from '@/modules/assets/domain/entities/asset.entity';
 import type { Blob } from '@/modules/assets/domain/entities/blob.entity';
@@ -48,11 +49,13 @@ export class DesktopAssetsController {
     constructor(@Inject(ASSET_SERVICE) private readonly assets: IAssetService) {}
 
     @Get('me/knowledge')
+    @ApiOkResponse({ summary: '获取我的个人知识库资产' })
     async getMyKnowledge(@DesktopOwnerId() userId: string) {
         return this.assetDto(await this.assets.getOrCreatePersonalKnowledge(userId));
     }
 
     @Get(':id/repository')
+    @ApiOkResponse({ summary: '获取资产仓库信息' })
     async repository(@Param('id') id: string) {
         const asset = await this.requireAsset(id);
         return {
@@ -64,6 +67,7 @@ export class DesktopAssetsController {
     }
 
     @Get(':id/repository/tree')
+    @ApiOkResponse({ summary: '列出资产仓库目录树' })
     async repositoryTree(
         @Param('id') id: string,
         @Query('ref') ref?: string,
@@ -95,6 +99,7 @@ export class DesktopAssetsController {
     }
 
     @Get(':id/repository/blob')
+    @ApiOkResponse({ summary: '读取资产仓库文件内容' })
     async repositoryBlob(@Param('id') id: string, @Query('path') path: string, @Query('ref') ref?: string) {
         const asset = await this.requireAsset(id);
         const normalizedPath = this.requireBlobPath(path);
@@ -110,6 +115,7 @@ export class DesktopAssetsController {
     }
 
     @Post(':id/blobs/update')
+    @ApiCreatedResponse({ summary: '更新资产仓库文件' })
     async updateBlob(@Param('id') id: string, @Query('path') path: string, @Body() body: UpdateBlobBody) {
         const normalizedPath = this.requireBlobPath(path);
         return this.assets.updateBlob(
@@ -124,6 +130,7 @@ export class DesktopAssetsController {
     }
 
     @Post(':id/blobs/delete')
+    @ApiCreatedResponse({ summary: '删除资产仓库文件' })
     async deleteBlob(@Param('id') id: string, @Query('path') path: string, @Body() body: DeleteBlobBody) {
         const normalizedPath = this.requireBlobPath(path);
         return this.assets.deleteBlob(
@@ -137,6 +144,7 @@ export class DesktopAssetsController {
     }
 
     @Post(':id/blobs/rename')
+    @ApiCreatedResponse({ summary: '重命名资产仓库文件' })
     async renameBlob(@Param('id') id: string, @Query('path') path: string, @Body() body: RenameBlobBody) {
         const normalizedPath = this.requireBlobPath(path);
         const toPath = this.requireBlobPath(body.toPath);
@@ -152,12 +160,14 @@ export class DesktopAssetsController {
     }
 
     @Get(':id/wiki/sources')
+    @ApiOkResponse({ summary: '列出资产 Wiki 来源' })
     async listWikiSources(@Param('id') id: string) {
         const asset = await this.requireAsset(id);
         return this.sourceEntries(asset);
     }
 
     @Post(':id/wiki/sources')
+    @ApiCreatedResponse({ summary: '上传资产 Wiki 来源' })
     async uploadWikiSources(@Param('id') id: string, @Body() body: UploadSourcesBody) {
         const sources = Array.isArray(body.sources) ? body.sources : [];
         if (sources.length === 0) {
@@ -176,6 +186,7 @@ export class DesktopAssetsController {
     }
 
     @Delete(':id/wiki/sources')
+    @ApiOkResponse({ summary: '删除资产 Wiki 来源' })
     async deleteWikiSource(@Param('id') id: string, @Query('path') path: string) {
         const normalizedPath = this.requireBlobPath(path);
         const result = await this.assets.deleteBlob(id, normalizedPath, `Delete ${normalizedPath}`, 'main');
@@ -183,12 +194,14 @@ export class DesktopAssetsController {
     }
 
     @Get(':id/wiki/pages')
+    @ApiOkResponse({ summary: '列出资产 Wiki 页面' })
     async listWikiPages(@Param('id') id: string) {
         const asset = await this.requireAsset(id);
         return this.pageEntries(asset);
     }
 
     @Get(':id/wiki/graph')
+    @ApiOkResponse({ summary: '获取资产 Wiki 图谱' })
     async wikiGraph(@Param('id') id: string) {
         const asset = await this.requireAsset(id);
         const pages = this.pageEntries(asset);
@@ -244,6 +257,7 @@ export class DesktopAssetsController {
     }
 
     @Patch(':id/wiki/pages')
+    @ApiOkResponse({ summary: '保存资产 Wiki 页面' })
     async saveWikiPage(@Param('id') id: string, @Body() body: { path?: string; content?: string }) {
         const path = this.requireBlobPath(body.path);
         await this.assets.updateBlob(id, path, body.content ?? '', `Update ${path}`, 'main');
@@ -251,6 +265,7 @@ export class DesktopAssetsController {
     }
 
     @Delete(':id/wiki/pages')
+    @ApiOkResponse({ summary: '删除资产 Wiki 页面' })
     async deleteWikiPage(@Param('id') id: string, @Query('path') path: string) {
         const normalizedPath = this.requireBlobPath(path);
         const result = await this.assets.deleteBlob(id, normalizedPath, `Delete ${normalizedPath}`, 'main');
@@ -258,6 +273,7 @@ export class DesktopAssetsController {
     }
 
     @Post(':id/wiki/pages/rename')
+    @ApiCreatedResponse({ summary: '重命名资产 Wiki 页面' })
     async renameWikiPage(@Param('id') id: string, @Body() body: { fromPath?: string; toPath?: string }) {
         const fromPath = this.requireBlobPath(body.fromPath);
         const toPath = this.requireBlobPath(body.toPath);
@@ -266,6 +282,7 @@ export class DesktopAssetsController {
     }
 
     @Get(':id/wiki/health')
+    @ApiOkResponse({ summary: '获取资产 Wiki 健康状态' })
     async wikiHealth(@Param('id') id: string) {
         const asset = await this.requireAsset(id);
         const pages = this.pageEntries(asset);
@@ -288,6 +305,7 @@ export class DesktopAssetsController {
     }
 
     @Post(':id/wiki/reindex')
+    @ApiCreatedResponse({ summary: '重建资产 Wiki 索引' })
     async wikiReindex(@Param('id') id: string) {
         const asset = await this.requireAsset(id);
         return {

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { resolveModelLimit } from '@/shared/llm/model-limit-normalization';
 import { AppConfigRepository } from './app-config.repository';
 
 export interface ModelProvider {
@@ -56,14 +57,14 @@ export class AppConfigService {
     const value = await this.repo.getValue('models');
     if (!value) return null;
     try {
-      return JSON.parse(value) as ModelsConfig;
+      return this.normalizeModelsConfig(JSON.parse(value) as ModelsConfig);
     } catch {
       return null;
     }
   }
 
   async setModelsConfig(config: ModelsConfig): Promise<void> {
-    await this.repo.setValue('models', JSON.stringify(config));
+    await this.repo.setValue('models', JSON.stringify(this.normalizeModelsConfig(config)));
   }
 
   async updateModelsConfig(patch: {
@@ -106,5 +107,18 @@ export class AppConfigService {
       mcpServers: patch.mcpServers ?? current?.mcpServers ?? [],
     };
     await this.setModelsConfig(updated);
+  }
+
+  private normalizeModelsConfig(config: ModelsConfig): ModelsConfig {
+    return {
+      ...config,
+      providers: (config.providers ?? []).map(provider => ({
+        ...provider,
+        models: (provider.models ?? []).map(model => ({
+          ...model,
+          limit: resolveModelLimit(model.id, model.limit),
+        })),
+      })),
+    };
   }
 }

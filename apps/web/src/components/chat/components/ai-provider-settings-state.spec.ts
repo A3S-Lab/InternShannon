@@ -9,6 +9,8 @@ import {
   readProviderConnectionDraftMemory,
   resetProviderConnectionDraftMemory,
   resolveProviderConnectionDraft,
+  resolveEditableModelLimit,
+  resolveModelLimitDraftAfterModelIdChange,
   storeProviderConnectionDraft,
   writeProviderConnectionDraftMemory,
 } from "./ai-provider-settings-state.ts";
@@ -208,8 +210,91 @@ test("hydrates only selected new fetched models into local model config", () => 
       modalities: { input: ["text"], output: ["text"] },
       limit: {
         context: 128000,
-        output: 8192,
+        output: 65536,
       },
     },
   ]);
+});
+
+test("hydrates imported model limits from bounded modern presets", () => {
+  assert.deepEqual(
+    hydrateSelectedProviderModels(
+      buildProviderModelImportRows(
+        [
+          { id: "gpt-5.5-codex", name: "GPT-5.5 Codex" },
+          { id: "claude-sonnet-5", name: "Claude Sonnet 5" },
+          { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro" },
+          { id: "custom-frontier", name: "Custom Frontier" },
+          { id: "gpt-4o-mini", name: "GPT-4o mini" },
+        ],
+        [],
+        new Set(["gpt-5.5-codex", "claude-sonnet-5", "gemini-2.5-pro", "custom-frontier", "gpt-4o-mini"]),
+      ),
+    ).map((model) => [model.id, model.limit]),
+    [
+      ["gpt-5.5-codex", { context: 258000, output: 128000 }],
+      ["claude-sonnet-5", { context: 258000, output: 128000 }],
+      ["gemini-2.5-pro", { context: 258000, output: 65536 }],
+      ["custom-frontier", { context: 128000, output: 65536 }],
+      ["gpt-4o-mini", { context: 128000, output: 65536 }],
+    ],
+  );
+});
+
+test("upgrades generated editable limits using the model preset", () => {
+  assert.deepEqual(
+    resolveEditableModelLimit({
+      id: "gpt-5.5",
+      limit: { context: 128000, output: 4096 },
+    }),
+    { context: 258000, output: 128000 },
+  );
+
+  assert.deepEqual(
+    resolveEditableModelLimit({
+      id: "claude-sonnet-5",
+      limit: { context: 200000, output: 8192 },
+    }),
+    { context: 258000, output: 128000 },
+  );
+
+  assert.deepEqual(
+    resolveEditableModelLimit({
+      id: "custom-frontier",
+      limit: { context: 128000, output: 4096 },
+    }),
+    { context: 128000, output: 65536 },
+  );
+});
+
+test("keeps explicit non-legacy editable output limits", () => {
+  assert.deepEqual(
+    resolveEditableModelLimit({
+      id: "gpt-5.5",
+      limit: { context: 250000, output: 32000 },
+    }),
+    { context: 250000, output: 32000 },
+  );
+});
+
+test("updates untouched editable limit drafts when the model id changes", () => {
+  assert.deepEqual(
+    resolveModelLimitDraftAfterModelIdChange(
+      "gpt-5.5",
+      { context: "128000", output: "4096" },
+      { context: false, output: false },
+    ),
+    { context: "258000", output: "128000" },
+  );
+});
+
+test("preserves user-touched editable limit drafts when the model id changes", () => {
+  assert.deepEqual(
+    resolveModelLimitDraftAfterModelIdChange(
+      "gpt-5.5",
+      { context: "200000", output: "32000" },
+      { context: true, output: true },
+    ),
+    { context: "200000", output: "32000" },
+  );
 });

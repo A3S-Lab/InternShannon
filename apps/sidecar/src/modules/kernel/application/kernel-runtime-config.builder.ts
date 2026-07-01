@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { createHash } from 'crypto';
+import { resolveModelLimit } from '@/shared/llm/model-limit-normalization';
 import type {
     KernelAssistantRuntimeDefaults,
     KernelRuntimeModelsConfig,
@@ -87,15 +88,7 @@ export class KernelRuntimeConfigBuilder {
                         lines.push(`    reasoning = ${this.hclBoolean(model.reasoning)}`);
                         lines.push(`    toolCall = ${this.hclBoolean(model.toolCall)}`);
                         lines.push(`    temperature = ${this.hclBoolean(model.temperature)}`);
-                        // output > 0 → a3s-code sets it as the LLM max_tokens cap. Without it,
-                        // openai-compatible reasoning models (glm5.1) send no max_tokens and burn
-                        // the server default on reasoning before emitting generate_object.
-                        if (model.limit && (model.limit.output || model.limit.context)) {
-                            lines.push(`    limit = {`);
-                            if (model.limit.output) lines.push(`      output = ${Math.floor(model.limit.output)}`);
-                            if (model.limit.context) lines.push(`      context = ${Math.floor(model.limit.context)}`);
-                            lines.push(`    }`);
-                        }
+                        this.appendModelLimit(lines, model.id, model.limit, 4);
                         lines.push(`  }`);
                     }
                 }
@@ -163,7 +156,22 @@ export class KernelRuntimeConfigBuilder {
         lines.push(`    reasoning = false`);
         lines.push(`    toolCall = true`);
         lines.push(`    temperature = true`);
+        this.appendModelLimit(lines, modelId, null, 4);
         lines.push(`  }`);
+    }
+
+    private appendModelLimit(
+        lines: string[],
+        modelId: string,
+        limit: { context?: number | null; output?: number | null } | null | undefined,
+        indent: number,
+    ): void {
+        const resolved = resolveModelLimit(modelId, limit);
+        const pad = ' '.repeat(indent);
+        lines.push(`${pad}limit = {`);
+        lines.push(`${pad}  output = ${Math.floor(resolved.output)}`);
+        lines.push(`${pad}  context = ${Math.floor(resolved.context)}`);
+        lines.push(`${pad}}`);
     }
 
     private appendHeaders(lines: string[], headers: Record<string, string> | null | undefined, indent: number): void {

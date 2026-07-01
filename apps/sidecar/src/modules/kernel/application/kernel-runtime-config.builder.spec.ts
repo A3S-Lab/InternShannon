@@ -1,6 +1,12 @@
 import { KernelRuntimeConfigBuilder } from './kernel-runtime-config.builder';
 
 describe('KernelRuntimeConfigBuilder', () => {
+    const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
+
+    afterEach(() => {
+        restoreEnv('OPENAI_API_KEY', originalOpenAiApiKey);
+    });
+
     it('preserves slashes inside provider-qualified model ids', () => {
         const builder = new KernelRuntimeConfigBuilder({
             defaultModel: 'openai/bailian/deepseek-v4-pro',
@@ -63,4 +69,53 @@ describe('KernelRuntimeConfigBuilder', () => {
             }).model,
         ).toBe('zhipu/glm-4.5');
     });
+
+    it('writes normalized limits for configured models', () => {
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'openai/gpt-5.5',
+            providers: [
+                {
+                    name: 'openai',
+                    apiKey: 'openai-key',
+                    models: [
+                        {
+                            id: 'gpt-5.5',
+                            name: 'GPT-5.5',
+                            family: 'openai',
+                            limit: { context: 128000, output: 4096 },
+                        },
+                        {
+                            id: 'custom-frontier',
+                            name: 'Custom Frontier',
+                            family: 'custom',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const hcl = builder.buildAgentConfig({});
+
+        expect(hcl).toMatch(/models "gpt-5\.5" \{[\s\S]*limit = \{\n      output = 128000\n      context = 258000\n    \}/);
+        expect(hcl).toMatch(
+            /models "custom-frontier" \{[\s\S]*limit = \{\n      output = 65536\n      context = 128000\n    \}/,
+        );
+    });
+
+    it('writes normalized limits for env-only synthetic models', () => {
+        process.env.OPENAI_API_KEY = 'env-openai-key';
+        const builder = new KernelRuntimeConfigBuilder(null);
+
+        const hcl = builder.buildAgentConfig({ model: 'openai/gpt-5.5' });
+
+        expect(hcl).toMatch(/models "gpt-5\.5" \{[\s\S]*limit = \{\n      output = 128000\n      context = 258000\n    \}/);
+    });
 });
+
+function restoreEnv(name: string, value: string | undefined) {
+    if (value === undefined) {
+        delete process.env[name];
+        return;
+    }
+    process.env[name] = value;
+}

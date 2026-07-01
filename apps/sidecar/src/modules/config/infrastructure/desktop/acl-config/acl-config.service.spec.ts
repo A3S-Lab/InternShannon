@@ -90,7 +90,13 @@ providers "remote" {
             name: 'remote',
             apiKey: 'remote-key',
             baseUrl: 'https://remote.example/v1',
-            models: [expect.objectContaining({ id: 'remote-model', name: 'Remote Model' })],
+            models: [
+              expect.objectContaining({
+                id: 'remote-model',
+                name: 'Remote Model',
+                limit: { context: 128000, output: 65536 },
+              }),
+            ],
           }),
         ],
       }),

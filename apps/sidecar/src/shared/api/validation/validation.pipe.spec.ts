@@ -39,8 +39,8 @@ describe('formatValidationErrors', () => {
         ] as never);
 
         expect(formatted).toEqual([
-            { field: 'name', messages: ['name must be a string'] },
-            { field: 'child.input', messages: ['input must be a string'] },
+            { field: 'name', messages: ['必须是字符串'] },
+            { field: 'child.input', messages: ['必须是字符串'] },
         ]);
     });
 });

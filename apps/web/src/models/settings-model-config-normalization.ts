@@ -1,4 +1,5 @@
 import type { ModelConfig, ProviderConfig } from "../lib/constants.ts";
+import { resolveModelLimit, type ModelLimitInput } from "../lib/llm-model-limits.ts";
 
 const REDACTED_SECRET_PLACEHOLDER = "[configured]";
 
@@ -88,7 +89,7 @@ function normalizeModels(value: unknown): ModelConfig[] {
     const releaseDate = normalizeDisplayText(record.releaseDate ?? record.release_date);
     const modalities = normalizeModalities(record.modalities);
     const cost = normalizeCost(record.cost);
-    const limit = normalizeLimit(record.limit);
+    const limit = resolveModelLimit(id, normalizeLimit(record.limit));
 
     if (family) model.family = family;
     if (apiKey) model.apiKey = apiKey;
@@ -100,7 +101,7 @@ function normalizeModels(value: unknown): ModelConfig[] {
     if (releaseDate) model.releaseDate = releaseDate;
     if (modalities) model.modalities = modalities;
     if (cost) model.cost = cost;
-    if (limit) model.limit = limit;
+    model.limit = limit;
 
     return [model];
   });
@@ -154,14 +155,18 @@ function normalizeCost(value: unknown): ModelConfig["cost"] | undefined {
   return cost;
 }
 
-function normalizeLimit(value: unknown): ModelConfig["limit"] | undefined {
+function normalizeLimit(value: unknown): ModelLimitInput | undefined {
   const record = normalizeRecord(value);
   if (!record) return undefined;
 
   const context = normalizeFiniteNumber(record.context);
   const output = normalizeFiniteNumber(record.output);
-  if (context === undefined || output === undefined) return undefined;
-  return { context, output };
+  if (context === undefined && output === undefined) return undefined;
+
+  const limit: ModelLimitInput = {};
+  if (context !== undefined) limit.context = context;
+  if (output !== undefined) limit.output = output;
+  return limit;
 }
 
 function normalizeStringList(value: unknown): string[] {

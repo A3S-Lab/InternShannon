@@ -1,5 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { CONFIG_SERVICE, ConfigService } from '@/modules/config/domain/services/config-service.interface';
+import { resolveModelLimit } from '@/shared/llm/model-limit-normalization';
 import {
   IKernelRuntimeConfigService,
   KernelRuntimeModelProvider,
@@ -48,7 +49,7 @@ export class DesktopKernelRuntimeConfigService
               reasoning: model.reasoning ?? null,
               toolCall: model.toolCall ?? null,
               temperature: model.temperature ?? null,
-              limit: model.limit ?? null,
+              limit: resolveModelLimit(model.id, model.limit),
             })),
           })) satisfies KernelRuntimeModelProvider[],
           mcpServers: llm.mcpServers,

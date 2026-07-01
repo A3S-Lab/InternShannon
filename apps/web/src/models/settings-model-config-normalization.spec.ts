@@ -63,7 +63,7 @@ test("normalizes malformed backend model config without dropping valid providers
           releaseDate: "20260401",
           modalities: { input: ["text", "image"], output: ["text"] },
           cost: { input: 1.25, output: 2, cacheRead: 0.1 },
-          limit: { context: 128000, output: 4096 },
+          limit: { context: 128000, output: 65536 },
         },
       ],
     },
@@ -129,11 +129,42 @@ test("keeps a bare default model only when it exists under a valid provider", ()
     }),
     {
       providers: [
-        { name: "openai", models: [{ id: "gpt-4.1", name: "gpt-4.1" }] },
-        { name: "anthropic", models: [{ id: "claude-sonnet-4", name: "claude-sonnet-4" }] },
+        {
+          name: "openai",
+          models: [{ id: "gpt-4.1", name: "gpt-4.1", limit: { context: 128000, output: 65536 } }],
+        },
+        {
+          name: "anthropic",
+          models: [{ id: "claude-sonnet-4", name: "claude-sonnet-4", limit: { context: 200000, output: 65536 } }],
+        },
       ],
       defaultProvider: "anthropic",
       defaultModel: "claude-sonnet-4",
     },
+  );
+});
+
+test("normalizes generated limits for modern backend model config", () => {
+  const normalized = normalizeBackendModelConfig({
+    providers: [
+      {
+        name: "openai",
+        models: [
+          { id: "gpt-5.5", limit: { context: 128000, output: 4096 } },
+          { id: "gemini-2.5-pro", limit: { context: 1000000, output: 16384 } },
+          { id: "custom-frontier", limit: { context: 250000, output: 32000 } },
+        ],
+      },
+    ],
+    defaultModel: "openai/gpt-5.5",
+  });
+
+  assert.deepEqual(
+    normalized.providers[0].models.map((model) => [model.id, model.limit]),
+    [
+      ["gpt-5.5", { context: 258000, output: 128000 }],
+      ["gemini-2.5-pro", { context: 258000, output: 65536 }],
+      ["custom-frontier", { context: 250000, output: 32000 }],
+    ],
   );
 });

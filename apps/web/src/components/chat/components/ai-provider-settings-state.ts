@@ -1,4 +1,8 @@
 import type { ModelConfig, ProviderConfig } from "@/lib/shared";
+import {
+  resolveModelLimit,
+  resolveModelLimitPreset,
+} from "../../../lib/llm-model-limits.ts";
 
 export interface ProviderConnectionDraft {
   apiKey: string;
@@ -107,8 +111,6 @@ export interface ProviderModelImportRow {
 
 interface ImportedModelPreset {
   family?: string;
-  context: number;
-  output: number;
   toolCall?: boolean;
   temperature?: boolean;
   attachment?: boolean;
@@ -116,8 +118,6 @@ interface ImportedModelPreset {
 }
 
 const DEFAULT_IMPORTED_MODEL_PRESET: ImportedModelPreset = {
-  context: 128000,
-  output: 4096,
   toolCall: true,
   temperature: true,
   attachment: false,
@@ -126,28 +126,75 @@ const DEFAULT_IMPORTED_MODEL_PRESET: ImportedModelPreset = {
 
 const IMPORTED_MODEL_PRESETS: Array<{ match: RegExp; preset: ImportedModelPreset }> = [
   {
-    match: /^(?:o[134]|o\d|gpt-4\.1|gpt-4o)/i,
-    preset: { family: "openai", context: 128000, output: 16384, toolCall: true, temperature: true },
+    match: /^gpt-5(?:[.\-]|$)/i,
+    preset: {
+      family: "openai",
+      toolCall: true,
+      temperature: true,
+      reasoning: true,
+    },
   },
   {
-    match: /^gpt-3\.5/i,
-    preset: { family: "openai", context: 16385, output: 4096, toolCall: true, temperature: true },
+    match: /^(?:o[134]|o\d)/i,
+    preset: {
+      family: "openai",
+      toolCall: true,
+      temperature: true,
+      reasoning: true,
+    },
+  },
+  {
+    match: /^claude-(?:fable-5|opus-(?:4[.\-]8|5)|sonnet-5)/i,
+    preset: {
+      family: "anthropic",
+      toolCall: true,
+      temperature: true,
+      reasoning: true,
+    },
   },
   {
     match: /^claude/i,
-    preset: { family: "anthropic", context: 200000, output: 8192, toolCall: true, temperature: true },
+    preset: {
+      family: "anthropic",
+      toolCall: true,
+      temperature: true,
+      reasoning: true,
+    },
+  },
+  {
+    match: /(?:deepseek-v4|deepseek-v3\.2)/i,
+    preset: {
+      family: "deepseek",
+      toolCall: true,
+      temperature: true,
+      reasoning: true,
+    },
   },
   {
     match: /(?:deepseek-reasoner|r1|reasoning)/i,
-    preset: { family: "reasoning", context: 128000, output: 8192, toolCall: true, temperature: true, reasoning: true },
+    preset: {
+      family: "reasoning",
+      toolCall: true,
+      temperature: true,
+      reasoning: true,
+    },
   },
   {
     match: /(?:deepseek|qwen|glm|moonshot|kimi|mistral|llama)/i,
-    preset: { context: 128000, output: 8192, toolCall: true, temperature: true },
+    preset: {
+      toolCall: true,
+      temperature: true,
+    },
   },
   {
     match: /^gemini/i,
-    preset: { family: "gemini", context: 1000000, output: 8192, toolCall: true, temperature: true, attachment: true },
+    preset: {
+      family: "gemini",
+      toolCall: true,
+      temperature: true,
+      attachment: true,
+      reasoning: true,
+    },
   },
 ];
 
@@ -192,6 +239,7 @@ export function filterProviderModelImportRows(
 export function hydrateFetchedProviderModel(model: FetchedProviderModel): ModelConfig {
   const id = model.id.trim();
   const preset = resolveImportedModelPreset(id);
+  const limit = resolveModelLimitPreset(id);
   return {
     id,
     name: model.name.trim() || id,
@@ -201,10 +249,26 @@ export function hydrateFetchedProviderModel(model: FetchedProviderModel): ModelC
     attachment: preset.attachment ?? DEFAULT_IMPORTED_MODEL_PRESET.attachment,
     reasoning: preset.reasoning ?? DEFAULT_IMPORTED_MODEL_PRESET.reasoning,
     modalities: { input: ["text"], output: ["text"] },
-    limit: {
-      context: preset.context,
-      output: preset.output,
-    },
+    limit,
+  };
+}
+
+export function resolveEditableModelLimit(model?: Pick<ModelConfig, "id" | "limit"> | null): {
+  context: number;
+  output: number;
+} {
+  return resolveModelLimit(model?.id ?? "", model?.limit);
+}
+
+export function resolveModelLimitDraftAfterModelIdChange(
+  nextModelId: string,
+  draft: { context: string; output: string },
+  touched: { context: boolean; output: boolean },
+): { context: string; output: string } {
+  const presetLimit = resolveEditableModelLimit({ id: nextModelId });
+  return {
+    context: touched.context ? draft.context : String(presetLimit.context),
+    output: touched.output ? draft.output : String(presetLimit.output),
   };
 }
 

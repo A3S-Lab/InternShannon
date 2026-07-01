@@ -22,6 +22,7 @@
         "src/shared/infrastructure/desktop/desktop-paths.ts",
         "src/shared/infrastructure/network/startup-network-info.ts",
         "src/shared/json-schema/**/*.ts",
+        "src/shared/llm/**/*.ts",
         "src/shared/observability/health/health.controller.ts",
         "src/shared/observability/metrics/**/*.ts",
         "src/shared/security/**/*.ts",

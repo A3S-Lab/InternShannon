@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CONFIG_SERVICE } from '@/modules/config/domain/services/config-service.interface';
 import { ConfigService } from '@/modules/config/domain/services/config-service.interface';
+import { resolveModelLimit } from '@/shared/llm/model-limit-normalization';
 import { APP_CONFIG_SERVICE } from '../app-config/app-config.module';
 import { AppConfigService, ModelProvider, ModelConfig } from '../app-config/app-config.service';
 
@@ -260,7 +261,7 @@ export class AclConfigService implements OnModuleInit {
       releaseDate: this.extractString(attrs.get('releaseDate')),
       modalities: this.extractObject(attrs.get('modalities')) ?? { input: ['text'], output: ['text'] },
       cost: this.extractObject(attrs.get('cost')) ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      limit: this.extractObject(attrs.get('limit')) ?? { context: 128000, output: 4096 },
+      limit: resolveModelLimit(id, this.extractObject(attrs.get('limit'))),
     };
   }
 

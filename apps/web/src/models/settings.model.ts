@@ -33,6 +33,7 @@ import {
   resolveRuntimeBaseUrl,
 } from "./settings-runtime-model-config-state";
 import { resolveMigratedDesktopWorkspaceRoot } from "./workspace-root-migration";
+import { resolveModelLimit } from "../lib/llm-model-limits.ts";
 
 export { normalizeLegacyModelRef } from "./settings-backend-mappers";
 
@@ -794,7 +795,7 @@ async function syncToBackend(): Promise<void> {
               cacheRead: 0,
               cacheWrite: 0,
             },
-            limit: m.limit || { context: 128000, output: 4096 },
+            limit: resolveModelLimit(m.id, m.limit),
           })),
         })),
         mcpServers: toPlainJson(state.llmRuntime.mcpServers),
