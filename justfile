@@ -8,6 +8,7 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 root := justfile_directory()
 desktop_pkg := "@internshannon/desktop"
 sidecar_pkg := "@internshannon/sidecar"
+web_pkg := "@internshannon/web"
 
 # Show available commands
 default:
@@ -87,6 +88,9 @@ desktop-bundle *args:
     @just --justfile "{{root}}/justfile" bundle {{args}}
 
 desktop-smoke: smoke-standalone
+
+desktop-web-smoke:
+    pnpm --dir "{{root}}" --filter {{web_pkg}} run desktop:smoke
 
 # Build release installers with standalone sidecar resources
 bundle *args:
