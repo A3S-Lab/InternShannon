@@ -1,3 +1,5 @@
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import os from "node:os";
 import { pathToFileURL } from "node:url";
 import { io } from "socket.io-client";
 
@@ -5,6 +7,13 @@ const configuredGatewayUrl = process.env.PUBLIC_DESKTOP_GATEWAY_URL || process.e
 const configuredWebUrl = process.env.PUBLIC_DESKTOP_URL || process.env.DESKTOP_WEB_URL;
 const sessionTitle = `Desktop smoke ${new Date().toISOString()}`;
 const USER_MESSAGE_OUTCOME_TIMEOUT_MS = positiveIntegerFromEnv("DESKTOP_SMOKE_USER_MESSAGE_TIMEOUT_MS", 45_000);
+const FORBIDDEN_HITL_LOG_PATTERNS = [
+  /confirmation_timeout/i,
+  /confirmation_not_found/i,
+  /confirmation_required event missing toolId/i,
+  /Tool '' execution was REJECTED/i,
+  /user confirmation timed out/i,
+];
 
 let gatewayUrl = "http://127.0.0.1:29653";
 let apiBase = `${gatewayUrl}/api/v1`;
@@ -63,6 +72,7 @@ async function expectSocketMessaging(sessionId) {
   const socketUrl = `${gatewayUrl}/ws/kernel`;
   const socket = io(socketUrl, { transports: ["websocket"], timeout: 5000 });
   const events = [];
+  const sidecarLogCursor = captureSidecarLogCursor();
 
   socket.on("connect", () => {
     events.push({ type: "connect", id: socket.id });
@@ -72,7 +82,11 @@ async function expectSocketMessaging(sessionId) {
   socket.on("message", (message) => events.push({ type: "message", message }));
   socket.on("tool_confirmation_request", (request) => {
     events.push({ type: "tool_confirmation_request", request });
-    respondToSmokeToolConfirmation(socket, sessionId, request);
+    try {
+      respondToSmokeToolConfirmation(socket, sessionId, request);
+    } catch (error) {
+      events.push({ type: "tool_confirmation_response_error", message: formatError(error) });
+    }
   });
   socket.on("connect_error", (error) => events.push({ type: "connect_error", message: error.message }));
 
@@ -86,40 +100,19 @@ async function expectSocketMessaging(sessionId) {
     );
 
     const content = `desktop smoke user message ${Date.now()}`;
-    const runStartIndex = events.length;
-    socket.emit("message", { sessionId, type: "user_message", content });
-    await waitForEvent(
-      events,
-      (event) =>
-        event.type === "message" &&
-        event.message?.type === "stream_event" &&
-        event.message?.event?.type === "main_agent_activity" &&
-        event.message?.event?.phase === "intake",
-      "user_message intake activity",
-      { timeoutMs: 8000 },
-    );
-    log("user message intake ok");
-
-    try {
-      await waitForEvent(
-        events,
-        (event) => event.type === "message" && isSocketRunOutcomeMessage(event.message),
-        "user_message assistant/result outcome",
-        { timeoutMs: USER_MESSAGE_OUTCOME_TIMEOUT_MS },
-      );
-    } catch (error) {
-      socket.emit("message", { sessionId, type: "cancel" });
-      await waitForEvent(
-        events,
-        (event) => event.type === "message" && event.message?.type === "cancelled",
-        "socket cancel after missing user_message outcome",
-      ).catch(() => null);
-      throw error;
-    }
-    assertSocketRunOutcome("user_message", events.slice(runStartIndex));
+    await runSocketUserMessage(socket, events, sessionId, content, "user_message");
     log("user message outcome ok");
     await expectSessionSnapshotRun(sessionId, content);
     await expectSocketMessageHistoryReplay(sessionId, content);
+
+    await expectReadOnlyQueryNoHitl(socket, events, sessionId, sidecarLogCursor);
+    await expectWriteHitlResolves(socket, events, sessionId, sidecarLogCursor);
+    assertNoForbiddenHitlFailure(
+      "socket messaging",
+      events,
+      readSidecarLogSince(sidecarLogCursor),
+      sessionId,
+    );
 
     socket.emit("message", { sessionId, type: "cancel" });
     await waitForEvent(
@@ -160,19 +153,158 @@ async function expectSocketMessaging(sessionId) {
   log("socket messaging ok");
 }
 
+async function runSocketUserMessage(socket, events, sessionId, content, label) {
+  const runStartIndex = events.length;
+  socket.emit("message", { sessionId, type: "user_message", content });
+  await waitForEvent(
+    events,
+    (event) =>
+      event.type === "message" &&
+      event.message?.type === "stream_event" &&
+      event.message?.event?.type === "main_agent_activity" &&
+      event.message?.event?.phase === "intake",
+    `${label} intake activity`,
+    { timeoutMs: 8000, startIndex: runStartIndex },
+  );
+  log(`${label} intake ok`);
+
+  try {
+    await waitForEvent(
+      events,
+      (event) => event.type === "message" && isSocketRunOutcomeMessage(event.message),
+      `${label} assistant/result outcome`,
+      { timeoutMs: USER_MESSAGE_OUTCOME_TIMEOUT_MS, startIndex: runStartIndex },
+    );
+  } catch (error) {
+    socket.emit("message", { sessionId, type: "cancel" });
+    await waitForEvent(
+      events,
+      (event) => event.type === "message" && event.message?.type === "cancelled",
+      `socket cancel after missing ${label} outcome`,
+    ).catch(() => null);
+    throw error;
+  }
+
+  const runEvents = events.slice(runStartIndex);
+  assertSocketRunOutcome(label, runEvents);
+  return runEvents;
+}
+
+async function expectReadOnlyQueryNoHitl(socket, events, sessionId, sidecarLogCursor) {
+  const content = "请只查看当前工作目录并用一句话总结，不要写入或修改任何文件。";
+  const runEvents = await runSocketUserMessage(socket, events, sessionId, content, "read-only-query-no-hitl");
+  const confirmationRequests = findToolConfirmationRequests(runEvents);
+
+  assert(
+    confirmationRequests.length === 0,
+    [
+      "read-only-query-no-hitl received tool_confirmation_request; query-lane read-only tools should not enter HITL.",
+      buildHitlSmokeDiagnostics("read-only-query-no-hitl", sessionId, runEvents, readSidecarLogSince(sidecarLogCursor)),
+    ].join("\n"),
+  );
+  assertNoForbiddenHitlFailure(
+    "read-only-query-no-hitl",
+    runEvents,
+    readSidecarLogSince(sidecarLogCursor),
+    sessionId,
+  );
+  log("read-only-query-no-hitl ok");
+}
+
+async function expectWriteHitlResolves(socket, events, sessionId, sidecarLogCursor) {
+  const filename = `hitl-smoke-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`;
+  const content = `请在当前工作目录创建一个很小的文件 ${filename}，内容为 HITL smoke test。`;
+  const runEvents = await runSocketUserMessage(socket, events, sessionId, content, "write-hitl-resolves");
+  const confirmationRequests = findToolConfirmationRequests(runEvents);
+
+  assert(
+    confirmationRequests.length > 0,
+    [
+      "write-hitl-resolves did not receive tool_confirmation_request; this smoke must exercise the real HITL path.",
+      buildHitlSmokeDiagnostics("write-hitl-resolves", sessionId, runEvents, readSidecarLogSince(sidecarLogCursor)),
+    ].join("\n"),
+  );
+  assertNoForbiddenHitlFailure(
+    "write-hitl-resolves",
+    runEvents,
+    readSidecarLogSince(sidecarLogCursor),
+    sessionId,
+  );
+  log(`write-hitl-resolves ok (${confirmationRequests.length} confirmation request(s))`);
+}
+
+function findToolConfirmationRequests(events) {
+  return events.filter((event) => event?.type === "tool_confirmation_request");
+}
+
 function respondToSmokeToolConfirmation(socket, sessionId, request) {
+  const response = buildSmokeToolConfirmationResponse(sessionId, request);
+  socket.emit("tool_confirmation_response", response);
+  log(`auto-approved smoke tool confirmation (${response.toolName})`);
+  return response;
+}
+
+export function buildSmokeToolConfirmationResponse(sessionId, request) {
   const requestId = typeof request?.requestId === "string" ? request.requestId : "";
   const requestSessionId = typeof request?.sessionId === "string" ? request.sessionId : "";
-  const toolName = typeof request?.toolName === "string" ? request.toolName : "unknown";
-  if (!requestId || (requestSessionId && requestSessionId !== sessionId)) return;
+  const toolName = typeof request?.toolName === "string" ? request.toolName : "";
+  assert(requestId.trim().length > 0, `tool_confirmation_request missing requestId: ${formatSmokeJson(request, 500)}`);
+  assert(
+    requestSessionId.trim().length > 0,
+    `tool_confirmation_request missing sessionId: ${formatSmokeJson(request, 500)}`,
+  );
+  assert(
+    requestSessionId === sessionId,
+    `tool_confirmation_request session mismatch: expected ${sessionId}, got ${requestSessionId}`,
+  );
+  assert(toolName.trim().length > 0, `tool_confirmation_request missing toolName: ${formatSmokeJson(request, 500)}`);
 
-  socket.emit("tool_confirmation_response", {
+  return {
     requestId,
     approved: true,
     scope: "session",
     toolName,
-  });
-  log(`auto-approved smoke tool confirmation (${toolName})`);
+  };
+}
+
+export function assertNoForbiddenHitlFailure(label, events, sidecarLogText = "", sessionId = "unknown") {
+  const violations = collectForbiddenHitlDiagnostics(events, sidecarLogText);
+  assert(
+    violations.length === 0,
+    [
+      `${label} saw forbidden HITL failure diagnostics: ${violations.join(", ")}`,
+      buildHitlSmokeDiagnostics(label, sessionId, events, sidecarLogText),
+    ].join("\n"),
+  );
+}
+
+export function collectForbiddenHitlDiagnostics(events, sidecarLogText = "") {
+  const violations = [];
+  const eventText = formatSmokeJson(events, 20_000);
+  for (const pattern of FORBIDDEN_HITL_LOG_PATTERNS) {
+    if (pattern.test(eventText) || pattern.test(sidecarLogText)) {
+      violations.push(pattern.source);
+    }
+  }
+  return violations;
+}
+
+export function buildHitlSmokeDiagnostics(label, sessionId, events, sidecarLogText = "") {
+  const recentEvents = events.slice(-20);
+  const confirmationEvents = events.filter((event) => event?.type === "tool_confirmation_request").slice(-10);
+  const forbiddenLogLines = sidecarLogText
+    .split(/\r?\n/)
+    .filter((line) => FORBIDDEN_HITL_LOG_PATTERNS.some((pattern) => pattern.test(line)))
+    .slice(-20);
+
+  return [
+    `[${label}] sessionId=${sessionId}`,
+    `recent events=${formatSmokeJson(recentEvents, 4000)}`,
+    `tool confirmation events=${formatSmokeJson(confirmationEvents, 4000)}`,
+    forbiddenLogLines.length > 0 ? `sidecar forbidden log lines=${forbiddenLogLines.join("\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 async function expectSessionSnapshotRun(sessionId, userContent) {
@@ -288,10 +420,11 @@ function formatSmokeJson(value, limit) {
 async function waitForEvent(events, predicate, label, options = {}) {
   const timeoutMs = options.timeoutMs || 5000;
   const intervalMs = options.intervalMs || 50;
+  const startIndex = options.startIndex || 0;
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
-    const event = events.find(predicate);
+    const event = events.slice(startIndex).find(predicate);
     if (event) return event;
     await wait(intervalMs);
   }
@@ -301,6 +434,52 @@ async function waitForEvent(events, predicate, label, options = {}) {
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function captureSidecarLogCursor() {
+  const file = findMostRecentSidecarStdoutLog();
+  if (!file) return null;
+  try {
+    return { file, size: statSync(file).size };
+  } catch {
+    return null;
+  }
+}
+
+function readSidecarLogSince(cursor) {
+  if (!cursor?.file) return "";
+  try {
+    const text = readFileSync(cursor.file, "utf8");
+    return text.slice(Math.min(cursor.size || 0, text.length));
+  } catch {
+    return "";
+  }
+}
+
+function findMostRecentSidecarStdoutLog() {
+  const dirs = [...new Set([process.env.TMPDIR, os.tmpdir()].filter(Boolean))];
+  let newest = null;
+  for (const dir of dirs) {
+    let entries = [];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!/^internshannon_sidecar_stdout_.*\.log$/.test(entry)) continue;
+      const file = `${dir.replace(/\/+$/, "")}/${entry}`;
+      try {
+        const stats = statSync(file);
+        if (!newest || stats.mtimeMs > newest.mtimeMs) {
+          newest = { file, mtimeMs: stats.mtimeMs };
+        }
+      } catch {
+        // Ignore files that disappear between directory scan and stat.
+      }
+    }
+  }
+  return newest?.file ?? null;
 }
 
 function positiveIntegerFromEnv(name, fallback) {

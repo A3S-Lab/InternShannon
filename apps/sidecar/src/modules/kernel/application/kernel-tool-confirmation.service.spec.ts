@@ -158,4 +158,63 @@ describe('KernelToolConfirmationService', () => {
         expect(session.confirmToolUse).toHaveBeenNthCalledWith(1, 'ls-0', true, undefined);
         expect(session.confirmToolUse).toHaveBeenNthCalledWith(2, 'call_real_retry_id', true, undefined);
     });
+
+    it('resolves repeated confirmation_required events from the SDK pending queue instead of timing out', async () => {
+        const runtimeState = {
+            isCancelled: jest.fn().mockReturnValue(false),
+        } as unknown as KernelSessionRuntimeStateService;
+        const session = {
+            pendingConfirmations: jest
+                .fn()
+                .mockResolvedValueOnce([
+                    {
+                        toolId: 'call_first_pending_id',
+                        toolName: 'Write',
+                        args: { file_path: '/tmp/first.txt' },
+                        remainingMs: 60_000,
+                    },
+                ])
+                .mockResolvedValueOnce([
+                    {
+                        toolId: 'call_second_pending_id',
+                        toolName: 'Write',
+                        args: { file_path: '/tmp/second.txt' },
+                        remainingMs: 60_000,
+                    },
+                ]),
+            confirmToolUse: jest.fn().mockResolvedValue(true),
+        } as unknown as Session;
+        const confirmation = {
+            requestConfirmation: jest.fn().mockResolvedValue(true),
+        } as unknown as ToolConfirmationGate;
+        const emit = jest.fn();
+        const service = new KernelToolConfirmationService(runtimeState);
+
+        const firstApproved = await service.handleConfirmationRequired({
+            sessionId: 'session-d',
+            session,
+            event: {
+                type: 'confirmation_required',
+                data: JSON.stringify({ args: { file_path: '/tmp/first.txt' } }),
+            } as AgentEvent,
+            confirmation,
+            emit,
+        });
+        const secondApproved = await service.handleConfirmationRequired({
+            sessionId: 'session-d',
+            session,
+            event: {
+                type: 'confirmation_required',
+                data: JSON.stringify({ args: { file_path: '/tmp/second.txt' } }),
+            } as AgentEvent,
+            confirmation,
+            emit,
+        });
+
+        expect(firstApproved).toBe(true);
+        expect(secondApproved).toBe(true);
+        expect(session.confirmToolUse).toHaveBeenNthCalledWith(1, 'call_first_pending_id', true, undefined);
+        expect(session.confirmToolUse).toHaveBeenNthCalledWith(2, 'call_second_pending_id', true, undefined);
+        expect(confirmation.requestConfirmation).toHaveBeenCalledTimes(2);
+    });
 });

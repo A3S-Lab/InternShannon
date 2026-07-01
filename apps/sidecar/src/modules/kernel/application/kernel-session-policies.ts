@@ -38,6 +38,21 @@ export function permissionPolicyForMode(permissionMode?: string, hitlEnabled = t
     };
 }
 
+export function confirmationPolicyForMode(
+    permissionMode?: string,
+    hitlEnabled = true,
+): SessionOptions['confirmationPolicy'] {
+    if (permissionMode === 'auto' || permissionMode === 'plan' || !hitlEnabled) {
+        return undefined;
+    }
+    return {
+        enabled: true,
+        defaultTimeoutMs: 60_000,
+        timeoutAction: 'reject',
+        yoloLanes: ['query'],
+    };
+}
+
 export function planningModeForRuntime(overrides: SessionRuntimeOverrides): string | undefined {
     if (overrides.permissionMode === 'plan') return 'enabled';
     const planningMode = overrides.planningMode?.trim();

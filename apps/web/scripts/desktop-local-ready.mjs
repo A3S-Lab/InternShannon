@@ -33,7 +33,7 @@ export function formatDesktopLocalReadyMessage({ webUrl, gatewayUrl, dataDir }) 
     `  API      ${apiUrl}`,
     `  Health   ${apiUrl}/health`,
     `  Data     ${String(dataDir ?? "").trim() || "(default)"}`,
-    `  Smoke    PUBLIC_DESKTOP_URL=${normalizedWebUrl} PUBLIC_DESKTOP_GATEWAY_URL=${normalizedGatewayUrl} just desktop-smoke`,
+    `  Smoke    PUBLIC_DESKTOP_URL=${normalizedWebUrl} PUBLIC_DESKTOP_GATEWAY_URL=${normalizedGatewayUrl} just desktop-web-smoke`,
     "",
   ].join("\n");
 }

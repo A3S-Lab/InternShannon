@@ -129,6 +129,12 @@ export class WebSocketConfirmationManager {
       this.logger.warn(`No pending request found for ${response.requestId}`);
       return;
     }
+    if (sessionId && sessionId !== pending.sessionId) {
+      this.logger.warn(
+        `Ignoring confirmation response ${response.requestId} for session ${sessionId}; pending session is ${pending.sessionId}`,
+      );
+      return;
+    }
 
     clearTimeout(pending.timeout);
     this.pendingRequests.delete(response.requestId);

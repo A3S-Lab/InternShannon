@@ -13,7 +13,7 @@ export function formatDesktopLocalBanner(input) {
     `  API      ${apiUrl}`,
     `  Health   ${apiUrl}/health`,
     `  Data     ${dataDir}`,
-    `  Smoke    PUBLIC_DESKTOP_URL=${webUrl} PUBLIC_DESKTOP_GATEWAY_URL=${gatewayUrl} just desktop-smoke`,
+    `  Smoke    PUBLIC_DESKTOP_URL=${webUrl} PUBLIC_DESKTOP_GATEWAY_URL=${gatewayUrl} just desktop-web-smoke`,
     "",
   ].join("\n");
 }

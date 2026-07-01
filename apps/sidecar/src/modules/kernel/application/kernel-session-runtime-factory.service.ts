@@ -15,6 +15,7 @@ import { IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-servic
 import { AgentRegistry } from './agents/agent-registry';
 import { classifyWebSearchReadiness, verifyBrowserBinary } from './kernel-browser-binary-check';
 import {
+    confirmationPolicyForMode,
     permissionPolicyForMode,
     planningModeForRuntime,
     planReadonlyToolBlockReason,
@@ -151,15 +152,14 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         const resolvedModel = runtimeConfig.resolveDefaultModel(finalOverrides);
         const modelApiKeyMissing = runtimeConfig.resolvedModelApiKeyMissing(resolvedModel);
         const basePermissionPolicy = permissionPolicyForMode(finalOverrides.permissionMode, nativeConfirmationEnabled);
+        const confirmationPolicy = confirmationPolicyForMode(finalOverrides.permissionMode, nativeConfirmationEnabled);
 
         const sessionOptions: SessionOptions = {
             sessionId,
             model: resolvedModel,
             ...localRuntimeStores,
             permissionPolicy: basePermissionPolicy,
-            confirmationPolicy: nativeConfirmationEnabled
-                ? { enabled: true, defaultTimeoutMs: 60_000, timeoutAction: 'reject' }
-                : undefined,
+            confirmationPolicy,
             builtinSkills: finalOverrides.builtinSkills ?? false,
             enforceActiveSkillToolRestrictions: finalOverrides.enforceActiveSkillToolRestrictions,
             skillDirs: runtimeSkillDirs,
