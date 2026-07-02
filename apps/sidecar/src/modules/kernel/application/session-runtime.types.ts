@@ -146,12 +146,14 @@ export const DEFAULT_STREAM_STALL_ACTIVE_TOOL_HARD_MS = 300_000;
 export const DEFAULT_MAX_CONSECUTIVE_TOOL_ERRORS = 3;
 
 /**
- * Auto-retry budget for the "model never produced a token before the stall
- * fired" failure mode. One retry covers the common case (provider hiccup,
- * cold-start latency) without burning unbounded token cost or letting a
- * genuinely dead provider keep retrying. Tool-active and partial-output
- * stalls bypass this retry entirely — the runner only retries when the user
- * would see exactly the same UI state on both attempts (a blank turn).
+ * Auto-retry budget for blank model-stream failures: either the watchdog fires
+ * before the first token, or the SDK stream completes normally with no visible
+ * assistant content or tool events. One retry covers the common case (provider
+ * hiccup, cold-start latency, empty streamed response) without burning
+ * unbounded token cost or letting a genuinely dead provider keep retrying.
+ * Tool-active and partial-output stalls bypass this retry entirely — the
+ * runner only retries when the user would see exactly the same UI state on
+ * both attempts (a blank turn).
  */
 export const DEFAULT_MAX_STREAM_RETRIES = 1;
 

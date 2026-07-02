@@ -687,10 +687,10 @@ export class KernelMessageRunnerService {
                 watchdogOverrides.maxConsecutiveToolErrors,
                 DEFAULT_MAX_CONSECUTIVE_TOOL_ERRORS,
             );
-            // Retry budget for the "model never produced a token before the
-            // stall fired" failure mode. Tool-active and partial-output stalls
-            // never enter the retry path — the surface to the user would
-            // diverge between attempts (duplicated text, ghost tool calls).
+            // Retry budget for blank model streams. Tool-active and
+            // partial-output stalls never enter the retry path — the surface
+            // to the user would diverge between attempts (duplicated text,
+            // ghost tool calls).
             // Inline `>= 0` resolution (not `resolvePositiveInt`) so explicit
             // `0` disables retry instead of falling back to the default.
             const maxStreamRetriesOverride = watchdogOverrides.maxStreamRetries;
@@ -826,22 +826,24 @@ export class KernelMessageRunnerService {
             // this so the previous attempt's tool history doesn't bleed in.
             let consecutiveErrorsByTool = new Map<string, number>();
 
-            // Retry loop for the "model thinking" wedge: when the watchdog
-            // trips the hard threshold with `activeTools=0` and no token has
-            // streamed, we transparently re-issue the same user message up to
-            // `maxStreamRetries` times before surfacing the failure. Any other
-            // stall (tool-active, mid-output) bypasses retry — see the catch
-            // gate below.
+            // Retry loop for blank model-stream failures: when the watchdog
+            // trips before the first visible token/tool event, or the SDK
+            // cleanly closes a stream with no assistant content at all, we can
+            // transparently re-issue the same user message up to
+            // `maxStreamRetries` times. Any tool-active or partial-output
+            // failure bypasses retry — see the gates below.
+            let pendingStreamRetryReason: 'event_stream_stalled' | 'empty_response' = 'event_stream_stalled';
             streamContinuationLoop: while (true) {
                 streamStopReason = null;
                 currentRunId = null;
 
                 for (let attempt = 0; attempt <= maxStreamRetries; attempt++) {
                     if (attempt > 0) {
+                        const retryReason = pendingStreamRetryReason;
                         // Wipe everything the first attempt accumulated. Safe only
-                        // because we gate retry on `!outputStarted`: the user UI
-                        // has nothing to lose because no assistant tokens or tool
-                        // events were ever emitted.
+                        // because every stream retry is gated on a blank turn: the
+                        // user UI has nothing to lose because no assistant tokens or
+                        // tool events were ever emitted.
                         assistantText.length = 0;
                         assistantBlocks.length = 0;
                         seenToolUses.clear();
@@ -869,10 +871,10 @@ export class KernelMessageRunnerService {
                         lastHeartbeatAt = null;
 
                         this.logger.warn(
-                            `[kernel.stream.retry] sessionId=${sessionId} attempt=${attempt + 1} maxAttempts=${maxStreamRetries + 1} model=${resolvedModel} reason=event_stream_stalled`,
+                            `[kernel.stream.retry] sessionId=${sessionId} attempt=${attempt + 1} maxAttempts=${maxStreamRetries + 1} model=${resolvedModel} reason=${retryReason}`,
                         );
                         this.metrics?.incCounter('kernel_stream_retry_total', {
-                            reason: 'event_stream_stalled',
+                            reason: retryReason,
                         });
                         emit({
                             type: 'stream_event',
@@ -881,17 +883,22 @@ export class KernelMessageRunnerService {
                                 sessionId,
                                 attempt: attempt + 1,
                                 maxAttempts: maxStreamRetries + 1,
-                                reason: 'event_stream_stalled',
+                                reason: retryReason,
                                 timestamp: Date.now(),
                             },
                         });
+                        const retryDetail =
+                            retryReason === 'empty_response'
+                                ? `上次请求模型的事件流已结束但没有返回任何可见内容，正在自动发起第 ${attempt + 1} 次尝试`
+                                : `上次请求模型长时间无响应，正在自动发起第 ${attempt + 1} 次尝试`;
                         emitMainActivity({
                             status: 'running',
                             phase: 'model_retry',
                             label: '自动重试请求模型',
-                            detail: `上次请求模型长时间无响应，正在自动发起第 ${attempt + 1} 次尝试`,
+                            detail: retryDetail,
                             source: 'a3s-code runtime',
                         });
+                        pendingStreamRetryReason = 'event_stream_stalled';
                     }
 
                     this.logger.log(
@@ -1458,9 +1465,24 @@ export class KernelMessageRunnerService {
                             attempt < maxStreamRetries &&
                             !this.runtimeState.isCancelled(sessionId)
                         ) {
+                            pendingStreamRetryReason = 'event_stream_stalled';
                             continue;
                         }
                         throw innerErr;
+                    }
+
+                    if (
+                        !outputStarted &&
+                        assistantText.length === 0 &&
+                        !pendingText.trim() &&
+                        assistantBlocks.length === 0 &&
+                        activeToolIds.size === 0 &&
+                        announcedToolIds.size === 0 &&
+                        attempt < maxStreamRetries &&
+                        !this.runtimeState.isCancelled(sessionId)
+                    ) {
+                        pendingStreamRetryReason = 'empty_response';
+                        continue;
                     }
 
                     break;
@@ -1529,6 +1551,7 @@ export class KernelMessageRunnerService {
                         content: this.sdkStreamContinuationPrompt(
                             maxSdkStreamEndAutoContinuesUsed,
                             maxSdkStreamEndAutoContinues,
+                            this.lastToolResultContinuationSummary(assistantBlocks),
                         ),
                         images: [],
                         usePersistedHistory: false,
@@ -2003,15 +2026,51 @@ export class KernelMessageRunnerService {
         ].join('\n');
     }
 
-    private sdkStreamContinuationPrompt(attempt: number, maxAttempts: number): string {
+    private sdkStreamContinuationPrompt(attempt: number, maxAttempts: number, checkpoint?: string): string {
+        const checkpointLine = checkpoint
+            ? `Recent completed tool checkpoint:\n${checkpoint}`
+            : 'Recent completed tool checkpoint is unavailable; inspect the workspace briefly before choosing the next action.';
         return [
             'Continue the previous user task from the current workspace and session state.',
             `The prior SDK stream ended after a tool result without an explicit stop reason; this is automatic continuation ${attempt}/${maxAttempts}.`,
+            checkpointLine,
             'First inspect what is already complete only if needed, then do the remaining work. Do not repeat completed tool calls, file writes, or generated data.',
-            'If the previous tool result already gives enough context, continue directly from it.',
+            'If the previous tool result already gives enough context, continue directly from it by performing the next required action; do not merely summarize partial progress.',
+            'If a previous tool wrote a generator, transform script, fixture builder, or other intermediate artifact, that is not completion. Run it, then verify the requested target file or state before claiming the task is done.',
+            'For generated datasets, repeated records, fixtures, catalogs, seed data, or other mechanical content larger than roughly 100 records or 100 KB, do not stream the final artifact through one large inline write argument. Create a small generator script in the workspace, run it, and verify the generated target. A single huge write is not a batch edit.',
             'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
             'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
         ].join('\n');
+    }
+
+    private lastToolResultContinuationSummary(blocks: AssistantContentBlock[]): string | undefined {
+        for (let index = blocks.length - 1; index >= 0; index -= 1) {
+            const block = blocks[index];
+            if (block?.type !== 'tool_result') continue;
+            const toolUse = blocks
+                .slice(0, index)
+                .reverse()
+                .find(
+                    candidate =>
+                        candidate.type === 'tool_use' &&
+                        (candidate.id === block.toolUseId || candidate.name === block.toolUseId),
+                );
+            const toolName = toolUse?.type === 'tool_use' ? toolUse.name : block.toolUseId;
+            const inputPreview =
+                toolUse?.type === 'tool_use' ? this.previewValue(toolUse.input, 1_200) : undefined;
+            const resultPreview = this.previewValue(block.content, 1_200);
+            const target = block.filePath ? `Target file: ${block.filePath}` : undefined;
+            return [
+                `Tool: ${toolName}`,
+                inputPreview ? `Input: ${inputPreview}` : undefined,
+                target,
+                resultPreview ? `Result: ${resultPreview}` : undefined,
+                block.isError ? 'The tool result was marked as an error.' : undefined,
+            ]
+                .filter((part): part is string => Boolean(part))
+                .join('\n');
+        }
+        return undefined;
     }
 
     private lastAssistantBlockType(blocks: AssistantContentBlock[]): AssistantBlockType | undefined {

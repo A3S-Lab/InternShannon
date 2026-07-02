@@ -171,12 +171,13 @@ export interface SessionRuntimeOverrides {
      */
     maxConsecutiveToolErrors?: number;
     /**
-     * Maximum automatic re-attempts after `event_stream_stalled` when **no
-     * tokens have been streamed yet** (model-thinking wedge). Tool-mid or
+     * Maximum automatic re-attempts for blank model-stream failures: either
+     * `event_stream_stalled` before the first token, or a normally closed SDK
+     * stream with no visible assistant content or tool events. Tool-mid or
      * partially-streamed runs are never auto-retried — the surface to the user
      * would diverge between attempts. Defaults to `DEFAULT_MAX_STREAM_RETRIES`.
-     * Set to `0` to disable the safety net and surface the stall as the legacy
-     * hard failure.
+     * Set to `0` to disable the safety net and surface the blank/stalled turn
+     * as the legacy hard failure.
      */
     maxStreamRetries?: number;
     mcpServers?: RuntimeMcpServerConfig[];

@@ -41,7 +41,7 @@ type RunnerInternals = {
         limit: number;
         wasCancelled: boolean;
     }): boolean;
-    sdkStreamContinuationPrompt(attempt: number, maxAttempts: number): string;
+    sdkStreamContinuationPrompt(attempt: number, maxAttempts: number, checkpoint?: string): string;
     shouldAutoContinueAfterToolInputStreamStall(input: {
         stopReason: string | null;
         activeToolCount: number;
@@ -382,10 +382,18 @@ describe('KernelMessageRunnerService run stop reasons', () => {
     it('prompts SDK stream continuation to avoid repeating completed tool calls', () => {
         const runner = createRunner();
 
-        const prompt = runner.sdkStreamContinuationPrompt(1, 1);
+        const prompt = runner.sdkStreamContinuationPrompt(
+            1,
+            1,
+            'Tool: write\nInput: {"file_path":"gen_songs.js"}\nResult: wrote file',
+        );
 
         expect(prompt).toContain('ended after a tool result');
+        expect(prompt).toContain('Recent completed tool checkpoint');
+        expect(prompt).toContain('gen_songs.js');
         expect(prompt).toContain('Do not repeat completed tool calls');
+        expect(prompt).toContain('that is not completion');
+        expect(prompt).toContain('run it, and verify the generated target');
         expect(prompt).toContain('current workspace');
     });
 
@@ -426,6 +434,93 @@ describe('KernelMessageRunnerService run stop reasons', () => {
             retryable: false,
         });
     });
+
+    it('retries a normally completed empty SDK stream before surfacing empty_response', async () => {
+        const conversationLog = {
+            recordAssistantMessage: jest.fn().mockResolvedValue(undefined),
+            listRuntimeHistory: jest.fn().mockResolvedValue([]),
+        };
+        const runtimeState = {
+            isCancelled: jest.fn().mockReturnValue(false),
+            clearCancelled: jest.fn(),
+        };
+        const session = {
+            history: jest.fn().mockReturnValue([]),
+            currentRun: jest
+                .fn()
+                .mockResolvedValueOnce({ id: 'run-empty' })
+                .mockResolvedValueOnce({ id: 'run-recovered' }),
+            cancelRun: jest.fn().mockResolvedValue(undefined),
+            cancel: jest.fn(),
+            stream: jest
+                .fn()
+                .mockResolvedValueOnce(
+                    iteratorFromEvents([
+                        { type: 'turn_start', turn: 1 },
+                        { type: 'turn_end', turn: 1, totalTokens: 12 },
+                    ]),
+                )
+                .mockResolvedValueOnce(
+                    iteratorFromEvents([
+                        { type: 'text_delta', text: '恢复完成。' },
+                        { type: 'turn_end', turn: 1, totalTokens: 42 },
+                    ]),
+                ),
+        };
+        const runner = new KernelMessageRunnerService(
+            conversationLog as never,
+            runtimeState as never,
+            null as never,
+            { resolve: jest.fn().mockReturnValue(undefined) } as never,
+        );
+        Object.assign(runner as unknown as { logger: Record<string, jest.Mock> }, {
+            logger: {
+                log: jest.fn(),
+                warn: jest.fn(),
+                error: jest.fn(),
+            },
+        });
+        const emitted: unknown[] = [];
+
+        await runner.runUserMessage({
+            sessionId: 'session-empty-stream',
+            content: '不要调用工具，直接回复一句话：完成信号测试。',
+            emit: message => emitted.push(message),
+            activeSession: {
+                session,
+                workspace: '/tmp/workspace',
+                agentId: 'default',
+                userId: 'user-1',
+                runtimeKey: 'default',
+                runtimeOverrides: {
+                    maxStreamRetries: 1,
+                },
+                nativeConfirmationEnabled: false,
+                nativeConfirmedToolKeys: new Set<string>(),
+                createdAt: Date.now(),
+                lastActivityAt: Date.now(),
+            } as never,
+        });
+
+        expect(session.stream).toHaveBeenCalledTimes(2);
+        expect(session.cancelRun).not.toHaveBeenCalled();
+        expect(session.cancel).not.toHaveBeenCalled();
+        expect(
+            emitted.some(
+                message =>
+                    isStreamEvent(message, 'stream_retry') &&
+                    (message as { event: Record<string, unknown> }).event.reason === 'empty_response',
+            ),
+        ).toBe(true);
+        expect(
+            emitted.some(
+                message =>
+                    isResult(message) &&
+                    (message as { data: Record<string, unknown> }).data.status === 'succeeded' &&
+                    (message as { data: Record<string, unknown> }).data.stopReason === 'end_turn',
+            ),
+        ).toBe(true);
+    }, 5_000);
 
     it('recovers a stalled non-write tool input stream by discarding and continuing', async () => {
         const conversationLog = {

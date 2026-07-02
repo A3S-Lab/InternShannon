@@ -1,6 +1,8 @@
 import type { ConfigService } from '@/modules/config/domain/services/config-service.interface';
 import type { AppSettings } from '@/modules/config/domain/services/settings-schema';
 import {
+  DESKTOP_DEFAULT_MAX_STREAM_RETRIES,
+  DESKTOP_DEFAULT_STREAM_STALL_HARD_MS,
   DESKTOP_DEFAULT_TOOL_INPUT_STREAM_STALL_HARD_MS,
   DesktopKernelRuntimeConfigService,
 } from './desktop-kernel-runtime-config.service';
@@ -54,6 +56,45 @@ describe('DesktopKernelRuntimeConfigService', () => {
 
     expect(runtimeConfig?.toolInputStreamStallHardMs).toBe(DESKTOP_DEFAULT_TOOL_INPUT_STREAM_STALL_HARD_MS);
     expect(runtimeConfig?.toolInputStreamStallHardMs).toBeLessThan(
+      runtimeConfig?.streamStallActiveToolHardMs ?? Number.POSITIVE_INFINITY,
+    );
+  });
+
+  it('keeps one desktop retry for blank model streams', async () => {
+    const configService = {
+      getSettings: jest.fn().mockResolvedValue({
+        llm: {
+          defaultModel: 'openai/gpt-4o',
+          providers: [],
+          mcpServers: [],
+        },
+      } as AppSettings),
+    } as unknown as jest.Mocked<ConfigService>;
+    const service = new DesktopKernelRuntimeConfigService(configService);
+
+    const runtimeConfig = await service.getModelsConfig();
+
+    expect(DESKTOP_DEFAULT_MAX_STREAM_RETRIES).toBe(1);
+    expect(runtimeConfig?.maxStreamRetries).toBe(DESKTOP_DEFAULT_MAX_STREAM_RETRIES);
+  });
+
+  it('fails and retries silent model streams before the five-minute active-tool window', async () => {
+    const configService = {
+      getSettings: jest.fn().mockResolvedValue({
+        llm: {
+          defaultModel: 'openai/gpt-4o',
+          providers: [],
+          mcpServers: [],
+        },
+      } as AppSettings),
+    } as unknown as jest.Mocked<ConfigService>;
+    const service = new DesktopKernelRuntimeConfigService(configService);
+
+    const runtimeConfig = await service.getModelsConfig();
+
+    expect(DESKTOP_DEFAULT_STREAM_STALL_HARD_MS).toBe(90_000);
+    expect(runtimeConfig?.streamStallHardMs).toBe(DESKTOP_DEFAULT_STREAM_STALL_HARD_MS);
+    expect(runtimeConfig?.streamStallHardMs).toBeLessThan(
       runtimeConfig?.streamStallActiveToolHardMs ?? Number.POSITIVE_INFINITY,
     );
   });
