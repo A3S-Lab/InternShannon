@@ -376,6 +376,14 @@ export class KernelMessageRunnerService {
             const active = Array.from(activeToolIds);
             return active.length > 0 ? active[active.length - 1] : undefined;
         };
+        const preferredWatchdogToolId = (): string | undefined => {
+            const active = Array.from(activeToolIds);
+            return active.find(toolId => toolExecStartedAt.has(toolId)) ?? active[0];
+        };
+        const activeToolPhase = (toolId?: string): 'tool_exec' | 'tool_input_streaming' | 'model_stream' => {
+            if (!toolId) return 'model_stream';
+            return toolExecStartedAt.has(toolId) ? 'tool_exec' : 'tool_input_streaming';
+        };
 
         const safeFailureBlocks = (failureText: string): AssistantContentBlock[] => {
             flushTextBlock();
@@ -640,14 +648,15 @@ export class KernelMessageRunnerService {
                 const pending = eventStream.next();
                 while (true) {
                     const sinceLastMs = Date.now() - lastEventAt;
-                    // Pick the threshold based on whether a tool is currently
-                    // in flight. We re-evaluate each loop iteration because a
-                    // tool may start/end between waits.
-                    const activeHardMs = activeToolIds.size > 0 ? stallActiveToolHardMs : stallHardMs;
+                    // Only true tool execution gets the longer active-tool
+                    // window. Tool input streaming is still model output, and
+                    // large inline arguments can wedge before the tool starts.
+                    const activeToolId = preferredWatchdogToolId();
+                    const phase = activeToolPhase(activeToolId);
+                    const activeHardMs = phase === 'tool_exec' ? stallActiveToolHardMs : stallHardMs;
                     if (sinceLastMs >= activeHardMs) {
-                        const activeToolId = activeToolIds.values().next().value;
                         this.logger.error(
-                            `[stream:${sessionId}] event stream stalled for ${sinceLastMs}ms (activeTools=${activeToolIds.size}, last=${activeToolId ?? 'n/a'}, threshold=${activeHardMs}ms, runId=${currentRunId ?? 'unknown'}); cancelling run`,
+                            `[stream:${sessionId}] event stream stalled for ${sinceLastMs}ms (activeTools=${activeToolIds.size}, last=${activeToolId ?? 'n/a'}, phase=${phase}, threshold=${activeHardMs}ms, runId=${currentRunId ?? 'unknown'}); cancelling run`,
                         );
                         // Surgical: only cancel this stuck run. If the user
                         // already retried with a new message, the new run id
@@ -655,7 +664,7 @@ export class KernelMessageRunnerService {
                         cancelCurrentRun('event_stream_stalled');
                         throw new Error(
                             `event_stream_stalled: no SDK events for ${sinceLastMs}ms` +
-                                (activeToolId ? ` while tool '${activeToolId}' was active` : ''),
+                                (activeToolId ? ` while tool '${activeToolId}' was ${phase}` : ''),
                         );
                     }
                     // After the first heartbeat we re-tick on every
@@ -687,12 +696,13 @@ export class KernelMessageRunnerService {
                     if (dueForHeartbeat) {
                         lastHeartbeatAt = Date.now();
                         const stalledMs = lastHeartbeatAt - lastEventAt;
-                        const activeToolId = activeToolIds.values().next().value;
+                        const activeToolId = preferredWatchdogToolId();
                         const activeToolIdStr = typeof activeToolId === 'string' ? activeToolId : undefined;
+                        const phase = activeToolPhase(activeToolIdStr);
                         // Structured log so operators can aggregate "X% of
                         // sessions stall on tool Y" via log pipelines.
                         this.logger.warn(
-                            `[kernel.stream.stalled] sessionId=${sessionId} stalledMs=${stalledMs} activeToolCount=${activeToolIds.size} activeToolId=${activeToolIdStr ?? 'n/a'} threshold=${activeHardMs}`,
+                            `[kernel.stream.stalled] sessionId=${sessionId} stalledMs=${stalledMs} activeToolCount=${activeToolIds.size} activeToolId=${activeToolIdStr ?? 'n/a'} phase=${phase} threshold=${activeHardMs}`,
                         );
                         this.metrics?.incCounter('kernel_stream_stalled_total', {
                             active_tool: activeToolIdStr ?? 'none',
@@ -705,6 +715,7 @@ export class KernelMessageRunnerService {
                                 stalledMs,
                                 activeToolCount: activeToolIds.size,
                                 activeToolId: activeToolIdStr,
+                                activeToolPhase: phase,
                                 timestamp: Date.now(),
                             },
                         });
@@ -1708,6 +1719,7 @@ export class KernelMessageRunnerService {
             `The prior SDK run stopped because it reached the tool-round limit; this is automatic continuation ${attempt}/${maxAttempts}.`,
             'First inspect what is already complete, then do only the remaining work. Do not repeat completed file writes or duplicate generated data.',
             'For large mechanical changes, prefer one script or a batch edit over many small read/write cycles.',
+            'For generated data or mechanical file contents larger than roughly 200 lines, 100 records, or 20 KB, do not stream the final artifact through a large inline write argument. Create a small generator script in the workspace and run it. A single huge write is not a batch edit.',
             'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
             'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
         ].join('\n');

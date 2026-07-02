@@ -110,6 +110,15 @@ describe('KernelRuntimeConfigBuilder', () => {
 
         expect(hcl).toMatch(/models "gpt-5\.5" \{[\s\S]*limit = \{\n      output = 128000\n      context = 258000\n    \}/);
     });
+
+    it('guards large generated data from being streamed through inline write arguments', () => {
+        const builder = new KernelRuntimeConfigBuilder(null);
+
+        const extra = builder.composeExtraSlot({});
+
+        expect(extra).toContain('do not stream the final artifact through a large inline write argument');
+        expect(extra).toContain('A single huge write is not a batch edit');
+    });
 });
 
 function restoreEnv(name: string, value: string | undefined) {
