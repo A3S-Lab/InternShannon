@@ -1719,7 +1719,7 @@ export class KernelMessageRunnerService {
             `The prior SDK run stopped because it reached the tool-round limit; this is automatic continuation ${attempt}/${maxAttempts}.`,
             'First inspect what is already complete, then do only the remaining work. Do not repeat completed file writes or duplicate generated data.',
             'For large mechanical changes, prefer one script or a batch edit over many small read/write cycles.',
-            'For generated data or mechanical file contents larger than roughly 200 lines, 100 records, or 20 KB, do not stream the final artifact through a large inline write argument. Create a small generator script in the workspace and run it. A single huge write is not a batch edit.',
+            'For generated datasets, repeated records, fixtures, catalogs, seed data, or other mechanical content larger than roughly 100 records or 100 KB, do not stream the final artifact through one large inline write argument. Create a small generator script in the workspace and run it. Ordinary hand-authored source files, small new files, and intentional full-file replacements may use inline write when that is the clearest path. A single huge write is not a batch edit.',
             'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
             'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
         ].join('\n');

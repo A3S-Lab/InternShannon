@@ -134,6 +134,8 @@ describe('KernelMessageRunnerService run stop reasons', () => {
 
         expect(prompt).toContain('First inspect what is already complete');
         expect(prompt).toContain('batch edit');
+        expect(prompt).toContain('100 KB');
+        expect(prompt).toContain('one large inline write argument');
         expect(prompt).toContain('A single huge write is not a batch edit');
         expect(prompt).toContain('Do not write scratch files to arbitrary absolute paths');
     });
