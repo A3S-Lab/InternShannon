@@ -230,6 +230,11 @@ export class LlmSettingsRequestDto {
     @ApiPropertyOptional()
     @IsOptional()
     @IsNumber()
+    toolInputStreamStallHardMs?: number;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsNumber()
     streamStallActiveToolHardMs?: number;
 
     @ApiPropertyOptional()
@@ -1162,6 +1167,11 @@ export class AssistantSettingsRequestDto {
     @IsOptional()
     @IsNumber()
     streamStallHardMs?: number;
+
+    @ApiPropertyOptional()
+    @IsOptional()
+    @IsNumber()
+    toolInputStreamStallHardMs?: number;
 
     @ApiPropertyOptional()
     @IsOptional()

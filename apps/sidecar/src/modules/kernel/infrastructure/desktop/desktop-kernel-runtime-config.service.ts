@@ -9,6 +9,7 @@ import {
 
 export const DESKTOP_DEFAULT_STREAM_STALL_WARNING_MS = 30_000;
 export const DESKTOP_DEFAULT_STREAM_STALL_HARD_MS = 300_000;
+export const DESKTOP_DEFAULT_TOOL_INPUT_STREAM_STALL_HARD_MS = 90_000;
 export const DESKTOP_DEFAULT_STREAM_STALL_ACTIVE_TOOL_HARD_MS = 600_000;
 export const DESKTOP_DEFAULT_TOOL_TIMEOUT_MS = 300_000;
 export const DESKTOP_DEFAULT_QUEUE_TIMEOUT_MS = 300_000;
@@ -60,6 +61,7 @@ export class DesktopKernelRuntimeConfigService
           maxExecutionTimeMs: llm.maxExecutionTimeMs ?? null,
           streamStallWarningMs: llm.streamStallWarningMs ?? null,
           streamStallHardMs: llm.streamStallHardMs ?? null,
+          toolInputStreamStallHardMs: llm.toolInputStreamStallHardMs ?? null,
           streamStallActiveToolHardMs: llm.streamStallActiveToolHardMs ?? null,
           maxConsecutiveToolErrors: llm.maxConsecutiveToolErrors ?? null,
           maxStreamRetries: llm.maxStreamRetries ?? null,
@@ -86,6 +88,9 @@ export class DesktopKernelRuntimeConfigService
         config?.streamStallWarningMs ?? DESKTOP_DEFAULT_STREAM_STALL_WARNING_MS,
       streamStallHardMs:
         config?.streamStallHardMs ?? DESKTOP_DEFAULT_STREAM_STALL_HARD_MS,
+      toolInputStreamStallHardMs:
+        config?.toolInputStreamStallHardMs ??
+        DESKTOP_DEFAULT_TOOL_INPUT_STREAM_STALL_HARD_MS,
       streamStallActiveToolHardMs:
         config?.streamStallActiveToolHardMs ??
         DESKTOP_DEFAULT_STREAM_STALL_ACTIVE_TOOL_HARD_MS,

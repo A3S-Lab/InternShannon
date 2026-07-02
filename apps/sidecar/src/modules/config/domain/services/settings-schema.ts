@@ -59,6 +59,8 @@ export class LlmSettings {
     streamStallWarningMs?: number;
     /** Stall watchdog hard threshold (ms) for idle/model-stream silence — force-cancel a wedged session. */
     streamStallHardMs?: number;
+    /** Stall watchdog hard threshold (ms) while the model is generating tool arguments. */
+    toolInputStreamStallHardMs?: number;
     /** Stall watchdog hard threshold (ms) while a tool is mid-execution — defaults to a longer window so legitimate long tools aren't preempted. */
     streamStallActiveToolHardMs?: number;
     /** Same-tool circuit breaker: cancel after this many consecutive failures. */
@@ -435,6 +437,8 @@ export class AssistantSettings {
     streamStallWarningMs?: number;
     /** Stall watchdog hard threshold while no tool is in flight. */
     streamStallHardMs?: number;
+    /** Stall watchdog hard threshold while tool arguments are still streaming. */
+    toolInputStreamStallHardMs?: number;
     /** Stall watchdog hard threshold while a tool is in flight. */
     streamStallActiveToolHardMs?: number;
     /** Same-tool consecutive failure circuit breaker. */
@@ -663,6 +667,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
         maxExecutionTimeMs: undefined,
         streamStallWarningMs: undefined,
         streamStallHardMs: undefined,
+        toolInputStreamStallHardMs: undefined,
         streamStallActiveToolHardMs: undefined,
         maxConsecutiveToolErrors: undefined,
         maxStreamRetries: undefined,

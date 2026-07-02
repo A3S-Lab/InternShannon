@@ -120,6 +120,14 @@ export const DEFAULT_STREAM_STALL_WARNING_MS = 15_000;
 export const DEFAULT_STREAM_STALL_HARD_MS = 90_000;
 
 /**
+ * Runner-side watchdog hard threshold while the model is still streaming tool
+ * input JSON. This is model output, not tool execution, so it should fail fast
+ * like Claude Code's stream idle watchdog instead of inheriting the long
+ * active-tool window.
+ */
+export const DEFAULT_TOOL_INPUT_STREAM_STALL_HARD_MS = 90_000;
+
+/**
  * Runner-side watchdog hard threshold while a tool is actively executing.
  * Five minutes is generous for legitimate long tool runs (slow `web_search`
  * retries, large `Bash` builds, multi-MB git clones) that emit no

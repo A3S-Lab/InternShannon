@@ -43,6 +43,7 @@ export interface ModelsConfig {
   maxExecutionTimeMs?: number | null;
   streamStallWarningMs?: number | null;
   streamStallHardMs?: number | null;
+  toolInputStreamStallHardMs?: number | null;
   streamStallActiveToolHardMs?: number | null;
   maxConsecutiveToolErrors?: number | null;
   maxStreamRetries?: number | null;
@@ -81,6 +82,7 @@ export class AppConfigService {
     maxExecutionTimeMs?: number | null;
     streamStallWarningMs?: number | null;
     streamStallHardMs?: number | null;
+    toolInputStreamStallHardMs?: number | null;
     streamStallActiveToolHardMs?: number | null;
     maxConsecutiveToolErrors?: number | null;
     maxStreamRetries?: number | null;
@@ -101,6 +103,8 @@ export class AppConfigService {
       maxExecutionTimeMs: patch.maxExecutionTimeMs ?? current?.maxExecutionTimeMs ?? null,
       streamStallWarningMs: patch.streamStallWarningMs ?? current?.streamStallWarningMs ?? null,
       streamStallHardMs: patch.streamStallHardMs ?? current?.streamStallHardMs ?? null,
+      toolInputStreamStallHardMs:
+        patch.toolInputStreamStallHardMs ?? current?.toolInputStreamStallHardMs ?? null,
       streamStallActiveToolHardMs: patch.streamStallActiveToolHardMs ?? current?.streamStallActiveToolHardMs ?? null,
       maxConsecutiveToolErrors: patch.maxConsecutiveToolErrors ?? current?.maxConsecutiveToolErrors ?? null,
       maxStreamRetries: patch.maxStreamRetries ?? current?.maxStreamRetries ?? null,

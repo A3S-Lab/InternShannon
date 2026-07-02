@@ -144,6 +144,13 @@ export interface SessionRuntimeOverrides {
      */
     streamStallHardMs?: number;
     /**
+     * Runner-side watchdog: force-cancel after this many ms of silence while
+     * the model is still streaming tool arguments and the tool has not started.
+     * This is separate from `streamStallActiveToolHardMs` so huge/slow tool
+     * input JSON cannot sit for the full active-tool execution window.
+     */
+    toolInputStreamStallHardMs?: number;
+    /**
      * Runner-side watchdog: force-cancel after this many ms of silence **while a
      * tool is actively executing**. Decoupled from `streamStallHardMs`
      * because legitimate long tools (large `Bash`, `web_search` with retries,

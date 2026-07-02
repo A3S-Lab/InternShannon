@@ -204,6 +204,7 @@ export class DesktopKernelService implements IKernelService {
             'maxExecutionTimeMs',
             'streamStallWarningMs',
             'streamStallHardMs',
+            'toolInputStreamStallHardMs',
             'streamStallActiveToolHardMs',
             'maxConsecutiveToolErrors',
             'maxStreamRetries',

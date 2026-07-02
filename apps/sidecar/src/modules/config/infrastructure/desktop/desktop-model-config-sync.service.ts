@@ -37,6 +37,7 @@ export class DesktopModelConfigSyncService implements IDesktopModelConfigSync {
                 maxExecutionTimeMs: settings.llm.maxExecutionTimeMs ?? null,
                 streamStallWarningMs: settings.llm.streamStallWarningMs ?? null,
                 streamStallHardMs: settings.llm.streamStallHardMs ?? null,
+                toolInputStreamStallHardMs: settings.llm.toolInputStreamStallHardMs ?? null,
                 streamStallActiveToolHardMs: settings.llm.streamStallActiveToolHardMs ?? null,
                 maxConsecutiveToolErrors: settings.llm.maxConsecutiveToolErrors ?? null,
                 maxStreamRetries: settings.llm.maxStreamRetries ?? null,

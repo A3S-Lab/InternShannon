@@ -38,6 +38,7 @@ import {
     DEFAULT_STREAM_STALL_ACTIVE_TOOL_HARD_MS,
     DEFAULT_STREAM_STALL_HARD_MS,
     DEFAULT_STREAM_STALL_WARNING_MS,
+    DEFAULT_TOOL_INPUT_STREAM_STALL_HARD_MS,
     DEFAULT_TOOL_TIMEOUT_MS,
     type SessionRuntimeOverrides,
 } from './session-runtime.types';
@@ -79,6 +80,7 @@ type RunStopReason =
     | 'max_tool_rounds'
     | 'continuation_exhausted'
     | 'event_stream_stalled'
+    | 'tool_input_stream_stalled'
     | 'tool_circuit_open'
     | 'empty_response'
     | 'user_cancelled'
@@ -92,6 +94,7 @@ interface RunVerdict {
 }
 
 type AssistantBlockType = AssistantContentBlock['type'];
+type ActiveToolPhase = 'tool_exec' | 'tool_input_streaming' | 'model_stream';
 
 const MAX_CLIENT_TOOL_OUTPUT_BYTES = 64 * 1024;
 const DEFAULT_MAX_TOOL_ROUND_AUTO_CONTINUATIONS = 1;
@@ -383,7 +386,7 @@ export class KernelMessageRunnerService {
             const active = Array.from(activeToolIds);
             return active.find(toolId => toolExecStartedAt.has(toolId)) ?? active[0];
         };
-        const activeToolPhase = (toolId?: string): 'tool_exec' | 'tool_input_streaming' | 'model_stream' => {
+        const activeToolPhase = (toolId?: string): ActiveToolPhase => {
             if (!toolId) return 'model_stream';
             return toolExecStartedAt.has(toolId) ? 'tool_exec' : 'tool_input_streaming';
         };
@@ -513,6 +516,61 @@ export class KernelMessageRunnerService {
                     emit(browserMsg);
                 }
             };
+            const discardUnfinishedToolInputAttempt = (reason: string): string[] => {
+                const completedToolIds = new Set(
+                    assistantBlocks
+                        .filter(
+                            (block): block is Extract<AssistantContentBlock, { type: 'tool_result' }> =>
+                                block.type === 'tool_result',
+                        )
+                        .map(block => block.toolUseId),
+                );
+                const discardedToolIds = Array.from(activeToolIds).filter(
+                    toolId => !toolExecStartedAt.has(toolId),
+                );
+                for (let i = assistantBlocks.length - 1; i >= 0; i -= 1) {
+                    const block = assistantBlocks[i];
+                    if (
+                        block?.type === 'tool_use' &&
+                        discardedToolIds.includes(block.id) &&
+                        !completedToolIds.has(block.id)
+                    ) {
+                        assistantBlocks.splice(i, 1);
+                        seenToolUses.delete(block.id);
+                    }
+                }
+                const discardedToolLabels: string[] = [];
+                for (const toolId of discardedToolIds) {
+                    const toolName = toolNameById.get(toolId) || toolNameForId(toolId);
+                    discardedToolLabels.push(toolName || toolId);
+                    emitToolActivity({
+                        status: 'failed',
+                        phase: 'input_discarded',
+                        toolUseId: toolId,
+                        toolName,
+                        label: toolName ? `丢弃未完成参数：${toolName}` : '丢弃未完成工具参数',
+                        detail: reason,
+                        elapsedMs: toolStartedAt.has(toolId) ? Date.now() - toolStartedAt.get(toolId)! : undefined,
+                    });
+                    activeToolIds.delete(toolId);
+                    announcedToolIds.delete(toolId);
+                    toolStartedAt.delete(toolId);
+                    toolNameById.delete(toolId);
+                    toolInputStartedAt.delete(toolId);
+                    toolLastInputAt.delete(toolId);
+                    toolInputDeltaCount.delete(toolId);
+                    toolExecStartedAt.delete(toolId);
+                    toolInputById.delete(toolId);
+                    lastToolUpdateAt.delete(toolId);
+                    lastToolInputActivityAt.delete(toolId);
+                    toolOutputLimitById.delete(toolId);
+                    for (const [toolNameKey, latestToolId] of latestToolIdByName.entries()) {
+                        if (latestToolId === toolId) latestToolIdByName.delete(toolNameKey);
+                    }
+                }
+                pendingToolInputEvent = null;
+                return discardedToolLabels;
+            };
             const emitCoalescedToolInputDelta = (partialJson: string) => {
                 emitStreamEvent({
                     ...(pendingToolInputEvent ?? { type: 'input_json_delta' }),
@@ -553,20 +611,21 @@ export class KernelMessageRunnerService {
             // id of the run that failed.
             const cancelCurrentRun = (reason: string): void => {
                 if (currentRunId) {
+                    const runId = currentRunId;
                     activeSession.session
-                        .cancelRun(currentRunId)
-                        .catch(err =>
+                        .cancelRun(runId)
+                        .catch(err => {
                             this.logger.warn(
-                                `cancelRun(${currentRunId}) failed (${reason}) for session ${sessionId}: ${
+                                `cancelRun(${runId}) failed (${reason}) for session ${sessionId}: ${
                                     err instanceof Error ? err.message : String(err)
                                 }; falling back to session.cancel()`,
-                            ),
-                        )
-                        .finally(() => {
-                            // Belt-and-suspenders: if cancelRun lost the race
-                            // and the run is still active, the session-level
-                            // cancel ensures the SDK halts. No-op when already
-                            // stopped.
+                            );
+                            // Only use session-level cancellation when the
+                            // surgical run cancellation itself failed. A
+                            // successful cancelRun may be followed by an
+                            // automatic continuation, and a late
+                            // session.cancel() would kill that fresh run too.
+                            if (currentRunId !== runId) return;
                             try {
                                 activeSession.session.cancel();
                             } catch {
@@ -600,6 +659,13 @@ export class KernelMessageRunnerService {
             const stallHardMs = Math.max(
                 stallWarningMs + 1_000,
                 resolvePositiveMs(watchdogOverrides.streamStallHardMs, DEFAULT_STREAM_STALL_HARD_MS),
+            );
+            const toolInputStreamStallHardMs = Math.max(
+                stallWarningMs + 1_000,
+                resolvePositiveMs(
+                    watchdogOverrides.toolInputStreamStallHardMs,
+                    DEFAULT_TOOL_INPUT_STREAM_STALL_HARD_MS,
+                ),
             );
             // Active-tool hard threshold: while a tool is in flight, give it
             // generous breathing room because legitimate long tools (large
@@ -636,8 +702,10 @@ export class KernelMessageRunnerService {
                     : DEFAULT_MAX_STREAM_RETRIES;
             const maxToolRoundAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
             const maxSdkStreamEndAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
+            const maxToolInputStreamStallAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
             let maxToolRoundAutoContinuesUsed = 0;
             let maxSdkStreamEndAutoContinuesUsed = 0;
+            let maxToolInputStreamStallAutoContinuesUsed = 0;
             let streamOptions: EventStreamOptions | undefined;
             // Reassigned at the top of each retry attempt. `watchedNext`,
             // `cancelCurrentRun`, and the inner event loop all close over
@@ -658,17 +726,36 @@ export class KernelMessageRunnerService {
                     // large inline arguments can wedge before the tool starts.
                     const activeToolId = preferredWatchdogToolId();
                     const phase = activeToolPhase(activeToolId);
-                    const activeHardMs = phase === 'tool_exec' ? stallActiveToolHardMs : stallHardMs;
+                    const activeHardMs = this.streamStallHardMsForPhase(phase, {
+                        modelStreamMs: stallHardMs,
+                        toolInputStreamMs: toolInputStreamStallHardMs,
+                        toolExecMs: stallActiveToolHardMs,
+                    });
                     if (sinceLastMs >= activeHardMs) {
+                        const stopReason = this.streamStallStopReasonForPhase(phase);
                         this.logger.error(
                             `[stream:${sessionId}] event stream stalled for ${sinceLastMs}ms (activeTools=${activeToolIds.size}, last=${activeToolId ?? 'n/a'}, phase=${phase}, threshold=${activeHardMs}ms, runId=${currentRunId ?? 'unknown'}); cancelling run`,
                         );
+                        emitStreamEvent({
+                            type:
+                                stopReason === 'tool_input_stream_stalled'
+                                    ? 'tool_input_stream_stalled'
+                                    : 'stream_stall_timeout',
+                            reason: stopReason,
+                            sessionId,
+                            stalledMs: sinceLastMs,
+                            thresholdMs: activeHardMs,
+                            activeToolCount: activeToolIds.size,
+                            activeToolId,
+                            activeToolPhase: phase,
+                            timestamp: Date.now(),
+                        });
                         // Surgical: only cancel this stuck run. If the user
                         // already retried with a new message, the new run id
                         // differs and `cancelRun` no-ops on the stale id.
-                        cancelCurrentRun('event_stream_stalled');
+                        cancelCurrentRun(stopReason);
                         throw new Error(
-                            `event_stream_stalled: no SDK events for ${sinceLastMs}ms` +
+                            `${stopReason}: no SDK events for ${sinceLastMs}ms` +
                                 (activeToolId ? ` while tool '${activeToolId}' was ${phase}` : ''),
                         );
                     }
@@ -704,6 +791,7 @@ export class KernelMessageRunnerService {
                         const activeToolId = preferredWatchdogToolId();
                         const activeToolIdStr = typeof activeToolId === 'string' ? activeToolId : undefined;
                         const phase = activeToolPhase(activeToolIdStr);
+                        const stopReason = this.streamStallStopReasonForPhase(phase);
                         // Structured log so operators can aggregate "X% of
                         // sessions stall on tool Y" via log pipelines.
                         this.logger.warn(
@@ -711,13 +799,17 @@ export class KernelMessageRunnerService {
                         );
                         this.metrics?.incCounter('kernel_stream_stalled_total', {
                             active_tool: activeToolIdStr ?? 'none',
+                            phase,
+                            reason: stopReason,
                         });
                         emit({
                             type: 'stream_event',
                             event: {
                                 type: 'stream_stalled',
+                                reason: stopReason,
                                 sessionId,
                                 stalledMs,
+                                thresholdMs: activeHardMs,
                                 activeToolCount: activeToolIds.size,
                                 activeToolId: activeToolIdStr,
                                 activeToolPhase: phase,
@@ -740,7 +832,7 @@ export class KernelMessageRunnerService {
             // `maxStreamRetries` times before surfacing the failure. Any other
             // stall (tool-active, mid-output) bypasses retry — see the catch
             // gate below.
-            while (true) {
+            streamContinuationLoop: while (true) {
                 streamStopReason = null;
                 currentRunId = null;
 
@@ -803,7 +895,7 @@ export class KernelMessageRunnerService {
                     }
 
                     this.logger.log(
-                        `Creating event stream for session ${sessionId}, model=${resolvedModel}${attempt > 0 ? ` (retry ${attempt})` : ''}${maxToolRoundAutoContinuesUsed > 0 ? ` (tool-round continuation ${maxToolRoundAutoContinuesUsed})` : ''}${maxSdkStreamEndAutoContinuesUsed > 0 ? ` (sdk-stream continuation ${maxSdkStreamEndAutoContinuesUsed})` : ''}`,
+                        `Creating event stream for session ${sessionId}, model=${resolvedModel}${attempt > 0 ? ` (retry ${attempt})` : ''}${maxToolRoundAutoContinuesUsed > 0 ? ` (tool-round continuation ${maxToolRoundAutoContinuesUsed})` : ''}${maxSdkStreamEndAutoContinuesUsed > 0 ? ` (sdk-stream continuation ${maxSdkStreamEndAutoContinuesUsed})` : ''}${maxToolInputStreamStallAutoContinuesUsed > 0 ? ` (tool-input continuation ${maxToolInputStreamStallAutoContinuesUsed})` : ''}`,
                     );
                     eventStream = await this.createEventStream(input, streamOptions);
                     this.logger.log(`Event stream created for session ${sessionId}, waiting for events...`);
@@ -1302,15 +1394,67 @@ export class KernelMessageRunnerService {
                         }
                     } catch (innerErr) {
                         flushCoalescedToolInputDelta();
-                        // Only the "model thinking" wedge is retryable, and only
-                        // when nothing has been streamed yet. Tool-active stalls,
-                        // partial-output stalls, tool circuit-breaker failures,
-                        // and unrelated errors fall through to the outer catch.
                         const message = innerErr instanceof Error ? innerErr.message : String(innerErr);
-                        const isStall = message.startsWith('event_stream_stalled');
+                        const stopReason = this.normalizeRunStopReason(message);
+                        if (stopReason === 'tool_input_stream_stalled') {
+                            const discardedToolLabels = discardUnfinishedToolInputAttempt(message);
+                            const wasCancelled = this.runtimeState.isCancelled(sessionId);
+                            if (
+                                this.shouldAutoContinueAfterToolInputStreamStall({
+                                    stopReason,
+                                    activeToolCount: activeToolIds.size,
+                                    discardedToolCount: discardedToolLabels.length,
+                                    used: maxToolInputStreamStallAutoContinuesUsed,
+                                    limit: maxToolInputStreamStallAutoContinues,
+                                    wasCancelled,
+                                })
+                            ) {
+                                maxToolInputStreamStallAutoContinuesUsed += 1;
+                                streamOptions = {
+                                    content: this.toolInputStreamStallContinuationPrompt(
+                                        maxToolInputStreamStallAutoContinuesUsed,
+                                        maxToolInputStreamStallAutoContinues,
+                                        discardedToolLabels,
+                                    ),
+                                    images: [],
+                                    usePersistedHistory: false,
+                                };
+                                this.logger.warn(
+                                    `[kernel.run.auto_continue] sessionId=${sessionId} reason=tool_input_stream_stalled attempt=${maxToolInputStreamStallAutoContinuesUsed} maxAttempts=${maxToolInputStreamStallAutoContinues} discardedTools=${discardedToolLabels.join(',') || 'none'}`,
+                                );
+                                this.metrics?.incCounter('kernel_run_auto_continue_total', {
+                                    reason: 'tool_input_stream_stalled',
+                                });
+                                emitStreamEvent({
+                                    type: 'run_auto_continue',
+                                    reason: 'tool_input_stream_stalled',
+                                    attempt: maxToolInputStreamStallAutoContinuesUsed,
+                                    maxAttempts: maxToolInputStreamStallAutoContinues,
+                                    discardedTools: discardedToolLabels,
+                                    timestamp: Date.now(),
+                                });
+                                emitMainActivity({
+                                    status: 'running',
+                                    phase: 'auto_continue',
+                                    label: '自动续跑',
+                                    detail: '模型在生成工具参数时停滞，已丢弃未执行工具并继续任务',
+                                    source: 'Kernel Runtime',
+                                });
+                                lastHeartbeatAt = null;
+                                continue streamContinuationLoop;
+                            }
+                        }
+                        // Only the blank "model thinking" wedge is retryable.
+                        // Once a tool_use/input stream exists, retry through the
+                        // controlled continuation path above so partial tools are
+                        // discarded instead of replayed as a clean first attempt.
+                        const isStall = stopReason === 'event_stream_stalled';
                         if (
                             isStall &&
                             !outputStarted &&
+                            activeToolIds.size === 0 &&
+                            assistantBlocks.length === 0 &&
+                            announcedToolIds.size === 0 &&
                             attempt < maxStreamRetries &&
                             !this.runtimeState.isCancelled(sessionId)
                         ) {
@@ -1737,6 +1881,7 @@ export class KernelMessageRunnerService {
         if (
             stopReason === 'empty_response' ||
             stopReason === 'event_stream_stalled' ||
+            stopReason === 'tool_input_stream_stalled' ||
             stopReason === 'tool_circuit_open'
         ) {
             return { status: 'failed', stopReason, retryable: false };
@@ -1793,12 +1938,65 @@ export class KernelMessageRunnerService {
         );
     }
 
+    private shouldAutoContinueAfterToolInputStreamStall(input: {
+        stopReason: RunStopReason | null;
+        activeToolCount: number;
+        discardedToolCount: number;
+        used: number;
+        limit: number;
+        wasCancelled: boolean;
+    }): boolean {
+        return (
+            input.stopReason === 'tool_input_stream_stalled' &&
+            input.activeToolCount === 0 &&
+            input.discardedToolCount > 0 &&
+            input.used < input.limit &&
+            !input.wasCancelled
+        );
+    }
+
+    private streamStallHardMsForPhase(
+        phase: ActiveToolPhase,
+        thresholds: {
+            modelStreamMs: number;
+            toolInputStreamMs: number;
+            toolExecMs: number;
+        },
+    ): number {
+        if (phase === 'tool_exec') return thresholds.toolExecMs;
+        if (phase === 'tool_input_streaming') return thresholds.toolInputStreamMs;
+        return thresholds.modelStreamMs;
+    }
+
+    private streamStallStopReasonForPhase(phase: ActiveToolPhase): RunStopReason {
+        return phase === 'tool_input_streaming' ? 'tool_input_stream_stalled' : 'event_stream_stalled';
+    }
+
     private maxToolRoundContinuationPrompt(attempt: number, maxAttempts: number): string {
         return [
             'Continue the previous user task from the current workspace and session state.',
             `The prior SDK run stopped because it reached the tool-round limit; this is automatic continuation ${attempt}/${maxAttempts}.`,
             'First inspect what is already complete, then do only the remaining work. Do not repeat completed file writes or duplicate generated data.',
             'For large mechanical changes, prefer one script or a batch edit over many small read/write cycles.',
+            'For generated datasets, repeated records, fixtures, catalogs, seed data, or other mechanical content larger than roughly 100 records or 100 KB, do not stream the final artifact through one large inline write argument. Create a small generator script in the workspace and run it. Ordinary hand-authored source files, small new files, and intentional full-file replacements may use inline write when that is the clearest path. A single huge write is not a batch edit.',
+            'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
+            'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
+        ].join('\n');
+    }
+
+    private toolInputStreamStallContinuationPrompt(
+        attempt: number,
+        maxAttempts: number,
+        discardedTools: string[] = [],
+    ): string {
+        const toolText =
+            discardedTools.length > 0
+                ? ` Discarded incomplete tool argument streams: ${discardedTools.join(', ')}.`
+                : '';
+        return [
+            'Continue the previous user task from the current workspace and session state.',
+            `The prior SDK stream stalled while the model was generating tool arguments before any tool executed; this is automatic continuation ${attempt}/${maxAttempts}.${toolText}`,
+            'Do not repeat a huge inline tool argument. Use smaller tool arguments and inspect current files only when needed.',
             'For generated datasets, repeated records, fixtures, catalogs, seed data, or other mechanical content larger than roughly 100 records or 100 KB, do not stream the final artifact through one large inline write argument. Create a small generator script in the workspace and run it. Ordinary hand-authored source files, small new files, and intentional full-file replacements may use inline write when that is the clearest path. A single huge write is not a batch edit.',
             'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
             'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
@@ -1835,7 +2033,11 @@ export class KernelMessageRunnerService {
         const message = error instanceof Error ? error.message : String(error);
         const stopReason = this.normalizeRunStopReason(message) ?? 'unknown';
         const failureReason =
-            stopReason === 'event_stream_stalled' || stopReason === 'tool_circuit_open' ? stopReason : 'unknown';
+            stopReason === 'event_stream_stalled' ||
+            stopReason === 'tool_input_stream_stalled' ||
+            stopReason === 'tool_circuit_open'
+                ? stopReason
+                : 'unknown';
         return {
             status: 'failed',
             stopReason: failureReason,
@@ -1855,6 +2057,7 @@ export class KernelMessageRunnerService {
             return '运行提前结束，未收到明确完成信号';
         }
         if (verdict.stopReason === 'event_stream_stalled') return '运行事件流超时停滞';
+        if (verdict.stopReason === 'tool_input_stream_stalled') return '工具参数生成超时停滞';
         if (verdict.stopReason === 'tool_circuit_open') return '工具连续失败，本轮已中止';
         if (verdict.stopReason === 'empty_response') return '模型未返回有效响应';
         if (verdict.stopReason === 'user_cancelled') return '用户取消了本轮任务';
@@ -1952,6 +2155,9 @@ export class KernelMessageRunnerService {
         }
         if (compact === 'event_stream_stalled' || compact.includes('event_stream_stalled')) {
             return 'event_stream_stalled';
+        }
+        if (compact === 'tool_input_stream_stalled' || compact.includes('tool_input_stream_stalled')) {
+            return 'tool_input_stream_stalled';
         }
         if (compact === 'tool_circuit_open' || compact.includes('tool_circuit_open')) return 'tool_circuit_open';
         if (compact === 'empty_response' || compact === 'empty_model_response') return 'empty_response';

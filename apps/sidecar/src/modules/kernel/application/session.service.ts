@@ -40,6 +40,7 @@ const SESSION_METADATA_KEYS = [
     'maxExecutionTimeMs',
     'streamStallWarningMs',
     'streamStallHardMs',
+    'toolInputStreamStallHardMs',
     'streamStallActiveToolHardMs',
     'maxConsecutiveToolErrors',
     'maxStreamRetries',

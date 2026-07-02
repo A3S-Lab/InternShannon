@@ -36,6 +36,7 @@ export type KernelAssistantRuntimeDefaults = Pick<
     | 'maxExecutionTimeMs'
     | 'streamStallWarningMs'
     | 'streamStallHardMs'
+    | 'toolInputStreamStallHardMs'
     | 'streamStallActiveToolHardMs'
     | 'maxConsecutiveToolErrors'
     | 'maxStreamRetries'
@@ -91,6 +92,8 @@ export interface KernelRuntimeModelsConfig {
     streamStallWarningMs?: number | null;
     /** Stall watchdog hard threshold (ms) for idle/model-stream silence — force-cancel after this long. */
     streamStallHardMs?: number | null;
+    /** Stall watchdog hard threshold (ms) while the model is generating tool arguments. */
+    toolInputStreamStallHardMs?: number | null;
     /** Stall watchdog hard threshold (ms) while a tool is mid-execution — defaults to a longer window so legitimate long tools aren't preempted. */
     streamStallActiveToolHardMs?: number | null;
     /** Same-tool circuit breaker: cancel after this many consecutive failures. */

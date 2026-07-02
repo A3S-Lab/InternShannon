@@ -288,6 +288,7 @@ export class KernelController {
             maxExecutionTimeMs: dto.maxExecutionTimeMs,
             streamStallWarningMs: dto.streamStallWarningMs,
             streamStallHardMs: dto.streamStallHardMs,
+            toolInputStreamStallHardMs: dto.toolInputStreamStallHardMs,
             streamStallActiveToolHardMs: dto.streamStallActiveToolHardMs,
             maxConsecutiveToolErrors: dto.maxConsecutiveToolErrors,
             maxStreamRetries: dto.maxStreamRetries,

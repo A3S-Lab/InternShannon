@@ -169,6 +169,10 @@ export class CreateSessionRequestDto {
     @IsOptional()
     streamStallHardMs?: number;
 
+    @ApiPropertyOptional({ description: '工具参数生成停滞硬超时（毫秒）' })
+    @IsOptional()
+    toolInputStreamStallHardMs?: number;
+
     @ApiPropertyOptional({ description: '工具执行期间流式停滞硬超时（毫秒）' })
     @IsOptional()
     streamStallActiveToolHardMs?: number;
