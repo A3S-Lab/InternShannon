@@ -91,6 +91,8 @@ interface RunVerdict {
     retryable: boolean;
 }
 
+type AssistantBlockType = AssistantContentBlock['type'];
+
 const MAX_CLIENT_TOOL_OUTPUT_BYTES = 64 * 1024;
 const DEFAULT_MAX_TOOL_ROUND_AUTO_CONTINUATIONS = 1;
 const TOOL_OUTPUT_TRUNCATION_NOTICE =
@@ -318,6 +320,7 @@ export class KernelMessageRunnerService {
         // State accumulated across the message run. Keep it outside `try` so
         // the failure path can persist whatever the user already saw before a
         // watchdog/tool/runtime error aborted the stream.
+        const initialHistoryLength = activeSession.session.history().length;
         const assistantText: string[] = [];
         const assistantBlocks: AssistantContentBlock[] = [];
         const seenToolUses = new Set<string>();
@@ -632,7 +635,9 @@ export class KernelMessageRunnerService {
                     ? Math.floor(maxStreamRetriesOverride)
                     : DEFAULT_MAX_STREAM_RETRIES;
             const maxToolRoundAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
+            const maxSdkStreamEndAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
             let maxToolRoundAutoContinuesUsed = 0;
+            let maxSdkStreamEndAutoContinuesUsed = 0;
             let streamOptions: EventStreamOptions | undefined;
             // Reassigned at the top of each retry attempt. `watchedNext`,
             // `cancelCurrentRun`, and the inner event loop all close over
@@ -798,7 +803,7 @@ export class KernelMessageRunnerService {
                     }
 
                     this.logger.log(
-                        `Creating event stream for session ${sessionId}, model=${resolvedModel}${attempt > 0 ? ` (retry ${attempt})` : ''}${maxToolRoundAutoContinuesUsed > 0 ? ` (tool-round continuation ${maxToolRoundAutoContinuesUsed})` : ''}`,
+                        `Creating event stream for session ${sessionId}, model=${resolvedModel}${attempt > 0 ? ` (retry ${attempt})` : ''}${maxToolRoundAutoContinuesUsed > 0 ? ` (tool-round continuation ${maxToolRoundAutoContinuesUsed})` : ''}${maxSdkStreamEndAutoContinuesUsed > 0 ? ` (sdk-stream continuation ${maxSdkStreamEndAutoContinuesUsed})` : ''}`,
                     );
                     eventStream = await this.createEventStream(input, streamOptions);
                     this.logger.log(`Event stream created for session ${sessionId}, waiting for events...`);
@@ -1317,13 +1322,19 @@ export class KernelMessageRunnerService {
                     break;
                 }
 
+                flushCoalescedToolInputDelta();
+                flushTextBlock();
+                const openPlanTasksAfterAttempt = planningTracker.openTaskCount();
+                const lastBlockTypeAfterAttempt = this.lastAssistantBlockType(assistantBlocks);
+                const wasCancelledAfterAttempt = this.runtimeState.isCancelled(sessionId);
+
                 if (
                     this.shouldAutoContinueAfterMaxToolRounds({
                         stopReason: streamStopReason,
                         activeToolCount: activeToolIds.size,
                         used: maxToolRoundAutoContinuesUsed,
                         limit: maxToolRoundAutoContinues,
-                        wasCancelled: this.runtimeState.isCancelled(sessionId),
+                        wasCancelled: wasCancelledAfterAttempt,
                     })
                 ) {
                     maxToolRoundAutoContinuesUsed += 1;
@@ -1335,7 +1346,6 @@ export class KernelMessageRunnerService {
                         images: [],
                         usePersistedHistory: false,
                     };
-                    flushCoalescedToolInputDelta();
                     this.logger.warn(
                         `[kernel.run.auto_continue] sessionId=${sessionId} reason=max_tool_rounds attempt=${maxToolRoundAutoContinuesUsed} maxAttempts=${maxToolRoundAutoContinues}`,
                     );
@@ -1359,14 +1369,59 @@ export class KernelMessageRunnerService {
                     continue;
                 }
 
+                if (
+                    this.shouldAutoContinueAfterSdkStreamEnd({
+                        stopReason: streamStopReason,
+                        activeToolCount: activeToolIds.size,
+                        openPlanTasks: openPlanTasksAfterAttempt,
+                        lastBlockWasToolResult: lastBlockTypeAfterAttempt === 'tool_result',
+                        used: maxSdkStreamEndAutoContinuesUsed,
+                        limit: maxSdkStreamEndAutoContinues,
+                        wasCancelled: wasCancelledAfterAttempt,
+                    })
+                ) {
+                    maxSdkStreamEndAutoContinuesUsed += 1;
+                    streamOptions = {
+                        content: this.sdkStreamContinuationPrompt(
+                            maxSdkStreamEndAutoContinuesUsed,
+                            maxSdkStreamEndAutoContinues,
+                        ),
+                        images: [],
+                        usePersistedHistory: false,
+                    };
+                    this.logger.warn(
+                        `[kernel.run.auto_continue] sessionId=${sessionId} reason=sdk_stream_ended_after_tool_result attempt=${maxSdkStreamEndAutoContinuesUsed} maxAttempts=${maxSdkStreamEndAutoContinues}`,
+                    );
+                    this.metrics?.incCounter('kernel_run_auto_continue_total', {
+                        reason: 'sdk_stream_ended_after_tool_result',
+                    });
+                    emitStreamEvent({
+                        type: 'run_auto_continue',
+                        reason: 'sdk_stream_ended_after_tool_result',
+                        attempt: maxSdkStreamEndAutoContinuesUsed,
+                        maxAttempts: maxSdkStreamEndAutoContinues,
+                        timestamp: Date.now(),
+                    });
+                    emitMainActivity({
+                        status: 'running',
+                        phase: 'auto_continue',
+                        label: '自动续跑',
+                        detail: 'SDK 流在工具结果后提前结束，正在继续剩余步骤',
+                        source: 'Kernel Runtime',
+                    });
+                    continue;
+                }
+
                 break;
             }
 
-            const finalAssistantText =
-                assistantText.length > 0
-                    ? assistantText.join('')
-                    : extractAssistantTextFromHistory(activeSession.session.history());
+            const newHistory = activeSession.session.history().slice(initialHistoryLength);
+            const historyAssistantText = extractAssistantTextFromHistory(newHistory);
+            const finalAssistantText = assistantText.length > 0 ? assistantText.join('') : historyAssistantText;
             flushTextBlock();
+            if (assistantText.length === 0 && historyAssistantText.trim()) {
+                this.appendFallbackAssistantTextBlock(assistantBlocks, historyAssistantText);
+            }
             this.logger.log(
                 `[stream:${sessionId}] stream completed: assistantTextParts=${assistantText.length}, finalText="${finalAssistantText.substring(0, 100)}", blocks=${assistantBlocks.length}, history=${activeSession.session.history().length}`,
             );
@@ -1467,12 +1522,14 @@ export class KernelMessageRunnerService {
             }
 
             const openPlanTasksBeforeFinalize = planningTracker.openTaskCount();
+            const lastBlockTypeBeforeFinalize = this.lastAssistantBlockType(assistantBlocks);
             const verdict = this.deriveRunVerdict({
                 wasCancelled,
                 stopReason: streamStopReason,
                 openPlanTasks: openPlanTasksBeforeFinalize,
                 activeToolCount: activeToolIds.size,
                 hasAssistantContent: Boolean(finalAssistantText.trim() || assistantBlocks.length > 0),
+                lastBlockWasToolResult: lastBlockTypeBeforeFinalize === 'tool_result',
             });
 
             if (finalAssistantText.trim() || assistantBlocks.length > 0) {
@@ -1644,6 +1701,7 @@ export class KernelMessageRunnerService {
         openPlanTasks: number;
         activeToolCount: number;
         hasAssistantContent: boolean;
+        lastBlockWasToolResult?: boolean;
     }): RunVerdict {
         if (input.wasCancelled) {
             return { status: 'cancelled', stopReason: 'user_cancelled', retryable: false };
@@ -1661,6 +1719,9 @@ export class KernelMessageRunnerService {
             };
         }
         if (!input.stopReason) {
+            if (!input.lastBlockWasToolResult) {
+                return { status: 'succeeded', stopReason: 'end_turn', retryable: false };
+            }
             return {
                 status: 'incomplete',
                 stopReason,
@@ -1713,6 +1774,25 @@ export class KernelMessageRunnerService {
         );
     }
 
+    private shouldAutoContinueAfterSdkStreamEnd(input: {
+        stopReason: RunStopReason | null;
+        activeToolCount: number;
+        openPlanTasks: number;
+        lastBlockWasToolResult: boolean;
+        used: number;
+        limit: number;
+        wasCancelled: boolean;
+    }): boolean {
+        return (
+            input.stopReason === null &&
+            input.activeToolCount === 0 &&
+            input.openPlanTasks === 0 &&
+            input.lastBlockWasToolResult &&
+            input.used < input.limit &&
+            !input.wasCancelled
+        );
+    }
+
     private maxToolRoundContinuationPrompt(attempt: number, maxAttempts: number): string {
         return [
             'Continue the previous user task from the current workspace and session state.',
@@ -1723,6 +1803,32 @@ export class KernelMessageRunnerService {
             'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
             'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
         ].join('\n');
+    }
+
+    private sdkStreamContinuationPrompt(attempt: number, maxAttempts: number): string {
+        return [
+            'Continue the previous user task from the current workspace and session state.',
+            `The prior SDK stream ended after a tool result without an explicit stop reason; this is automatic continuation ${attempt}/${maxAttempts}.`,
+            'First inspect what is already complete only if needed, then do the remaining work. Do not repeat completed tool calls, file writes, or generated data.',
+            'If the previous tool result already gives enough context, continue directly from it.',
+            'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
+            'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
+        ].join('\n');
+    }
+
+    private lastAssistantBlockType(blocks: AssistantContentBlock[]): AssistantBlockType | undefined {
+        return blocks[blocks.length - 1]?.type;
+    }
+
+    private appendFallbackAssistantTextBlock(blocks: AssistantContentBlock[], text: string): void {
+        const trimmed = text.trim();
+        if (!trimmed) return;
+        const previous = blocks[blocks.length - 1];
+        if (previous?.type === 'text') {
+            if (!previous.text.trim()) previous.text = trimmed;
+            return;
+        }
+        blocks.push({ type: 'text', text: trimmed });
     }
 
     private failedVerdictFromError(error: unknown): RunVerdict {
