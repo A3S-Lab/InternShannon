@@ -98,6 +98,7 @@ type ActiveToolPhase = 'tool_exec' | 'tool_input_streaming' | 'model_stream';
 
 const MAX_CLIENT_TOOL_OUTPUT_BYTES = 64 * 1024;
 const DEFAULT_MAX_TOOL_ROUND_AUTO_CONTINUATIONS = 1;
+const DEFAULT_SDK_STREAM_END_AUTO_CONTINUATIONS = 2;
 const TOOL_OUTPUT_TRUNCATION_NOTICE =
     '\n\n[Tool output truncated for display after 64 KB. Use a narrower path, query, or filter to inspect more.]';
 
@@ -701,7 +702,7 @@ export class KernelMessageRunnerService {
                     ? Math.floor(maxStreamRetriesOverride)
                     : DEFAULT_MAX_STREAM_RETRIES;
             const maxToolRoundAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
-            const maxSdkStreamEndAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
+            const maxSdkStreamEndAutoContinues = this.sdkStreamEndAutoContinueLimit(watchdogOverrides);
             const maxToolInputStreamStallAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
             let maxToolRoundAutoContinuesUsed = 0;
             let maxSdkStreamEndAutoContinuesUsed = 0;
@@ -833,6 +834,7 @@ export class KernelMessageRunnerService {
             // `maxStreamRetries` times. Any tool-active or partial-output
             // failure bypasses retry — see the gates below.
             let pendingStreamRetryReason: 'event_stream_stalled' | 'empty_response' = 'event_stream_stalled';
+            let pendingStreamRetryBaseOptions: EventStreamOptions | undefined;
             streamContinuationLoop: while (true) {
                 streamStopReason = null;
                 currentRunId = null;
@@ -840,6 +842,18 @@ export class KernelMessageRunnerService {
                 for (let attempt = 0; attempt <= maxStreamRetries; attempt++) {
                     if (attempt > 0) {
                         const retryReason = pendingStreamRetryReason;
+                        const retryBaseOptions = pendingStreamRetryBaseOptions ?? streamOptions;
+                        streamOptions = {
+                            content: this.blankStreamRetryPrompt(
+                                retryBaseOptions?.content ?? input.content,
+                                retryReason,
+                                attempt + 1,
+                                maxStreamRetries + 1,
+                            ),
+                            images: retryBaseOptions?.images ?? input.images ?? [],
+                            usePersistedHistory: retryBaseOptions?.usePersistedHistory,
+                        };
+                        pendingStreamRetryBaseOptions = undefined;
                         // Wipe everything the first attempt accumulated. Safe only
                         // because every stream retry is gated on a blank turn: the
                         // user UI has nothing to lose because no assistant tokens or
@@ -1466,6 +1480,7 @@ export class KernelMessageRunnerService {
                             !this.runtimeState.isCancelled(sessionId)
                         ) {
                             pendingStreamRetryReason = 'event_stream_stalled';
+                            pendingStreamRetryBaseOptions = streamOptions;
                             continue;
                         }
                         throw innerErr;
@@ -1482,6 +1497,7 @@ export class KernelMessageRunnerService {
                         !this.runtimeState.isCancelled(sessionId)
                     ) {
                         pendingStreamRetryReason = 'empty_response';
+                        pendingStreamRetryBaseOptions = streamOptions;
                         continue;
                     }
 
@@ -1942,6 +1958,17 @@ export class KernelMessageRunnerService {
         );
     }
 
+    private sdkStreamEndAutoContinueLimit(
+        overrides: Pick<SessionRuntimeOverrides, 'continuationEnabled' | 'maxContinuationTurns'> | null | undefined,
+    ): number {
+        if (overrides?.continuationEnabled === false) return 0;
+        const configured = overrides?.maxContinuationTurns;
+        if (typeof configured === 'number' && Number.isFinite(configured) && configured > 0) {
+            return Math.min(DEFAULT_SDK_STREAM_END_AUTO_CONTINUATIONS, Math.floor(configured));
+        }
+        return DEFAULT_SDK_STREAM_END_AUTO_CONTINUATIONS;
+    }
+
     private shouldAutoContinueAfterSdkStreamEnd(input: {
         stopReason: RunStopReason | null;
         activeToolCount: number;
@@ -2040,6 +2067,27 @@ export class KernelMessageRunnerService {
             'For generated datasets, repeated records, fixtures, catalogs, seed data, or other mechanical content larger than roughly 100 records or 100 KB, do not stream the final artifact through one large inline write argument. Create a small generator script in the workspace, run it, and verify the generated target. A single huge write is not a batch edit.',
             'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
             'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
+        ].join('\n');
+    }
+
+    private blankStreamRetryPrompt(
+        originalContent: string,
+        reason: 'event_stream_stalled' | 'empty_response',
+        attempt: number,
+        maxAttempts: number,
+    ): string {
+        const reasonLine =
+            reason === 'empty_response'
+                ? 'The previous SDK stream closed without any visible assistant text or tool calls.'
+                : 'The previous SDK stream produced no visible assistant text or tool calls before the idle watchdog fired.';
+        return [
+            'Retry the previous user task from the current workspace and session state.',
+            `${reasonLine} This is recovery attempt ${attempt}/${maxAttempts}.`,
+            'Do not explain the transport failure, apologize, or summarize partial progress. Continue the actual task.',
+            'Start with the smallest concrete next action: inspect only the files you need, or run a small script/verification command when the task is mechanical.',
+            'For generated datasets, repeated records, fixtures, catalogs, seed data, or other mechanical content larger than roughly 100 records or 100 KB, do not stream the final artifact through one large inline write argument. Create or run a small generator script in the workspace and verify the target file.',
+            'Original user request:',
+            originalContent,
         ].join('\n');
     }
 

@@ -32,6 +32,12 @@ type RunnerInternals = {
         wasCancelled: boolean;
     }): boolean;
     maxToolRoundContinuationPrompt(attempt: number, maxAttempts: number): string;
+    blankStreamRetryPrompt(
+        originalContent: string,
+        reason: 'event_stream_stalled' | 'empty_response',
+        attempt: number,
+        maxAttempts: number,
+    ): string;
     shouldAutoContinueAfterSdkStreamEnd(input: {
         stopReason: string | null;
         activeToolCount: number;
@@ -42,6 +48,10 @@ type RunnerInternals = {
         wasCancelled: boolean;
     }): boolean;
     sdkStreamContinuationPrompt(attempt: number, maxAttempts: number, checkpoint?: string): string;
+    sdkStreamEndAutoContinueLimit(overrides?: {
+        continuationEnabled?: boolean;
+        maxContinuationTurns?: number;
+    }): number;
     shouldAutoContinueAfterToolInputStreamStall(input: {
         stopReason: string | null;
         activeToolCount: number;
@@ -366,6 +376,15 @@ describe('KernelMessageRunnerService run stop reasons', () => {
         ).toBe(false);
     });
 
+    it('allows two host-level auto continuations for SDK stream ends by default', () => {
+        const runner = createRunner();
+
+        expect(runner.sdkStreamEndAutoContinueLimit({})).toBe(2);
+        expect(runner.sdkStreamEndAutoContinueLimit({ maxContinuationTurns: 1 })).toBe(1);
+        expect(runner.sdkStreamEndAutoContinueLimit({ maxContinuationTurns: 3 })).toBe(2);
+        expect(runner.sdkStreamEndAutoContinueLimit({ continuationEnabled: false })).toBe(0);
+    });
+
     it('prompts max tool round continuation to inspect before continuing', () => {
         const runner = createRunner();
 
@@ -377,6 +396,24 @@ describe('KernelMessageRunnerService run stop reasons', () => {
         expect(prompt).toContain('one large inline write argument');
         expect(prompt).toContain('A single huge write is not a batch edit');
         expect(prompt).toContain('Do not write scratch files to arbitrary absolute paths');
+    });
+
+    it('wraps blank stream retries with a concrete recovery prompt', () => {
+        const runner = createRunner();
+
+        const prompt = runner.blankStreamRetryPrompt(
+            '请把 songs.js 扩展到 50 首，每首都必须有 desc 字段。',
+            'empty_response',
+            2,
+            2,
+        );
+
+        expect(prompt).toContain('closed without any visible assistant text or tool calls');
+        expect(prompt).toContain('recovery attempt 2/2');
+        expect(prompt).toContain('Do not explain the transport failure');
+        expect(prompt).toContain('smallest concrete next action');
+        expect(prompt).toContain('Create or run a small generator script');
+        expect(prompt).toContain('请把 songs.js 扩展到 50 首');
     });
 
     it('prompts SDK stream continuation to avoid repeating completed tool calls', () => {
