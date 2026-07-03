@@ -5,6 +5,7 @@ import {
     type IWorkspaceStorage,
     WORKSPACE_STORAGE,
 } from '../domain/services/workspace-storage.interface';
+import { isRemoteWorkspacePath } from './workspace-path-kind';
 
 export interface SeedLocalDirectoryResult {
     sourceDir: string;
@@ -160,7 +161,7 @@ export class SessionWorkspaceSeedService {
     }
 
     private isRemoteWorkspacePath(value: string): boolean {
-        return /^[a-z][a-z0-9+.-]*:\/{1,2}/i.test(value);
+        return isRemoteWorkspacePath(value);
     }
 
     private joinWorkspacePath(root: string, relativePath: string): string {

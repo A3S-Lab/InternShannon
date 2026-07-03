@@ -8,6 +8,7 @@ import {
 import { KernelSessionAccessService } from './kernel-session-access.service';
 import { AgentLifecycleMediator } from './agent-lifecycle-mediator.service';
 import { normalizeMultipartFileName } from './multipart-file-name';
+import { isRemoteWorkspacePath } from './workspace-path-kind';
 import { CONFIG_SERVICE, ConfigService } from '@/modules/config/domain/services/config-service.interface';
 import { DEFAULT_UPLOAD_MAX_WORKSPACE_FILE_MB } from '@/modules/config/domain/services/settings-schema';
 
@@ -654,9 +655,7 @@ export class SessionWorkspaceFileUploadService {
 	}
 
 	private isRemoteWorkspacePath(value: string): boolean {
-		const match = value.match(/^([a-z][a-z0-9+.-]*):\/{1,2}/i);
-		const scheme = match?.[1]?.toLowerCase();
-		return Boolean(scheme && scheme !== 'file');
+		return isRemoteWorkspacePath(value);
 	}
 
 	private nextId(): string {

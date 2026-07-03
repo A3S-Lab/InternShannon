@@ -9,6 +9,7 @@ import {
 import { KernelConversationLogService } from "./kernel-conversation-log.service";
 import { KernelSessionRuntimeFactory } from "./kernel-session-runtime-factory.service";
 import { KernelSessionRuntimeStateService } from "./kernel-session-runtime-state.service";
+import { isRemoteWorkspacePath } from "./workspace-path-kind";
 
 export interface KernelSessionResetResult {
   workspace?: string;
@@ -97,9 +98,7 @@ export class KernelSessionResetService {
   }
 
   private isRemoteWorkspacePath(value: string): boolean {
-    const match = value.match(/^([a-z][a-z0-9+.-]*):\/{1,2}/i);
-    const scheme = match?.[1]?.toLowerCase();
-    return Boolean(scheme && scheme !== "file");
+    return isRemoteWorkspacePath(value);
   }
 
   private async clearRuntimeFiles(

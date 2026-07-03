@@ -1,9 +1,39 @@
+import { promises as fs } from 'fs';
 import type { Session, SessionOptions } from '@a3s-lab/code';
 import { KernelSessionRuntimeFactory } from './kernel-session-runtime-factory.service';
 import type { AgentRegistry } from './agents/agent-registry';
 import type { KernelSessionRuntimeStateService } from './kernel-session-runtime-state.service';
 import type { IKernelService } from '../domain/services/kernel-service.interface';
 import { DEFAULT_MAX_TOOL_ROUNDS, type SessionRuntimeOverrides } from './session-runtime.types';
+
+describe('KernelSessionRuntimeFactory runtime workspace resolution', () => {
+    let mkdirSpy: jest.SpiedFunction<typeof fs.mkdir>;
+
+    beforeEach(() => {
+        mkdirSpy = jest.spyOn(fs, 'mkdir').mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+        mkdirSpy.mockRestore();
+    });
+
+    it('accepts Windows drive-letter runtime workspaces', async () => {
+        const factory = createRuntimeWorkspaceFactory();
+        const workspace = 'D:/AI/Project/agents/users/local/sessions/default-20260703-184231270';
+
+        await expect(factory.resolveRuntimeWorkspace('session-windows', workspace)).resolves.toBe(workspace);
+        expect(mkdirSpy).toHaveBeenCalledWith(workspace, { recursive: true });
+    });
+
+    it('rejects remote runtime workspaces', async () => {
+        const factory = createRuntimeWorkspaceFactory();
+
+        await expect(factory.resolveRuntimeWorkspace('session-remote', 's3://bucket/workspace')).rejects.toThrow(
+            'Desktop runtime workspace must be a local path',
+        );
+        expect(mkdirSpy).not.toHaveBeenCalled();
+    });
+});
 
 describe('KernelSessionRuntimeFactory HITL session options', () => {
     it('passes the query-lane confirmation policy to the SDK in default mode', async () => {
@@ -63,6 +93,14 @@ describe('KernelSessionRuntimeFactory HITL session options', () => {
         expect(overrideHarness.capturedOptions?.maxToolRounds).toBe(24);
     });
 });
+
+function createRuntimeWorkspaceFactory(): KernelSessionRuntimeFactory {
+    return new KernelSessionRuntimeFactory(
+        {} as IKernelService,
+        {} as KernelSessionRuntimeStateService,
+        {} as AgentRegistry,
+    );
+}
 
 function createHarness(): {
     factory: KernelSessionRuntimeFactory;

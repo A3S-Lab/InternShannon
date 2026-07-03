@@ -32,6 +32,7 @@ import {
     type RuntimeMcpServerConfig,
     type SessionRuntimeOverrides,
 } from './session-runtime.types';
+import { isRemoteWorkspacePath, normalizeLocalWorkspacePath } from './workspace-path-kind';
 
 export interface KernelSessionRuntimeFactoryInput {
     sessionId: string;
@@ -305,12 +306,13 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         if (this.isRemoteWorkspacePath(localCandidate)) {
             throw new Error(`Desktop runtime workspace must be a local path (got ${JSON.stringify(localCandidate)})`);
         }
-        await fs.mkdir(localCandidate, { recursive: true });
-        return localCandidate;
+        const normalizedLocalCandidate = normalizeLocalWorkspacePath(localCandidate);
+        await fs.mkdir(normalizedLocalCandidate, { recursive: true });
+        return normalizedLocalCandidate;
     }
 
     private isRemoteWorkspacePath(workspace: string): boolean {
-        return /^[a-z][a-z0-9+.-]*:\/{1,2}/i.test(workspace);
+        return isRemoteWorkspacePath(workspace);
     }
 
     private async applyMcpServers(

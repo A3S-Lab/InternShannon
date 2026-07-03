@@ -4,6 +4,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { isCloud } from '@/shared/constants';
 import type { ActiveSession, RuntimeSkillInfo, SessionRuntimeOverrides } from './session-runtime.types';
+import { isRemoteWorkspacePath } from './workspace-path-kind';
 
 export interface KernelSessionStatusViewModel {
     sessionId: string;
@@ -198,9 +199,7 @@ export class KernelSessionStatusService {
     }
 
     private isRemoteWorkspacePath(value: string): boolean {
-        const match = value.match(/^([a-z][a-z0-9+.-]*):\/{1,2}/i);
-        const scheme = match?.[1]?.toLowerCase();
-        return Boolean(scheme && scheme !== 'file');
+        return isRemoteWorkspacePath(value);
     }
 
     private runtimeSkillDirs(overrides?: SessionRuntimeOverrides): string[] {
