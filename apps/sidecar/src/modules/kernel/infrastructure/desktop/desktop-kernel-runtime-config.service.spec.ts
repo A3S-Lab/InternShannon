@@ -60,7 +60,7 @@ describe('DesktopKernelRuntimeConfigService', () => {
     );
   });
 
-  it('keeps one desktop retry for blank model streams', async () => {
+  it('keeps two desktop retries for blank model streams', async () => {
     const configService = {
       getSettings: jest.fn().mockResolvedValue({
         llm: {
@@ -74,7 +74,7 @@ describe('DesktopKernelRuntimeConfigService', () => {
 
     const runtimeConfig = await service.getModelsConfig();
 
-    expect(DESKTOP_DEFAULT_MAX_STREAM_RETRIES).toBe(1);
+    expect(DESKTOP_DEFAULT_MAX_STREAM_RETRIES).toBe(2);
     expect(runtimeConfig?.maxStreamRetries).toBe(DESKTOP_DEFAULT_MAX_STREAM_RETRIES);
   });
 

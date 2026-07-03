@@ -52,6 +52,24 @@ type RunnerInternals = {
         continuationEnabled?: boolean;
         maxContinuationTurns?: number;
     }): number;
+    modelStreamStallAutoContinueLimit(overrides?: {
+        continuationEnabled?: boolean;
+        maxContinuationTurns?: number;
+    }): number;
+    shouldAutoContinueAfterModelStreamStall(input: {
+        stopReason: string | null;
+        activeToolCount: number;
+        hasAssistantContent: boolean;
+        used: number;
+        limit: number;
+        wasCancelled: boolean;
+    }): boolean;
+    modelStreamStallContinuationPrompt(
+        attempt: number,
+        maxAttempts: number,
+        checkpoint?: string,
+        partialAssistantText?: string,
+    ): string;
     shouldAutoContinueAfterToolInputStreamStall(input: {
         stopReason: string | null;
         activeToolCount: number;
@@ -385,6 +403,48 @@ describe('KernelMessageRunnerService run stop reasons', () => {
         expect(runner.sdkStreamEndAutoContinueLimit({ continuationEnabled: false })).toBe(0);
     });
 
+    it('auto continues model stream stalls only after visible progress', () => {
+        const runner = createRunner();
+
+        const readyToContinue = {
+            stopReason: 'event_stream_stalled',
+            activeToolCount: 0,
+            hasAssistantContent: true,
+            used: 0,
+            limit: 1,
+            wasCancelled: false,
+        };
+
+        expect(runner.modelStreamStallAutoContinueLimit({})).toBe(1);
+        expect(runner.modelStreamStallAutoContinueLimit({ maxContinuationTurns: 2 })).toBe(1);
+        expect(runner.modelStreamStallAutoContinueLimit({ continuationEnabled: false })).toBe(0);
+        expect(runner.shouldAutoContinueAfterModelStreamStall(readyToContinue)).toBe(true);
+        expect(
+            runner.shouldAutoContinueAfterModelStreamStall({
+                ...readyToContinue,
+                hasAssistantContent: false,
+            }),
+        ).toBe(false);
+        expect(
+            runner.shouldAutoContinueAfterModelStreamStall({
+                ...readyToContinue,
+                activeToolCount: 1,
+            }),
+        ).toBe(false);
+        expect(
+            runner.shouldAutoContinueAfterModelStreamStall({
+                ...readyToContinue,
+                used: 1,
+            }),
+        ).toBe(false);
+        expect(
+            runner.shouldAutoContinueAfterModelStreamStall({
+                ...readyToContinue,
+                wasCancelled: true,
+            }),
+        ).toBe(false);
+    });
+
     it('prompts max tool round continuation to inspect before continuing', () => {
         const runner = createRunner();
 
@@ -432,6 +492,25 @@ describe('KernelMessageRunnerService run stop reasons', () => {
         expect(prompt).toContain('that is not completion');
         expect(prompt).toContain('run it, and verify the generated target');
         expect(prompt).toContain('current workspace');
+    });
+
+    it('prompts model stream stall continuation to avoid repeating partial output', () => {
+        const runner = createRunner();
+
+        const prompt = runner.modelStreamStallContinuationPrompt(
+            1,
+            1,
+            'Tool: bash\nResult: wrote songs.js',
+            '我先看看现有结构，然后继续扩展。',
+        );
+
+        expect(prompt).toContain('stopped emitting events while no tool was active');
+        expect(prompt).toContain('Recent completed tool checkpoint');
+        expect(prompt).toContain('wrote songs.js');
+        expect(prompt).toContain('Already emitted assistant text preview');
+        expect(prompt).toContain('Do not repeat already emitted text');
+        expect(prompt).toContain('verify the requested target');
+        expect(prompt).toContain('A single huge write is not a batch edit');
     });
 
     it('prompts tool input stall continuation without write-tool special casing', () => {
@@ -651,6 +730,119 @@ describe('KernelMessageRunnerService run stop reasons', () => {
                 message =>
                     isStreamEvent(message, 'run_auto_continue') &&
                     (message as { event: Record<string, unknown> }).event.reason === 'tool_input_stream_stalled',
+            ),
+        ).toBe(true);
+        expect(
+            emitted.some(
+                message =>
+                    isResult(message) &&
+                    (message as { data: Record<string, unknown> }).data.status === 'succeeded' &&
+                    (message as { data: Record<string, unknown> }).data.stopReason === 'end_turn',
+            ),
+        ).toBe(true);
+    }, 5_000);
+
+    it('recovers a stalled model stream after completed tool progress by continuing once', async () => {
+        const conversationLog = {
+            recordAssistantMessage: jest.fn().mockResolvedValue(undefined),
+            listRuntimeHistory: jest.fn().mockResolvedValue([]),
+        };
+        const runtimeState = {
+            isCancelled: jest.fn().mockReturnValue(false),
+            clearCancelled: jest.fn(),
+        };
+        const session = {
+            history: jest.fn().mockReturnValue([]),
+            currentRun: jest
+                .fn()
+                .mockResolvedValueOnce({ id: 'run-model-stalled' })
+                .mockResolvedValueOnce({ id: 'run-recovered' }),
+            cancelRun: jest.fn().mockResolvedValue(undefined),
+            cancel: jest.fn(),
+            stream: jest
+                .fn()
+                .mockResolvedValueOnce(
+                    iteratorFromEvents(
+                        [
+                            { type: 'text_delta', text: '我先检查现有结构。' },
+                            {
+                                type: 'tool_use',
+                                toolName: 'read',
+                                toolId: 'toolu_read',
+                                input: { file_path: 'songs.js' },
+                            },
+                            {
+                                type: 'tool_end',
+                                toolName: 'read',
+                                toolId: 'toolu_read',
+                                output: 'const songs = []',
+                                exitCode: 0,
+                            },
+                            { type: 'text_delta', text: '准备继续扩展。' },
+                        ],
+                        true,
+                    ),
+                )
+                .mockResolvedValueOnce(
+                    iteratorFromEvents([
+                        { type: 'text_delta', text: '已完成扩展并验证。' },
+                        { type: 'turn_end', totalTokens: 84 },
+                    ]),
+                ),
+        };
+        const runner = new KernelMessageRunnerService(
+            conversationLog as never,
+            runtimeState as never,
+            null as never,
+            { resolve: jest.fn().mockReturnValue(undefined) } as never,
+        );
+        Object.assign(runner as unknown as { logger: Record<string, jest.Mock> }, {
+            logger: {
+                log: jest.fn(),
+                warn: jest.fn(),
+                error: jest.fn(),
+            },
+        });
+        const emitted: unknown[] = [];
+
+        await runner.runUserMessage({
+            sessionId: 'session-model-stream-stall',
+            content: '扩展 KTV 曲库',
+            emit: message => emitted.push(message),
+            activeSession: {
+                session,
+                workspace: '/tmp/workspace',
+                agentId: 'default',
+                userId: 'user-1',
+                runtimeKey: 'default',
+                runtimeOverrides: {
+                    streamStallWarningMs: 50,
+                    streamStallHardMs: 60,
+                    continuationEnabled: true,
+                    maxContinuationTurns: 1,
+                },
+                nativeConfirmationEnabled: false,
+                nativeConfirmedToolKeys: new Set<string>(),
+                createdAt: Date.now(),
+                lastActivityAt: Date.now(),
+            } as never,
+        });
+
+        expect(session.stream).toHaveBeenCalledTimes(2);
+        expect(session.cancelRun).toHaveBeenCalledWith('run-model-stalled');
+        expect(session.cancel).not.toHaveBeenCalled();
+        expect(
+            emitted.some(
+                message =>
+                    isStreamEvent(message, 'stream_stall_timeout') &&
+                    (message as { event: Record<string, unknown> }).event.activeToolPhase === 'model_stream',
+            ),
+        ).toBe(true);
+        expect(
+            emitted.some(
+                message =>
+                    isStreamEvent(message, 'run_auto_continue') &&
+                    (message as { event: Record<string, unknown> }).event.reason === 'model_stream_stalled',
             ),
         ).toBe(true);
         expect(

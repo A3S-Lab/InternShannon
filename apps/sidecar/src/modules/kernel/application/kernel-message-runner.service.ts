@@ -99,6 +99,7 @@ type ActiveToolPhase = 'tool_exec' | 'tool_input_streaming' | 'model_stream';
 const MAX_CLIENT_TOOL_OUTPUT_BYTES = 64 * 1024;
 const DEFAULT_MAX_TOOL_ROUND_AUTO_CONTINUATIONS = 1;
 const DEFAULT_SDK_STREAM_END_AUTO_CONTINUATIONS = 2;
+const DEFAULT_MODEL_STREAM_STALL_AUTO_CONTINUATIONS = 1;
 const TOOL_OUTPUT_TRUNCATION_NOTICE =
     '\n\n[Tool output truncated for display after 64 KB. Use a narrower path, query, or filter to inspect more.]';
 
@@ -703,9 +704,11 @@ export class KernelMessageRunnerService {
                     : DEFAULT_MAX_STREAM_RETRIES;
             const maxToolRoundAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
             const maxSdkStreamEndAutoContinues = this.sdkStreamEndAutoContinueLimit(watchdogOverrides);
+            const maxModelStreamStallAutoContinues = this.modelStreamStallAutoContinueLimit(watchdogOverrides);
             const maxToolInputStreamStallAutoContinues = this.maxToolRoundAutoContinueLimit(watchdogOverrides);
             let maxToolRoundAutoContinuesUsed = 0;
             let maxSdkStreamEndAutoContinuesUsed = 0;
+            let maxModelStreamStallAutoContinuesUsed = 0;
             let maxToolInputStreamStallAutoContinuesUsed = 0;
             let streamOptions: EventStreamOptions | undefined;
             // Reassigned at the top of each retry attempt. `watchedNext`,
@@ -1465,6 +1468,56 @@ export class KernelMessageRunnerService {
                                 continue streamContinuationLoop;
                             }
                         }
+                        if (stopReason === 'event_stream_stalled') {
+                            flushTextBlock();
+                            const wasCancelled = this.runtimeState.isCancelled(sessionId);
+                            if (
+                                this.shouldAutoContinueAfterModelStreamStall({
+                                    stopReason,
+                                    activeToolCount: activeToolIds.size,
+                                    hasAssistantContent: Boolean(
+                                        assistantText.join('').trim() || pendingText.trim() || assistantBlocks.length > 0,
+                                    ),
+                                    used: maxModelStreamStallAutoContinuesUsed,
+                                    limit: maxModelStreamStallAutoContinues,
+                                    wasCancelled,
+                                })
+                            ) {
+                                maxModelStreamStallAutoContinuesUsed += 1;
+                                streamOptions = {
+                                    content: this.modelStreamStallContinuationPrompt(
+                                        maxModelStreamStallAutoContinuesUsed,
+                                        maxModelStreamStallAutoContinues,
+                                        this.lastToolResultContinuationSummary(assistantBlocks),
+                                        assistantText.join(''),
+                                    ),
+                                    images: [],
+                                    usePersistedHistory: false,
+                                };
+                                this.logger.warn(
+                                    `[kernel.run.auto_continue] sessionId=${sessionId} reason=model_stream_stalled attempt=${maxModelStreamStallAutoContinuesUsed} maxAttempts=${maxModelStreamStallAutoContinues}`,
+                                );
+                                this.metrics?.incCounter('kernel_run_auto_continue_total', {
+                                    reason: 'model_stream_stalled',
+                                });
+                                emitStreamEvent({
+                                    type: 'run_auto_continue',
+                                    reason: 'model_stream_stalled',
+                                    attempt: maxModelStreamStallAutoContinuesUsed,
+                                    maxAttempts: maxModelStreamStallAutoContinues,
+                                    timestamp: Date.now(),
+                                });
+                                emitMainActivity({
+                                    status: 'running',
+                                    phase: 'auto_continue',
+                                    label: '自动续跑',
+                                    detail: '模型输出阶段长时间无事件，正在从当前进度继续任务',
+                                    source: 'Kernel Runtime',
+                                });
+                                lastHeartbeatAt = null;
+                                continue streamContinuationLoop;
+                            }
+                        }
                         // Only the blank "model thinking" wedge is retryable.
                         // Once a tool_use/input stream exists, retry through the
                         // controlled continuation path above so partial tools are
@@ -1969,6 +2022,17 @@ export class KernelMessageRunnerService {
         return DEFAULT_SDK_STREAM_END_AUTO_CONTINUATIONS;
     }
 
+    private modelStreamStallAutoContinueLimit(
+        overrides: Pick<SessionRuntimeOverrides, 'continuationEnabled' | 'maxContinuationTurns'> | null | undefined,
+    ): number {
+        if (overrides?.continuationEnabled === false) return 0;
+        const configured = overrides?.maxContinuationTurns;
+        if (typeof configured === 'number' && Number.isFinite(configured) && configured > 0) {
+            return Math.min(DEFAULT_MODEL_STREAM_STALL_AUTO_CONTINUATIONS, Math.floor(configured));
+        }
+        return DEFAULT_MODEL_STREAM_STALL_AUTO_CONTINUATIONS;
+    }
+
     private shouldAutoContinueAfterSdkStreamEnd(input: {
         stopReason: RunStopReason | null;
         activeToolCount: number;
@@ -1983,6 +2047,23 @@ export class KernelMessageRunnerService {
             input.activeToolCount === 0 &&
             input.openPlanTasks === 0 &&
             input.lastBlockWasToolResult &&
+            input.used < input.limit &&
+            !input.wasCancelled
+        );
+    }
+
+    private shouldAutoContinueAfterModelStreamStall(input: {
+        stopReason: RunStopReason | null;
+        activeToolCount: number;
+        hasAssistantContent: boolean;
+        used: number;
+        limit: number;
+        wasCancelled: boolean;
+    }): boolean {
+        return (
+            input.stopReason === 'event_stream_stalled' &&
+            input.activeToolCount === 0 &&
+            input.hasAssistantContent &&
             input.used < input.limit &&
             !input.wasCancelled
         );
@@ -2048,6 +2129,31 @@ export class KernelMessageRunnerService {
             `The prior SDK stream stalled while the model was generating tool arguments before any tool executed; this is automatic continuation ${attempt}/${maxAttempts}.${toolText}`,
             'Do not repeat a huge inline tool argument. Use smaller tool arguments and inspect current files only when needed.',
             'For generated datasets, repeated records, fixtures, catalogs, seed data, or other mechanical content larger than roughly 100 records or 100 KB, do not stream the final artifact through one large inline write argument. Create a small generator script in the workspace and run it. Ordinary hand-authored source files, small new files, and intentional full-file replacements may use inline write when that is the clearest path. A single huge write is not a batch edit.',
+            'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
+            'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
+        ].join('\n');
+    }
+
+    private modelStreamStallContinuationPrompt(
+        attempt: number,
+        maxAttempts: number,
+        checkpoint?: string,
+        partialAssistantText?: string,
+    ): string {
+        const checkpointLine = checkpoint
+            ? `Recent completed tool checkpoint:\n${checkpoint}`
+            : 'Recent completed tool checkpoint is unavailable; inspect the workspace briefly before choosing the next action.';
+        const partialLine = partialAssistantText?.trim()
+            ? `Already emitted assistant text preview:\n${this.previewValue(partialAssistantText, 1_000)}`
+            : 'No assistant text preview is available.';
+        return [
+            'Continue the previous user task from the current workspace and session state.',
+            `The prior SDK stream stopped emitting events while no tool was active; this is automatic continuation ${attempt}/${maxAttempts}.`,
+            checkpointLine,
+            partialLine,
+            'Do not repeat already emitted text, completed tool calls, file writes, or generated data. Continue with the next required action or, if the task is complete, verify briefly and finish with a concise status.',
+            'If a previous tool wrote a generator, transform script, fixture builder, or other intermediate artifact, that is not completion. Run it, then verify the requested target file or state before claiming the task is done.',
+            'For generated datasets, repeated records, fixtures, catalogs, seed data, or other mechanical content larger than roughly 100 records or 100 KB, do not stream the final artifact through one large inline write argument. Create a small generator script in the workspace, run it, and verify the generated target. A single huge write is not a batch edit.',
             'Use only the current workspace, or temporary paths explicitly allowed by the available tools. Do not write scratch files to arbitrary absolute paths.',
             'Keep all user-facing prose in the same language as the latest real user message, and finish with a concise status once the task is complete.',
         ].join('\n');
