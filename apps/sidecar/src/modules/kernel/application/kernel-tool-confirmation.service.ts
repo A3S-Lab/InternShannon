@@ -6,6 +6,8 @@ import { KernelSessionRuntimeStateService } from './kernel-session-runtime-state
 import { extractToolInputForConfirmation } from './kernel-tool-confirmation.helpers';
 import type { ToolConfirmationGate } from './tool-confirmation-gate';
 
+const RECENT_CONFIRMATION_TTL_MS = 120_000;
+
 export interface KernelConfirmationRequiredInput {
     sessionId: string;
     agentId?: string;
@@ -21,6 +23,7 @@ export interface KernelConfirmationRequiredInput {
 @Injectable()
 export class KernelToolConfirmationService {
     private readonly logger = new Logger(KernelToolConfirmationService.name);
+    private readonly recentConfirmations = new Map<string, { approved: boolean; expiresAt: number }>();
 
     constructor(
         private readonly runtimeState: KernelSessionRuntimeStateService,
@@ -77,7 +80,7 @@ export class KernelToolConfirmationService {
         }
 
         if (this.runtimeState.isCancelled(sessionId)) {
-            await this.confirmToolUse(session, {
+            const confirmed = await this.confirmToolUse(session, {
                 sessionId,
                 toolId,
                 toolName,
@@ -85,7 +88,16 @@ export class KernelToolConfirmationService {
                 approved: false,
                 reason: 'user_cancelled',
             });
+            if (confirmed) this.rememberConfirmation(sessionId, toolId, false);
             return false;
+        }
+
+        const recent = this.recentConfirmation(sessionId, toolId);
+        if (recent) {
+            this.logger.log(
+                `[kernel.tool.confirmation_duplicate] sessionId=${sessionId} toolName=${toolName || 'n/a'} toolId=${toolId} approved=${recent.approved}`,
+            );
+            return recent.approved;
         }
 
         if (isLockedAgent(agentId)) {
@@ -104,13 +116,15 @@ export class KernelToolConfirmationService {
                     timestamp: Date.now(),
                 },
             });
-            return this.confirmToolUse(session, {
+            const confirmed = await this.confirmToolUse(session, {
                 sessionId,
                 toolId,
                 toolName,
                 toolInput,
                 approved: true,
             });
+            if (confirmed) this.rememberConfirmation(sessionId, toolId, true);
+            return confirmed;
         }
 
         if (!confirmation) {
@@ -121,7 +135,7 @@ export class KernelToolConfirmationService {
                 tool: toolName || 'unknown',
                 agent: agentId ?? 'unknown',
             });
-            await this.confirmToolUse(session, {
+            const confirmed = await this.confirmToolUse(session, {
                 sessionId,
                 toolId,
                 toolName,
@@ -129,6 +143,7 @@ export class KernelToolConfirmationService {
                 approved: false,
                 reason: 'no_confirmation_manager',
             });
+            if (confirmed) this.rememberConfirmation(sessionId, toolId, false);
             return false;
         }
 
@@ -146,7 +161,7 @@ export class KernelToolConfirmationService {
             const approved = await confirmation.requestConfirmation(sessionId, toolName, toolInput);
 
             if (this.runtimeState.isCancelled(sessionId)) {
-                await this.confirmToolUse(session, {
+                const confirmed = await this.confirmToolUse(session, {
                     sessionId,
                     toolId,
                     toolName,
@@ -154,6 +169,7 @@ export class KernelToolConfirmationService {
                     approved: false,
                     reason: 'user_cancelled',
                 });
+                if (confirmed) this.rememberConfirmation(sessionId, toolId, false);
                 return false;
             }
 
@@ -164,10 +180,11 @@ export class KernelToolConfirmationService {
                 toolInput,
                 approved,
             });
+            if (confirmed) this.rememberConfirmation(sessionId, toolId, approved);
             return approved && confirmed;
         } catch (error) {
             this.logger.warn(`HITL confirmation failed for ${toolName} in ${sessionId}: ${error}`);
-            await this.confirmToolUse(session, {
+            const confirmed = await this.confirmToolUse(session, {
                 sessionId,
                 toolId,
                 toolName,
@@ -175,6 +192,7 @@ export class KernelToolConfirmationService {
                 approved: false,
                 reason: 'confirmation_timeout',
             });
+            if (confirmed) this.rememberConfirmation(sessionId, toolId, false);
             return false;
         }
     }
@@ -245,6 +263,36 @@ export class KernelToolConfirmationService {
 
         if (pendingConfirmations.length === 1) return pendingConfirmations[0];
         return null;
+    }
+
+    private recentConfirmation(sessionId: string, toolId: string): { approved: boolean } | null {
+        this.pruneRecentConfirmations();
+        const recent = this.recentConfirmations.get(this.recentConfirmationKey(sessionId, toolId));
+        if (!recent) return null;
+        if (recent.expiresAt <= Date.now()) {
+            this.recentConfirmations.delete(this.recentConfirmationKey(sessionId, toolId));
+            return null;
+        }
+        return { approved: recent.approved };
+    }
+
+    private rememberConfirmation(sessionId: string, toolId: string, approved: boolean): void {
+        this.pruneRecentConfirmations();
+        this.recentConfirmations.set(this.recentConfirmationKey(sessionId, toolId), {
+            approved,
+            expiresAt: Date.now() + RECENT_CONFIRMATION_TTL_MS,
+        });
+    }
+
+    private pruneRecentConfirmations(): void {
+        const now = Date.now();
+        for (const [key, value] of this.recentConfirmations.entries()) {
+            if (value.expiresAt <= now) this.recentConfirmations.delete(key);
+        }
+    }
+
+    private recentConfirmationKey(sessionId: string, toolId: string): string {
+        return `${sessionId}:${toolId}`;
     }
 
     private async pendingConfirmations(session: Session, sessionId: string): Promise<PendingConfirmation[]> {

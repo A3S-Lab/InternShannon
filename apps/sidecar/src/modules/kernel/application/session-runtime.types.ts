@@ -99,10 +99,10 @@ export const DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 2;
 
 /**
  * Runner-side watchdog soft threshold. If the SDK emits no events for this
- * long, the runner pushes a `stream_stalled` heartbeat so the UI can show
- * "still working…" instead of looking frozen. Picked slightly under the
- * default tool timeout so a single slow tool surfaces a heartbeat before the
- * SDK itself reports a failure.
+ * long, the runner pushes a soft waiting heartbeat so the UI can show "still
+ * working…" instead of looking frozen. Picked slightly under the default tool
+ * timeout so a single slow tool surfaces a heartbeat before the SDK itself
+ * reports a failure.
  */
 export const DEFAULT_STREAM_STALL_WARNING_MS = 15_000;
 

@@ -132,8 +132,8 @@ export interface SessionRuntimeOverrides {
      */
     queueTimeoutMs?: number;
     /**
-     * Runner-side watchdog: emit a `stream_stalled` heartbeat after this many
-     * ms of silence from the SDK event stream. Defaults to
+     * Runner-side watchdog: emit a soft waiting heartbeat after this many ms
+     * of silence from the SDK event stream. Defaults to
      * `DEFAULT_STREAM_STALL_WARNING_MS`.
      */
     streamStallWarningMs?: number;

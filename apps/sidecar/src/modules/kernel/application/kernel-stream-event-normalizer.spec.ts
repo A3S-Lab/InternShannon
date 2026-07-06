@@ -1,5 +1,8 @@
 import type { AgentEvent } from "@a3s-lab/code";
-import { normalizeStreamEvent } from "./kernel-stream-event-normalizer";
+import {
+	isKnownEventType,
+	normalizeStreamEvent,
+} from "./kernel-stream-event-normalizer";
 
 describe("kernel stream event normalizer", () => {
 	it("preserves tool_end duration metadata for completed tool rendering", () => {
@@ -24,5 +27,25 @@ describe("kernel stream event normalizer", () => {
 			exitCode: undefined,
 			durationMs: 7,
 		});
+	});
+
+	it("recognizes SDK confirmation_received as a silent lifecycle event", () => {
+		const event = {
+			type: "confirmation_received",
+			data: JSON.stringify({
+				type: "confirmation_received",
+				requestId: "confirm-1",
+				approved: true,
+			}),
+		} as AgentEvent;
+
+		expect(isKnownEventType("confirmation_received")).toBe(true);
+		expect(
+			normalizeStreamEvent(
+				"confirmation_received",
+				event,
+				JSON.parse(event.data ?? "{}"),
+			),
+		).toBeNull();
 	});
 });

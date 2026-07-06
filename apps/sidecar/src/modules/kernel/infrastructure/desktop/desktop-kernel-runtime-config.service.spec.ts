@@ -8,6 +8,24 @@ import {
 } from './desktop-kernel-runtime-config.service';
 
 describe('DesktopKernelRuntimeConfigService', () => {
+  it('keeps empty desktop LLM settings unselected instead of injecting openai/gpt-4', async () => {
+    const configService = {
+      getSettings: jest.fn().mockResolvedValue({
+        llm: {
+          defaultModel: '',
+          providers: [],
+          mcpServers: [],
+        },
+      } as AppSettings),
+    } as unknown as jest.Mocked<ConfigService>;
+    const service = new DesktopKernelRuntimeConfigService(configService);
+
+    const runtimeConfig = await service.getModelsConfig();
+
+    expect(runtimeConfig?.defaultModel).toBe('');
+    expect(runtimeConfig?.providers).toEqual([]);
+  });
+
   it('normalizes legacy model limits before exposing runtime config', async () => {
     const configService = {
       getSettings: jest.fn().mockResolvedValue({

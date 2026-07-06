@@ -55,6 +55,34 @@ test("describes stream stalls with active tools as tool execution waiting", () =
   );
 });
 
+test("describes tool input stream wait pulses without stalled wording", () => {
+  assert.deepEqual(
+    normalizeStreamStalledActivity(
+      {
+        type: "tool_input_stream_waiting",
+        stalledMs: 42_100,
+        activeToolCount: 1,
+        activeToolId: "tool-write-1",
+        activeToolPhase: "tool_input_streaming",
+      },
+      { timestamp: 2_500 },
+    ),
+    {
+      id: "tool_input_stream_waiting:tool-write-1:2500",
+      kind: "tool",
+      status: "waiting",
+      phase: "tool_input_streaming",
+      label: "工具参数生成等待中 42s",
+      detail: "模型仍在生成工具 tool-write-1 的参数",
+      source: "运行时看门狗",
+      toolUseId: "tool-write-1",
+      elapsedMs: 42_100,
+      activeToolCount: 1,
+      timestamp: 2_500,
+    },
+  );
+});
+
 test("normalizes legacy stream stall aliases before InternShannon renders watchdog activity", () => {
   assert.deepEqual(
     normalizeStreamStalledActivity(

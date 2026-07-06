@@ -217,4 +217,76 @@ describe('KernelToolConfirmationService', () => {
         expect(session.confirmToolUse).toHaveBeenNthCalledWith(2, 'call_second_pending_id', true, undefined);
         expect(confirmation.requestConfirmation).toHaveBeenCalledTimes(2);
     });
+
+    it('treats duplicate confirmation_required events for an already confirmed tool as idempotent', async () => {
+        const runtimeState = {
+            isCancelled: jest.fn().mockReturnValue(false),
+        } as unknown as KernelSessionRuntimeStateService;
+        const session = {
+            pendingConfirmations: jest
+                .fn()
+                .mockResolvedValueOnce([
+                    {
+                        toolId: 'toolu_duplicate_write',
+                        toolName: 'write',
+                        args: {
+                            content: 'OK',
+                            file_path: 'confirm-debug.txt',
+                        },
+                        remainingMs: 60_000,
+                    },
+                ])
+                .mockResolvedValueOnce([]),
+            confirmToolUse: jest.fn().mockResolvedValueOnce(true),
+        } as unknown as Session;
+        const confirmation = {
+            requestConfirmation: jest.fn().mockResolvedValue(true),
+        } as unknown as ToolConfirmationGate;
+        const emit = jest.fn();
+        const service = new KernelToolConfirmationService(runtimeState);
+        const logger = {
+            log: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+        };
+        Object.assign(service as unknown as { logger: typeof logger }, { logger });
+        const event = {
+            type: 'confirmation_required',
+            data: JSON.stringify({
+                toolId: 'toolu_duplicate_write',
+                toolName: 'write',
+                args: {
+                    content: 'OK',
+                    file_path: 'confirm-debug.txt',
+                },
+            }),
+        } as AgentEvent;
+
+        const firstApproved = await service.handleConfirmationRequired({
+            sessionId: 'session-duplicate',
+            session,
+            event,
+            confirmation,
+            emit,
+        });
+        const duplicateApproved = await service.handleConfirmationRequired({
+            sessionId: 'session-duplicate',
+            session,
+            event,
+            confirmation,
+            emit,
+        });
+
+        expect(firstApproved).toBe(true);
+        expect(duplicateApproved).toBe(true);
+        expect(confirmation.requestConfirmation).toHaveBeenCalledTimes(1);
+        expect(session.confirmToolUse).toHaveBeenCalledTimes(1);
+        expect(session.confirmToolUse).toHaveBeenCalledWith('toolu_duplicate_write', true, undefined);
+        expect(logger.log).toHaveBeenCalledWith(
+            expect.stringContaining('[kernel.tool.confirmation_duplicate]'),
+        );
+        expect(logger.warn).not.toHaveBeenCalledWith(
+            expect.stringContaining('[kernel.tool.confirmation_not_found]'),
+        );
+    });
 });

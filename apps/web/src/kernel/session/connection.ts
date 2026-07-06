@@ -513,8 +513,8 @@ function normalizeRuntimeTimelineEvent(event: Record<string, unknown>): AgentRun
 
   // Watchdog heartbeat from the kernel runtime: the SDK has not produced any
   // events for `stalledMs` ms. Surface it on the timeline so the user knows
-  // the session is alive but waiting on a slow model response or tool.
-  if (type === "stream_stalled") {
+  // the session is alive but waiting on a slow model response or tool input.
+  if (type === "stream_stalled" || type === "tool_input_stream_waiting") {
     return normalizeStreamStalledActivity(event, { baseId, timestamp });
   }
 
@@ -1932,6 +1932,7 @@ function handleMessage(sessionId: string, msg: BrowserIncomingMessage): void {
           event.type !== "memory_recalled" &&
           event.type !== "memory_cleared" &&
           event.type !== "stream_stalled" &&
+          event.type !== "tool_input_stream_waiting" &&
           event.type !== "tool_error" &&
           event.type !== "tool_circuit_open"
         ) {

@@ -205,9 +205,14 @@ export class KernelRuntimeConfigBuilder {
             return overrideModel ? `${overrideModel.providerName}/${overrideModel.modelId}` : `openai/${this.envOpenAiModel()}`;
         }
 
-        const requested = overrideModel
-            ? `${overrideModel.providerName}/${overrideModel.modelId}`
-            : this.modelsConfig?.defaultModel || '(unset)';
+        const configuredDefaultText = this.modelsConfig?.defaultModel?.trim() ?? '';
+        if (!overrideModel && !configuredDefaultText && !firstCredentialed) {
+            throw new Error(
+                'No AI model configured. Please configure a default model and provider API key in System > AI settings, or set OPENAI_API_KEY in the environment.',
+            );
+        }
+
+        const requested = overrideModel ? `${overrideModel.providerName}/${overrideModel.modelId}` : configuredDefaultText;
         throw new Error(
             `No valid API key configured for default model ${requested}. Please configure a provider API key in System > AI settings, or set OPENAI_API_KEY in the environment.`,
         );

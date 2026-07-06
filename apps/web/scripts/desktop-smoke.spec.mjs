@@ -13,9 +13,12 @@ import {
   collectForbiddenHitlDiagnostics,
   describeProbeError,
   formatProbeAttempts,
+  isSmokeToolConfirmationSafe,
   isSocketRunOutcomeMessage,
+  isSocketRunTerminalMessage,
   joinSmokeWorkspacePath,
   normalizeGatewayUrl,
+  summarizeSocketRunEvidence,
 } from "./desktop-smoke.mjs";
 
 test("normalizes gateway URLs pasted from API endpoints", () => {
@@ -261,6 +264,109 @@ test("builds complete tool confirmation responses for smoke auto-approval", () =
       }),
     /missing toolName/,
   );
+});
+
+test("guards smoke auto-approval by tool and explicit path fields without scanning file content", () => {
+  const guardedResponse = buildSmokeToolConfirmationResponse(
+    "session-a",
+    {
+      requestId: "request-4",
+      sessionId: "session-a",
+      toolName: "Write",
+      toolInput: {
+        file_path: "/tmp/hitl-smoke-safe.txt",
+        content: "Documentation may mention rm -rf as plain text and must not be treated as a command.",
+      },
+    },
+    {
+      allowedToolNames: ["write"],
+      allowedPathFragments: ["hitl-smoke-safe.txt"],
+    },
+  );
+
+  assert.equal(guardedResponse.approved, true);
+  assert.equal(
+    isSmokeToolConfirmationSafe(
+      {
+        toolName: "Bash",
+        toolInput: { command: "rm -rf /tmp/not-allowed" },
+      },
+      {
+        allowedToolNames: ["bash"],
+      },
+    ),
+    false,
+  );
+  assert.equal(
+    isSmokeToolConfirmationSafe(
+      {
+        toolName: "Write",
+        toolInput: { file_path: "/tmp/other.txt", content: "safe" },
+      },
+      {
+        allowedToolNames: ["write"],
+        allowedPathFragments: ["hitl-smoke-safe.txt"],
+      },
+    ),
+    false,
+  );
+});
+
+test("summarizes socket run evidence with terminal result details", () => {
+  const evidence = summarizeSocketRunEvidence({
+    label: "turn-1",
+    sessionId: "session-a",
+    prompt: "create KTV project",
+    sentAt: "2026-07-06T01:00:00.000Z",
+    completedAt: "2026-07-06T01:00:02.000Z",
+    events: [
+      {
+        type: "message",
+        message: {
+          type: "stream_event",
+          event: { type: "main_agent_activity", phase: "intake" },
+        },
+      },
+      {
+        type: "message",
+        message: {
+          type: "assistant",
+          message: { content: [{ type: "text", text: "done" }] },
+        },
+      },
+      {
+        type: "tool_confirmation_request",
+        request: { toolName: "Write" },
+      },
+      {
+        type: "message",
+        message: {
+          type: "result",
+          data: { status: "succeeded", stopReason: "end_turn" },
+        },
+      },
+    ],
+  });
+
+  assert.deepEqual(evidence, {
+    label: "turn-1",
+    sessionId: "session-a",
+    prompt: "create KTV project",
+    sentAt: "2026-07-06T01:00:00.000Z",
+    completedAt: "2026-07-06T01:00:02.000Z",
+    firstMessageType: "stream_event",
+    firstAssistantIndex: 1,
+    resultIndex: 2,
+    errorIndex: -1,
+    status: "succeeded",
+    stopReason: "end_turn",
+    terminalFrameTypes: ["result"],
+    confirmationRequestCount: 1,
+    streamEventTypes: { main_agent_activity: 1 },
+  });
+  assert.equal(isSocketRunOutcomeMessage({ type: "assistant" }), true);
+  assert.equal(isSocketRunTerminalMessage({ type: "assistant" }), false);
+  assert.equal(isSocketRunTerminalMessage({ type: "result" }), true);
 });
 
 test("detects HITL timeout regressions in smoke events and sidecar logs", () => {

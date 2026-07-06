@@ -55,7 +55,7 @@ export class LlmSettings {
     queueTimeoutMs?: number;
     /** Overall ceiling for a single message run in ms. */
     maxExecutionTimeMs?: number;
-    /** Stall watchdog soft threshold (ms) — emit a stream_stalled heartbeat. */
+    /** Stall watchdog soft threshold (ms) — emit a soft waiting heartbeat. */
     streamStallWarningMs?: number;
     /** Stall watchdog hard threshold (ms) for idle/model-stream silence — force-cancel a wedged session. */
     streamStallHardMs?: number;
@@ -657,7 +657,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
         keybindings: {},
     },
     llm: {
-        defaultModel: 'openai/gpt-4',
+        defaultModel: '',
         providers: [],
         mcpServers: [],
         maxToolRounds: undefined,

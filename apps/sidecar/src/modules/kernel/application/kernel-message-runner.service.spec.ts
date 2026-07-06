@@ -1,4 +1,5 @@
 import { KernelMessageRunnerService } from './kernel-message-runner.service';
+import { KernelToolConfirmationService } from './kernel-tool-confirmation.service';
 
 type RunnerInternals = {
     normalizeRunStopReason(value: unknown): string | null;
@@ -83,6 +84,7 @@ type RunnerInternals = {
         thresholds: { modelStreamMs: number; toolInputStreamMs: number; toolExecMs: number },
     ): number;
     streamStallStopReasonForPhase(phase: 'model_stream' | 'tool_input_streaming' | 'tool_exec'): string;
+    streamStallHeartbeatEventTypeForPhase(phase: 'model_stream' | 'tool_input_streaming' | 'tool_exec'): string;
     toolInputStreamStallContinuationPrompt(attempt: number, maxAttempts: number, discardedTools?: string[]): string;
     appendFallbackAssistantTextBlock(blocks: Array<Record<string, unknown>>, text: string): void;
 };
@@ -107,6 +109,23 @@ function iteratorFromEvents(events: Array<Record<string, unknown>>, stallAfterEv
             }
             if (stallAfterEvents) return new Promise(() => undefined);
             return Promise.resolve({ value: undefined, done: true });
+        },
+    };
+}
+
+function iteratorFromTimedEvents(
+    events: Array<{ event: Record<string, unknown>; delayMs?: number }>,
+): AsyncIterator<unknown> {
+    let index = 0;
+    return {
+        next: async () => {
+            if (index >= events.length) return { value: undefined, done: true };
+            const item = events[index];
+            index += 1;
+            if (item.delayMs && item.delayMs > 0) {
+                await new Promise(resolve => setTimeout(resolve, item.delayMs));
+            }
+            return { value: item.event, done: false };
         },
     };
 }
@@ -301,6 +320,11 @@ describe('KernelMessageRunnerService run stop reasons', () => {
         expect(runner.streamStallStopReasonForPhase('model_stream')).toBe('event_stream_stalled');
         expect(runner.streamStallStopReasonForPhase('tool_exec')).toBe('event_stream_stalled');
         expect(runner.streamStallStopReasonForPhase('tool_input_streaming')).toBe('tool_input_stream_stalled');
+        expect(runner.streamStallHeartbeatEventTypeForPhase('model_stream')).toBe('stream_stalled');
+        expect(runner.streamStallHeartbeatEventTypeForPhase('tool_exec')).toBe('stream_stalled');
+        expect(runner.streamStallHeartbeatEventTypeForPhase('tool_input_streaming')).toBe(
+            'tool_input_stream_waiting',
+        );
         expect(runner.streamStallHardMsForPhase('model_stream', thresholds)).toBe(300_000);
         expect(runner.streamStallHardMsForPhase('tool_input_streaming', thresholds)).toBe(90_000);
         expect(runner.streamStallHardMsForPhase('tool_exec', thresholds)).toBe(600_000);
@@ -732,6 +756,305 @@ describe('KernelMessageRunnerService run stop reasons', () => {
                     (message as { event: Record<string, unknown> }).event.reason === 'tool_input_stream_stalled',
             ),
         ).toBe(true);
+        expect(
+            emitted.some(
+                message =>
+                    isResult(message) &&
+                    (message as { data: Record<string, unknown> }).data.status === 'succeeded' &&
+                    (message as { data: Record<string, unknown> }).data.stopReason === 'end_turn',
+            ),
+        ).toBe(true);
+    }, 5_000);
+
+    it('emits soft tool input wait pulses without stream-stalled warnings', async () => {
+        const conversationLog = {
+            recordAssistantMessage: jest.fn().mockResolvedValue(undefined),
+            listRuntimeHistory: jest.fn().mockResolvedValue([]),
+        };
+        const runtimeState = {
+            isCancelled: jest.fn().mockReturnValue(false),
+            clearCancelled: jest.fn(),
+        };
+        const session = {
+            history: jest.fn().mockReturnValue([]),
+            currentRun: jest.fn().mockResolvedValue({ id: 'run-tool-input-soft-wait' }),
+            cancelRun: jest.fn().mockResolvedValue(undefined),
+            cancel: jest.fn(),
+            stream: jest.fn().mockResolvedValue(
+                iteratorFromTimedEvents([
+                    {
+                        event: {
+                            type: 'tool_use',
+                            toolName: 'write',
+                            toolId: 'toolu_write',
+                            input: { file_path: 'songs.json', content: '[' },
+                        },
+                    },
+                    {
+                        delayMs: 70,
+                        event: {
+                            type: 'tool_end',
+                            toolName: 'write',
+                            toolId: 'toolu_write',
+                            output: 'OK',
+                            exitCode: 0,
+                        },
+                    },
+                    { event: { type: 'text_delta', text: '已完成。' } },
+                    { event: { type: 'turn_end', totalTokens: 24 } },
+                ]),
+            ),
+        };
+        const runner = new KernelMessageRunnerService(
+            conversationLog as never,
+            runtimeState as never,
+            null as never,
+            { resolve: jest.fn().mockReturnValue(undefined) } as never,
+        );
+        const logger = {
+            log: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+        };
+        Object.assign(runner as unknown as { logger: typeof logger }, { logger });
+        const emitted: unknown[] = [];
+
+        await runner.runUserMessage({
+            sessionId: 'session-tool-input-soft-wait',
+            content: '生成一个较大的 KTV 曲库文件',
+            emit: message => emitted.push(message),
+            activeSession: {
+                session,
+                workspace: '/tmp/workspace',
+                agentId: 'default',
+                userId: 'user-1',
+                runtimeKey: 'default',
+                runtimeOverrides: {
+                    streamStallWarningMs: 20,
+                    toolInputStreamStallHardMs: 5_000,
+                },
+                nativeConfirmationEnabled: false,
+                nativeConfirmedToolKeys: new Set<string>(),
+                createdAt: Date.now(),
+                lastActivityAt: Date.now(),
+            } as never,
+        });
+
+        expect(
+            logger.log.mock.calls.some(call => String(call[0]).includes('[kernel.stream.tool_input_waiting]')),
+        ).toBe(true);
+        expect(
+            logger.warn.mock.calls.some(
+                call =>
+                    String(call[0]).includes('[kernel.stream.stalled]') &&
+                    String(call[0]).includes('phase=tool_input_streaming'),
+            ),
+        ).toBe(false);
+        expect(
+            emitted.some(
+                message =>
+                    isStreamEvent(message, 'tool_input_stream_waiting') &&
+                    (message as { event: Record<string, unknown> }).event.activeToolPhase === 'tool_input_streaming' &&
+                    (message as { event: Record<string, unknown> }).event.reason === 'tool_input_stream_waiting',
+            ),
+        ).toBe(true);
+        expect(
+            emitted.some(
+                message =>
+                    isStreamEvent(message, 'stream_stalled') &&
+                    (message as { event: Record<string, unknown> }).event.activeToolPhase === 'tool_input_streaming',
+            ),
+        ).toBe(false);
+        expect(session.cancelRun).not.toHaveBeenCalled();
+        expect(
+            emitted.some(
+                message =>
+                    isResult(message) &&
+                    (message as { data: Record<string, unknown> }).data.status === 'succeeded' &&
+                    (message as { data: Record<string, unknown> }).data.stopReason === 'end_turn',
+            ),
+        ).toBe(true);
+    }, 5_000);
+
+    it('drops SDK confirmation_received bookkeeping events without warning or browser noise', async () => {
+        const conversationLog = {
+            recordAssistantMessage: jest.fn().mockResolvedValue(undefined),
+            listRuntimeHistory: jest.fn().mockResolvedValue([]),
+        };
+        const runtimeState = {
+            isCancelled: jest.fn().mockReturnValue(false),
+            clearCancelled: jest.fn(),
+        };
+        const session = {
+            history: jest.fn().mockReturnValue([]),
+            currentRun: jest.fn().mockResolvedValue({ id: 'run-confirmation-received' }),
+            cancelRun: jest.fn().mockResolvedValue(undefined),
+            cancel: jest.fn(),
+            stream: jest.fn().mockResolvedValue(
+                iteratorFromEvents([
+                    {
+                        type: 'confirmation_received',
+                        data: JSON.stringify({
+                            type: 'confirmation_received',
+                            requestId: 'confirm-1',
+                            approved: true,
+                        }),
+                    },
+                    { type: 'text_delta', text: '确认事件已处理。' },
+                    { type: 'turn_end', totalTokens: 12 },
+                ]),
+            ),
+        };
+        const runner = new KernelMessageRunnerService(
+            conversationLog as never,
+            runtimeState as never,
+            null as never,
+            { resolve: jest.fn().mockReturnValue(undefined) } as never,
+        );
+        const logger = {
+            log: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+        };
+        Object.assign(runner as unknown as { logger: typeof logger }, { logger });
+        const emitted: unknown[] = [];
+
+        await runner.runUserMessage({
+            sessionId: 'session-confirmation-received',
+            content: '触发确认事件回归',
+            emit: message => emitted.push(message),
+            activeSession: {
+                session,
+                workspace: '/tmp/workspace',
+                agentId: 'default',
+                userId: 'user-1',
+                runtimeKey: 'default',
+                runtimeOverrides: {},
+                nativeConfirmationEnabled: false,
+                nativeConfirmedToolKeys: new Set<string>(),
+                createdAt: Date.now(),
+                lastActivityAt: Date.now(),
+            } as never,
+        });
+
+        expect(logger.warn).not.toHaveBeenCalledWith(
+            expect.stringContaining('unhandled event type="confirmation_received"'),
+        );
+        expect(
+            emitted.some(
+                message =>
+                    Boolean(message) &&
+                    typeof message === 'object' &&
+                    (message as { event?: { type?: unknown } }).event?.type === 'confirmation_received',
+            ),
+        ).toBe(false);
+        expect(
+            emitted.some(
+                message =>
+                    isResult(message) &&
+                    (message as { data: Record<string, unknown> }).data.status === 'succeeded' &&
+                    (message as { data: Record<string, unknown> }).data.stopReason === 'end_turn',
+            ),
+        ).toBe(true);
+    }, 5_000);
+
+    it('handles duplicate SDK confirmation_required events for the same tool id idempotently', async () => {
+        const conversationLog = {
+            recordAssistantMessage: jest.fn().mockResolvedValue(undefined),
+            listRuntimeHistory: jest.fn().mockResolvedValue([]),
+        };
+        const runtimeState = {
+            isCancelled: jest.fn().mockReturnValue(false),
+            clearCancelled: jest.fn(),
+        };
+        const eventData = {
+            toolId: 'toolu_duplicate_write',
+            toolName: 'write',
+            args: {
+                content: 'OK',
+                file_path: 'confirm-debug.txt',
+            },
+        };
+        const session = {
+            history: jest.fn().mockReturnValue([]),
+            currentRun: jest.fn().mockResolvedValue({ id: 'run-duplicate-confirmation' }),
+            cancelRun: jest.fn().mockResolvedValue(undefined),
+            cancel: jest.fn(),
+            pendingConfirmations: jest
+                .fn()
+                .mockResolvedValueOnce([
+                    {
+                        toolId: 'toolu_duplicate_write',
+                        toolName: 'write',
+                        args: eventData.args,
+                        remainingMs: 60_000,
+                    },
+                ])
+                .mockResolvedValueOnce([]),
+            confirmToolUse: jest.fn().mockResolvedValueOnce(true),
+            stream: jest.fn().mockResolvedValue(
+                iteratorFromEvents([
+                    {
+                        type: 'confirmation_required',
+                        data: JSON.stringify(eventData),
+                    },
+                    {
+                        type: 'confirmation_required',
+                        data: JSON.stringify(eventData),
+                    },
+                    { type: 'text_delta', text: '重复确认事件已幂等处理。' },
+                    { type: 'turn_end', totalTokens: 12 },
+                ]),
+            ),
+        };
+        const toolConfirmation = new KernelToolConfirmationService(runtimeState as never);
+        const logger = {
+            log: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+        };
+        Object.assign(toolConfirmation as unknown as { logger: typeof logger }, { logger });
+        const runner = new KernelMessageRunnerService(
+            conversationLog as never,
+            runtimeState as never,
+            toolConfirmation,
+            { resolve: jest.fn().mockReturnValue(undefined) } as never,
+        );
+        Object.assign(runner as unknown as { logger: typeof logger }, { logger });
+        const confirmation = {
+            requestConfirmation: jest.fn().mockResolvedValue(true),
+            clearTaskApprovals: jest.fn(),
+        };
+        const emitted: unknown[] = [];
+
+        await runner.runUserMessage({
+            sessionId: 'session-duplicate-confirmation',
+            content: '触发重复确认事件回归',
+            emit: message => emitted.push(message),
+            confirmation,
+            activeSession: {
+                session,
+                workspace: '/tmp/workspace',
+                agentId: 'default',
+                userId: 'user-1',
+                runtimeKey: 'default',
+                runtimeOverrides: {},
+                nativeConfirmationEnabled: false,
+                nativeConfirmedToolKeys: new Set<string>(),
+                createdAt: Date.now(),
+                lastActivityAt: Date.now(),
+            } as never,
+        });
+
+        expect(confirmation.requestConfirmation).toHaveBeenCalledTimes(1);
+        expect(session.confirmToolUse).toHaveBeenCalledTimes(1);
+        expect(session.confirmToolUse).toHaveBeenCalledWith('toolu_duplicate_write', true, undefined);
+        expect(logger.log).toHaveBeenCalledWith(
+            expect.stringContaining('[kernel.tool.confirmation_duplicate]'),
+        );
+        expect(logger.warn).not.toHaveBeenCalledWith(
+            expect.stringContaining('[kernel.tool.confirmation_not_found]'),
+        );
         expect(
             emitted.some(
                 message =>

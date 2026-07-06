@@ -95,6 +95,7 @@ interface RunVerdict {
 
 type AssistantBlockType = AssistantContentBlock['type'];
 type ActiveToolPhase = 'tool_exec' | 'tool_input_streaming' | 'model_stream';
+type StreamStallHeartbeatEventType = 'stream_stalled' | 'tool_input_stream_waiting';
 
 const MAX_CLIENT_TOOL_OUTPUT_BYTES = 64 * 1024;
 const DEFAULT_MAX_TOOL_ROUND_AUTO_CONTINUATIONS = 1;
@@ -717,9 +718,9 @@ export class KernelMessageRunnerService {
             let eventStream: AsyncIterator<AgentEvent>;
             let lastEventAt = Date.now();
             // Repeating heartbeat: once the first warning fires, we re-emit a
-            // `stream_stalled` event every `stallWarningMs` so the UI gets a
-            // steady "still stuck for Xs" pulse during long tool waits instead
-            // of one heartbeat followed by minutes of dead silence.
+            // soft wait pulse every `stallWarningMs` so the UI gets a steady
+            // "still waiting for Xs" signal instead of one heartbeat followed
+            // by minutes of dead silence.
             let lastHeartbeatAt: number | null = null;
             const watchedNext = async (): Promise<IteratorResult<AgentEvent>> => {
                 const pending = eventStream.next();
@@ -796,21 +797,35 @@ export class KernelMessageRunnerService {
                         const activeToolIdStr = typeof activeToolId === 'string' ? activeToolId : undefined;
                         const phase = activeToolPhase(activeToolIdStr);
                         const stopReason = this.streamStallStopReasonForPhase(phase);
-                        // Structured log so operators can aggregate "X% of
-                        // sessions stall on tool Y" via log pipelines.
-                        this.logger.warn(
-                            `[kernel.stream.stalled] sessionId=${sessionId} stalledMs=${stalledMs} activeToolCount=${activeToolIds.size} activeToolId=${activeToolIdStr ?? 'n/a'} phase=${phase} threshold=${activeHardMs}`,
-                        );
-                        this.metrics?.incCounter('kernel_stream_stalled_total', {
-                            active_tool: activeToolIdStr ?? 'none',
-                            phase,
-                            reason: stopReason,
-                        });
+                        const heartbeatType = this.streamStallHeartbeatEventTypeForPhase(phase);
+                        const heartbeatReason =
+                            heartbeatType === 'tool_input_stream_waiting' ? 'tool_input_stream_waiting' : stopReason;
+                        if (heartbeatType === 'tool_input_stream_waiting') {
+                            this.logger.log(
+                                `[kernel.stream.tool_input_waiting] sessionId=${sessionId} waitedMs=${stalledMs} activeToolCount=${activeToolIds.size} activeToolId=${activeToolIdStr ?? 'n/a'} phase=${phase} hardThreshold=${activeHardMs}`,
+                            );
+                            this.metrics?.incCounter('kernel_tool_input_stream_waiting_total', {
+                                active_tool: activeToolIdStr ?? 'none',
+                                phase,
+                                reason: heartbeatReason,
+                            });
+                        } else {
+                            // Structured log so operators can aggregate "X%
+                            // of sessions stall on tool Y" via log pipelines.
+                            this.logger.warn(
+                                `[kernel.stream.stalled] sessionId=${sessionId} stalledMs=${stalledMs} activeToolCount=${activeToolIds.size} activeToolId=${activeToolIdStr ?? 'n/a'} phase=${phase} threshold=${activeHardMs}`,
+                            );
+                            this.metrics?.incCounter('kernel_stream_stalled_total', {
+                                active_tool: activeToolIdStr ?? 'none',
+                                phase,
+                                reason: stopReason,
+                            });
+                        }
                         emit({
                             type: 'stream_event',
                             event: {
-                                type: 'stream_stalled',
-                                reason: stopReason,
+                                type: heartbeatType,
+                                reason: heartbeatReason,
                                 sessionId,
                                 stalledMs,
                                 thresholdMs: activeHardMs,
@@ -2101,6 +2116,10 @@ export class KernelMessageRunnerService {
 
     private streamStallStopReasonForPhase(phase: ActiveToolPhase): RunStopReason {
         return phase === 'tool_input_streaming' ? 'tool_input_stream_stalled' : 'event_stream_stalled';
+    }
+
+    private streamStallHeartbeatEventTypeForPhase(phase: ActiveToolPhase): StreamStallHeartbeatEventType {
+        return phase === 'tool_input_streaming' ? 'tool_input_stream_waiting' : 'stream_stalled';
     }
 
     private maxToolRoundContinuationPrompt(attempt: number, maxAttempts: number): string {

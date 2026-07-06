@@ -18,6 +18,7 @@ const FORBIDDEN_HITL_LOG_PATTERNS = [
 let gatewayUrl = "http://127.0.0.1:29653";
 let apiBase = `${gatewayUrl}/api/v1`;
 let createdSessionId = null;
+let activeToolConfirmationGuard = null;
 
 async function main() {
   gatewayUrl = await resolveGatewayUrl();
@@ -83,7 +84,7 @@ async function expectSocketMessaging(sessionId) {
   socket.on("tool_confirmation_request", (request) => {
     events.push({ type: "tool_confirmation_request", request });
     try {
-      respondToSmokeToolConfirmation(socket, sessionId, request);
+      respondToSmokeToolConfirmation(socket, sessionId, request, activeToolConfirmationGuard);
     } catch (error) {
       events.push({ type: "tool_confirmation_response_error", message: formatError(error) });
     }
@@ -155,6 +156,7 @@ async function expectSocketMessaging(sessionId) {
 
 async function runSocketUserMessage(socket, events, sessionId, content, label) {
   const runStartIndex = events.length;
+  const sentAt = new Date().toISOString();
   socket.emit("message", { sessionId, type: "user_message", content });
   await waitForEvent(
     events,
@@ -171,8 +173,8 @@ async function runSocketUserMessage(socket, events, sessionId, content, label) {
   try {
     await waitForEvent(
       events,
-      (event) => event.type === "message" && isSocketRunOutcomeMessage(event.message),
-      `${label} assistant/result outcome`,
+      (event) => event.type === "message" && isSocketRunTerminalMessage(event.message),
+      `${label} terminal result/error outcome`,
       { timeoutMs: USER_MESSAGE_OUTCOME_TIMEOUT_MS, startIndex: runStartIndex },
     );
   } catch (error) {
@@ -187,6 +189,14 @@ async function runSocketUserMessage(socket, events, sessionId, content, label) {
 
   const runEvents = events.slice(runStartIndex);
   assertSocketRunOutcome(label, runEvents);
+  log(`run evidence ${formatSmokeJson(summarizeSocketRunEvidence({
+    label,
+    sessionId,
+    prompt: content,
+    sentAt,
+    completedAt: new Date().toISOString(),
+    events: runEvents,
+  }), 2000)}`);
   return runEvents;
 }
 
@@ -214,7 +224,17 @@ async function expectReadOnlyQueryNoHitl(socket, events, sessionId, sidecarLogCu
 async function expectWriteHitlResolves(socket, events, sessionId, sidecarLogCursor) {
   const filename = `hitl-smoke-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.txt`;
   const content = `请在当前工作目录创建一个很小的文件 ${filename}，内容为 HITL smoke test。`;
-  const runEvents = await runSocketUserMessage(socket, events, sessionId, content, "write-hitl-resolves");
+  const previousGuard = activeToolConfirmationGuard;
+  activeToolConfirmationGuard = {
+    allowedToolNames: ["write", "edit", "create", "str_replace"],
+    allowedPathFragments: [filename],
+  };
+  let runEvents;
+  try {
+    runEvents = await runSocketUserMessage(socket, events, sessionId, content, "write-hitl-resolves");
+  } finally {
+    activeToolConfirmationGuard = previousGuard;
+  }
   const confirmationRequests = findToolConfirmationRequests(runEvents);
 
   assert(
@@ -237,14 +257,14 @@ function findToolConfirmationRequests(events) {
   return events.filter((event) => event?.type === "tool_confirmation_request");
 }
 
-function respondToSmokeToolConfirmation(socket, sessionId, request) {
-  const response = buildSmokeToolConfirmationResponse(sessionId, request);
+function respondToSmokeToolConfirmation(socket, sessionId, request, guard) {
+  const response = buildSmokeToolConfirmationResponse(sessionId, request, guard);
   socket.emit("tool_confirmation_response", response);
-  log(`auto-approved smoke tool confirmation (${response.toolName})`);
+  log(`${response.approved ? "auto-approved" : "auto-denied"} smoke tool confirmation (${response.toolName})`);
   return response;
 }
 
-export function buildSmokeToolConfirmationResponse(sessionId, request) {
+export function buildSmokeToolConfirmationResponse(sessionId, request, guard = null) {
   const requestId = typeof request?.requestId === "string" ? request.requestId : "";
   const requestSessionId = typeof request?.sessionId === "string" ? request.sessionId : "";
   const toolName = typeof request?.toolName === "string" ? request.toolName : "";
@@ -259,12 +279,66 @@ export function buildSmokeToolConfirmationResponse(sessionId, request) {
   );
   assert(toolName.trim().length > 0, `tool_confirmation_request missing toolName: ${formatSmokeJson(request, 500)}`);
 
+  const approved = isSmokeToolConfirmationSafe(request, guard);
   return {
     requestId,
-    approved: true,
-    scope: "session",
+    approved,
+    scope: approved ? "session" : "once",
     toolName,
   };
+}
+
+export function isSmokeToolConfirmationSafe(request, guard = null) {
+  if (!guard) return true;
+  const toolName = typeof request?.toolName === "string" ? request.toolName.trim().toLowerCase() : "";
+  const allowedToolNames = Array.isArray(guard.allowedToolNames) ? guard.allowedToolNames : [];
+  if (
+    allowedToolNames.length > 0 &&
+    !allowedToolNames.some((allowed) => toolName.includes(String(allowed).trim().toLowerCase()))
+  ) {
+    return false;
+  }
+
+  const fields = flattenToolInputFields(request?.toolInput);
+  if (fields.some((field) => isCommandField(field.key) && hasDangerousCommand(field.value))) {
+    return false;
+  }
+
+  const allowedPathFragments = Array.isArray(guard.allowedPathFragments) ? guard.allowedPathFragments : [];
+  if (allowedPathFragments.length > 0) {
+    const pathFields = fields.filter((field) => isPathField(field.key));
+    return pathFields.some((field) =>
+      allowedPathFragments.some((fragment) => field.value.includes(String(fragment))),
+    );
+  }
+
+  return true;
+}
+
+function flattenToolInputFields(value, parentKey = "") {
+  if (!value || typeof value !== "object") return [];
+  const result = [];
+  for (const [key, raw] of Object.entries(value)) {
+    const fieldKey = parentKey ? `${parentKey}.${key}` : key;
+    if (typeof raw === "string") {
+      result.push({ key: fieldKey, value: raw });
+    } else if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      result.push(...flattenToolInputFields(raw, fieldKey));
+    }
+  }
+  return result;
+}
+
+function isCommandField(key) {
+  return /(^|\.)(command|cmd|shellCommand|shell_command)$/i.test(key);
+}
+
+function isPathField(key) {
+  return /(^|\.)(path|file_path|filepath|fileName|filename|targetPath|target_path)$/i.test(key);
+}
+
+function hasDangerousCommand(value) {
+  return /\brm\s+-rf\b/i.test(value) || /\bsudo\b/i.test(value) || /\bchmod\b/i.test(value);
 }
 
 export function assertNoForbiddenHitlFailure(label, events, sidecarLogText = "", sessionId = "unknown") {
@@ -347,6 +421,46 @@ async function expectSocketMessageHistoryReplay(sessionId, userContent) {
 export function isSocketRunOutcomeMessage(message) {
   if (!message || typeof message !== "object") return false;
   return message.type === "assistant" || message.type === "result";
+}
+
+export function isSocketRunTerminalMessage(message) {
+  if (!message || typeof message !== "object") return false;
+  return message.type === "result" || message.type === "error";
+}
+
+export function summarizeSocketRunEvidence({ label, sessionId, prompt, sentAt, completedAt, events }) {
+  const messages = events
+    .filter((event) => event?.type === "message" && event.message && typeof event.message === "object")
+    .map((event) => event.message);
+  const streamEvents = messages
+    .filter((message) => message.type === "stream_event" && message.event && typeof message.event === "object")
+    .map((message) => message.event);
+  const firstAssistantIndex = messages.findIndex((message) => message.type === "assistant");
+  const resultIndex = messages.findIndex((message) => message.type === "result");
+  const errorIndex = messages.findIndex((message) => message.type === "error");
+  const result = resultIndex >= 0 ? messages[resultIndex].data : null;
+  const streamEventTypes = {};
+  for (const event of streamEvents) {
+    const type = typeof event.type === "string" ? event.type : "unknown";
+    streamEventTypes[type] = (streamEventTypes[type] || 0) + 1;
+  }
+
+  return {
+    label,
+    sessionId,
+    prompt,
+    sentAt,
+    completedAt,
+    firstMessageType: messages[0]?.type ?? null,
+    firstAssistantIndex,
+    resultIndex,
+    errorIndex,
+    status: result?.status ?? null,
+    stopReason: result?.stopReason ?? null,
+    terminalFrameTypes: messages.filter(isSocketRunTerminalMessage).map((message) => message.type),
+    confirmationRequestCount: events.filter((event) => event?.type === "tool_confirmation_request").length,
+    streamEventTypes,
+  };
 }
 
 export function assertSessionSnapshotContainsRun(label, snapshot, userContent) {

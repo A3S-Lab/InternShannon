@@ -34,6 +34,31 @@ describe('KernelRuntimeConfigBuilder', () => {
         expect(hcl).not.toContain('models "bailian"');
     });
 
+    it('reports empty model configuration without inventing openai/gpt-4', () => {
+        delete process.env.OPENAI_API_KEY;
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: '',
+            providers: [],
+        });
+
+        expect(() => builder.resolveDefaultModel({})).toThrow(
+            'No AI model configured. Please configure a default model and provider API key in System > AI settings, or set OPENAI_API_KEY in the environment.',
+        );
+        expect(() => builder.resolveDefaultModel({})).not.toThrow(/openai\/gpt-4/);
+    });
+
+    it('keeps the specific missing-key error when a default model is explicitly configured', () => {
+        delete process.env.OPENAI_API_KEY;
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'openai/gpt-4o',
+            providers: [],
+        });
+
+        expect(() => builder.resolveDefaultModel({})).toThrow(
+            'No valid API key configured for default model openai/gpt-4o.',
+        );
+    });
+
     it('ignores persisted model snapshots when a session follows the default model', () => {
         const builder = new KernelRuntimeConfigBuilder({
             defaultModel: 'openai/gpt-4o',

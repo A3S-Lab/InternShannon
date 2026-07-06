@@ -59,6 +59,7 @@ const LIFECYCLE_EVENT_TYPES = new Set([
     'agent_mode_changed',
     'context_resolving',
     'context_resolved',
+    'confirmation_received',
 ]);
 
 // SDK hook and observability events have no chat UI payload. Silently dropped.
