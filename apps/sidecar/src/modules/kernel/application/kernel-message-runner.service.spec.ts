@@ -876,6 +876,214 @@ describe('KernelMessageRunnerService run stop reasons', () => {
         ).toBe(true);
     }, 5_000);
 
+    it('does not open the same-tool circuit when successful tools break the failure streak', async () => {
+        const conversationLog = {
+            recordAssistantMessage: jest.fn().mockResolvedValue(undefined),
+            listRuntimeHistory: jest.fn().mockResolvedValue([]),
+        };
+        const runtimeState = {
+            isCancelled: jest.fn().mockReturnValue(false),
+            clearCancelled: jest.fn(),
+        };
+        const session = {
+            history: jest.fn().mockReturnValue([]),
+            currentRun: jest.fn().mockResolvedValue({ id: 'run-interleaved-tool-errors' }),
+            cancelRun: jest.fn().mockResolvedValue(undefined),
+            cancel: jest.fn(),
+            stream: jest.fn().mockResolvedValue(
+                iteratorFromEvents([
+                    { type: 'tool_use', toolName: 'patch', toolId: 'toolu_patch_1', input: { diff: '@@ bad' } },
+                    {
+                        type: 'tool_end',
+                        toolName: 'patch',
+                        toolId: 'toolu_patch_1',
+                        output: 'Failed to parse diff: Invalid hunk header: @@',
+                        exitCode: 1,
+                    },
+                    { type: 'tool_use', toolName: 'read', toolId: 'toolu_read_1', input: { file_path: 'app.js' } },
+                    {
+                        type: 'tool_end',
+                        toolName: 'read',
+                        toolId: 'toolu_read_1',
+                        output: 'const queue = [];',
+                        exitCode: 0,
+                    },
+                    { type: 'tool_use', toolName: 'patch', toolId: 'toolu_patch_2', input: { diff: '@@ bad' } },
+                    {
+                        type: 'tool_end',
+                        toolName: 'patch',
+                        toolId: 'toolu_patch_2',
+                        output: 'Failed to parse diff: Invalid hunk header: @@',
+                        exitCode: 1,
+                    },
+                    {
+                        type: 'tool_use',
+                        toolName: 'write',
+                        toolId: 'toolu_write_1',
+                        input: { file_path: 'app.js', content: 'const queue = [];' },
+                    },
+                    {
+                        type: 'tool_end',
+                        toolName: 'write',
+                        toolId: 'toolu_write_1',
+                        output: 'Wrote app.js',
+                        exitCode: 0,
+                    },
+                    { type: 'tool_use', toolName: 'patch', toolId: 'toolu_patch_3', input: { diff: '@@ bad' } },
+                    {
+                        type: 'tool_end',
+                        toolName: 'patch',
+                        toolId: 'toolu_patch_3',
+                        output: 'Failed to parse diff: Invalid hunk header: @@',
+                        exitCode: 1,
+                    },
+                    { type: 'text_delta', text: '已完成剩余改动。' },
+                    { type: 'turn_end', totalTokens: 120 },
+                ]),
+            ),
+        };
+        const runner = new KernelMessageRunnerService(
+            conversationLog as never,
+            runtimeState as never,
+            null as never,
+            { resolve: jest.fn().mockReturnValue(undefined) } as never,
+        );
+        const logger = {
+            log: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+        };
+        Object.assign(runner as unknown as { logger: typeof logger }, { logger });
+        const emitted: unknown[] = [];
+
+        await runner.runUserMessage({
+            sessionId: 'session-interleaved-tool-errors',
+            content: '扩展一个较长的 KTV 页面任务',
+            emit: message => emitted.push(message),
+            activeSession: {
+                session,
+                workspace: '/tmp/workspace',
+                agentId: 'default',
+                userId: 'user-1',
+                runtimeKey: 'default',
+                runtimeOverrides: {
+                    maxConsecutiveToolErrors: 3,
+                },
+                nativeConfirmationEnabled: false,
+                nativeConfirmedToolKeys: new Set<string>(),
+                createdAt: Date.now(),
+                lastActivityAt: Date.now(),
+            } as never,
+        });
+
+        expect(session.cancelRun).not.toHaveBeenCalled();
+        expect(emitted.some(message => isStreamEvent(message, 'tool_circuit_open'))).toBe(false);
+        expect(
+            emitted.some(
+                message =>
+                    isResult(message) &&
+                    (message as { data: Record<string, unknown> }).data.status === 'succeeded' &&
+                    (message as { data: Record<string, unknown> }).data.stopReason === 'end_turn',
+            ),
+        ).toBe(true);
+    }, 5_000);
+
+    it('opens the same-tool circuit for adjacent repeated failures', async () => {
+        const conversationLog = {
+            recordAssistantMessage: jest.fn().mockResolvedValue(undefined),
+            listRuntimeHistory: jest.fn().mockResolvedValue([]),
+        };
+        const runtimeState = {
+            isCancelled: jest.fn().mockReturnValue(false),
+            clearCancelled: jest.fn(),
+        };
+        const session = {
+            history: jest.fn().mockReturnValue([]),
+            currentRun: jest.fn().mockResolvedValue({ id: 'run-adjacent-tool-errors' }),
+            cancelRun: jest.fn().mockResolvedValue(undefined),
+            cancel: jest.fn(),
+            stream: jest.fn().mockResolvedValue(
+                iteratorFromEvents([
+                    { type: 'tool_use', toolName: 'patch', toolId: 'toolu_patch_1', input: { diff: '@@ bad' } },
+                    {
+                        type: 'tool_end',
+                        toolName: 'patch',
+                        toolId: 'toolu_patch_1',
+                        output: 'Failed to parse diff: Invalid hunk header: @@',
+                        exitCode: 1,
+                    },
+                    { type: 'tool_use', toolName: 'patch', toolId: 'toolu_patch_2', input: { diff: '@@ bad' } },
+                    {
+                        type: 'tool_end',
+                        toolName: 'patch',
+                        toolId: 'toolu_patch_2',
+                        output: 'Failed to parse diff: Invalid hunk header: @@',
+                        exitCode: 1,
+                    },
+                    { type: 'tool_use', toolName: 'patch', toolId: 'toolu_patch_3', input: { diff: '@@ bad' } },
+                    {
+                        type: 'tool_end',
+                        toolName: 'patch',
+                        toolId: 'toolu_patch_3',
+                        output: 'Failed to parse diff: Invalid hunk header: @@',
+                        exitCode: 1,
+                    },
+                ]),
+            ),
+        };
+        const runner = new KernelMessageRunnerService(
+            conversationLog as never,
+            runtimeState as never,
+            null as never,
+            { resolve: jest.fn().mockReturnValue(undefined) } as never,
+        );
+        const logger = {
+            log: jest.fn(),
+            warn: jest.fn(),
+            error: jest.fn(),
+        };
+        Object.assign(runner as unknown as { logger: typeof logger }, { logger });
+        const emitted: unknown[] = [];
+
+        await runner.runUserMessage({
+            sessionId: 'session-adjacent-tool-errors',
+            content: '连续触发 patch 失败',
+            emit: message => emitted.push(message),
+            activeSession: {
+                session,
+                workspace: '/tmp/workspace',
+                agentId: 'default',
+                userId: 'user-1',
+                runtimeKey: 'default',
+                runtimeOverrides: {
+                    maxConsecutiveToolErrors: 3,
+                },
+                nativeConfirmationEnabled: false,
+                nativeConfirmedToolKeys: new Set<string>(),
+                createdAt: Date.now(),
+                lastActivityAt: Date.now(),
+            } as never,
+        });
+
+        expect(session.cancelRun).toHaveBeenCalledWith('run-adjacent-tool-errors');
+        expect(
+            emitted.some(
+                message =>
+                    isStreamEvent(message, 'tool_circuit_open') &&
+                    (message as { event: Record<string, unknown> }).event.toolName === 'patch' &&
+                    (message as { event: Record<string, unknown> }).event.consecutiveFailures === 3,
+            ),
+        ).toBe(true);
+        expect(
+            emitted.some(
+                message =>
+                    isResult(message) &&
+                    (message as { data: Record<string, unknown> }).data.status === 'failed' &&
+                    (message as { data: Record<string, unknown> }).data.stopReason === 'tool_circuit_open',
+            ),
+        ).toBe(true);
+    }, 5_000);
+
     it('drops SDK confirmation_received bookkeeping events without warning or browser noise', async () => {
         const conversationLog = {
             recordAssistantMessage: jest.fn().mockResolvedValue(undefined),

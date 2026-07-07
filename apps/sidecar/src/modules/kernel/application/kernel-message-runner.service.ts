@@ -1263,6 +1263,11 @@ export class KernelMessageRunnerService {
                                 // can't burn maxToolRounds re-trying a broken tool in a
                                 // tight loop while the user stares at a frozen UI.
                                 if (isError) {
+                                    for (const toolName of consecutiveErrorsByTool.keys()) {
+                                        if (toolName !== normalizedEvent.toolName) {
+                                            consecutiveErrorsByTool.delete(toolName);
+                                        }
+                                    }
                                     const consecutive = (consecutiveErrorsByTool.get(normalizedEvent.toolName) ?? 0) + 1;
                                     consecutiveErrorsByTool.set(normalizedEvent.toolName, consecutive);
                                     const toolErrorReason =
@@ -1347,7 +1352,7 @@ export class KernelMessageRunnerService {
                                         );
                                     }
                                 } else {
-                                    consecutiveErrorsByTool.delete(normalizedEvent.toolName);
+                                    consecutiveErrorsByTool.clear();
                                     if (toolDurationMs !== undefined) {
                                         this.metrics?.observeHistogram(
                                             'kernel_tool_duration_seconds',
