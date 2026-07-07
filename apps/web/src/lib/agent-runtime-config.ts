@@ -1,5 +1,5 @@
 import { agentApi } from "./agent-api";
-import { getAgentWorkspacePath, getSharedSkillsPath } from "./workspace-utils";
+import { getAgentWorkspacePath, getSharedSkillsPath, getUserSkillsPath } from "./workspace-utils";
 import { workspaceApi } from "./workspace-api";
 import { isDesktopRuntime } from "./runtime-environment";
 import { joinWorkspacePath } from "./workspace-path";
@@ -315,6 +315,7 @@ export async function buildAgentRuntimeConfig(
 				new Set(
 					[
 						`${await getAgentWorkspacePath(agent.id)}/skills`,
+						await getUserSkillsPath(null).catch(() => ""),
 						await getSharedSkillsPath().catch(() => ""),
 					]
 						.map((dir) => dir.trim())

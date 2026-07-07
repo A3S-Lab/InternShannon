@@ -20,6 +20,7 @@ export type AssetFileManagerProps = Pick<
   | "readOnly"
   | "staticFiles"
   | "enableLocalSnapshots"
+  | "enableRichMarkdown"
   | "showStatusBar"
   | "onStateChange"
   | "onAfterSave"
@@ -31,6 +32,7 @@ export type AssetFileManagerProps = Pick<
 export function AssetFileManager({
   className,
   enableLocalSnapshots = true,
+  enableRichMarkdown = true,
   treeDepth = 8,
   autoExpandDepth,
   ...props
@@ -46,7 +48,7 @@ export function AssetFileManager({
       sidebarMinSize={15}
       sidebarMaxSize={50}
       enableLocalSnapshots={enableLocalSnapshots}
-      enableRichMarkdown={true}
+      enableRichMarkdown={enableRichMarkdown}
     />
   );
 }

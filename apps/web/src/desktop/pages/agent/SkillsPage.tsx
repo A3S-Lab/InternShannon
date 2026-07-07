@@ -213,6 +213,7 @@ function SkillWorkspacePanel({
           className="h-full"
           commandScope={commandScope}
           autoExpandDepth={2}
+          enableRichMarkdown={false}
           onStateChange={handleStateChange}
         />
       </div>
