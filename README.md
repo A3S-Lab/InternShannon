@@ -38,6 +38,26 @@ The codebase is shaped by these constraints:
   knowledge-base management; supporting OCR and planning libraries stay at
   explicit package boundaries.
 
+## Roadmap
+
+The near-term roadmap keeps the knowledge-base work grounded in the current
+desktop architecture:
+
+- Stabilize the storage and editor foundations first: prevent binary source
+  corruption, keep Markdown frontmatter safe, and stop internal snapshot files
+  from leaking into the user-facing tree.
+- Make the existing knowledge base searchable before building full RAG: add a
+  real `wiki/search` path, wire it into the default assistant, and make health
+  metrics such as broken links and orphan pages truthful.
+- Add ingestion incrementally: extract text from uploaded PDF, Office, and text
+  sources into chunk manifests, then add embeddings and local vector search once
+  the text pipeline and citations are reliable.
+- Treat graph and automatic curation as product enhancements after the core
+  read/search/cite loop works.
+
+See [`docs/knowledge-base-roadmap.md`](docs/knowledge-base-roadmap.md) for the
+critical assessment, phased plan, and acceptance criteria.
+
 ## Architecture
 
 The sidecar follows bounded-context layering:
