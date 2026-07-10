@@ -58,6 +58,7 @@ import { DiffDialog } from "./diff-dialog";
 import { IntegratedTerminal } from "@/components/workspace/integrated-terminal";
 import { GlobalSearch } from "@/components/workspace/global-search";
 import { resolveFileTreePanelLayout } from "./layout-state";
+import { shouldUseRichMarkdownEditor, sourceModeContentForSave } from "./markdown-mode-selection";
 import {
   FileHistoryDialog,
   FileSnapshotCompareDialog,
@@ -4066,13 +4067,18 @@ function TextEditorPanel({
     return () => editorEl?.removeEventListener("blur", handleBlur);
   }, [params?.autoSaveDelay]);
 
+  // SKILL.md panels disable the rich editor, which keeps raw YAML in Monaco.
+  const isMarkdown = shouldUseRichMarkdownEditor(params?.enableRichMarkdown, params?.path);
+
   const handleSave = useCallback(async () => {
     if (readOnly) return;
     const currentPath = pathRef.current;
     const currentApi = apiRef.current;
     if (!currentPath || !currentApi) return;
     const currentFileName = currentPath.split("/").pop() || "未命名";
-    const contentToSave = contentRef.current;
+    const contentToSave = isMarkdown
+      ? contentRef.current
+      : sourceModeContentForSave(contentRef.current);
     try {
       state.saveStatus = "saving";
       await writeFile(currentPath, contentToSave);
@@ -4100,13 +4106,10 @@ function TextEditorPanel({
       state.saveStatus = "error";
       console.error("[FileTreeEditor] Failed to save file", e);
     }
-  }, [readOnly]);
+  }, [isMarkdown, readOnly]);
 
   // Keep handleSaveRef in sync with handleSave
   handleSaveRef.current = handleSave;
-
-  // .md/.markdown/.mkd 都走富文本 Markdown 编辑器;.mdx 含 JSX 留给 Monaco 更稳。
-  const isMarkdown = params?.enableRichMarkdown === true && /\.(md|markdown|mkd)$/i.test(params?.path ?? "");
 
   const handleChange = (v: string | undefined) => {
     if (readOnly) return;

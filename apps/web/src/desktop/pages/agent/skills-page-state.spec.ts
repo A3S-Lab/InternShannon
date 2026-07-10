@@ -1,6 +1,10 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
-import { getSkillsPageSectionFromSearch, resolveSkillsPageStatus } from "./skills-page-state.ts";
+import {
+  SKILL_PANEL_ENABLE_RICH_MARKDOWN,
+  getSkillsPageSectionFromSearch,
+  resolveSkillsPageStatus,
+} from "./skills-page-state.ts";
 
 test("keeps the skills editor unmounted while workspace paths are loading", () => {
   const status = resolveSkillsPageStatus({
@@ -79,4 +83,8 @@ test("parses supported skills page sections from the route search", () => {
   assert.equal(getSkillsPageSectionFromSearch("?section=defaults"), "config");
   assert.equal(getSkillsPageSectionFromSearch("?section=missing"), "config");
   assert.equal(getSkillsPageSectionFromSearch(""), "config");
+});
+
+test("locks SKILL.md editing to Monaco source mode", () => {
+  assert.equal(SKILL_PANEL_ENABLE_RICH_MARKDOWN, false);
 });

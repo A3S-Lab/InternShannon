@@ -64,3 +64,11 @@ export function resolveSkillsPageStatus(input: {
     description: "配置智能体参数与本地技能文件。",
   };
 }
+
+/**
+ * SKILL.md must stay in Monaco source mode. TipTap's markdown serializer does
+ * not preserve YAML frontmatter, so mounting it would make skills undiscoverable
+ * after the first edit. Selection and byte-preserving save behavior are covered
+ * by markdown-mode-selection.spec.ts.
+ */
+export const SKILL_PANEL_ENABLE_RICH_MARKDOWN = false;
