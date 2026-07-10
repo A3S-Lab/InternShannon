@@ -59,6 +59,43 @@ describe('KernelRuntimeConfigBuilder', () => {
         );
     });
 
+    it('does not silently fall back when an explicitly selected session model is unavailable', () => {
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'boyue/gpt-5',
+            providers: [
+                {
+                    name: 'boyue',
+                    apiKey: 'boyue-key',
+                    models: [{ id: 'gpt-5', name: 'GPT-5', family: 'openai' }],
+                },
+            ],
+        });
+
+        expect(() => builder.resolveDefaultModel({ model: 'zhipu/glm-5.2' })).toThrow(
+            'No valid API key configured for selected session model zhipu/glm-5.2.',
+        );
+    });
+
+    it('uses an explicitly selected credentialed session model instead of the configured default', () => {
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'boyue/gpt-5',
+            providers: [
+                {
+                    name: 'boyue',
+                    apiKey: 'boyue-key',
+                    models: [{ id: 'gpt-5', name: 'GPT-5', family: 'openai' }],
+                },
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    models: [{ id: 'glm-5.2', name: 'GLM-5.2', family: 'glm' }],
+                },
+            ],
+        });
+
+        expect(builder.resolveDefaultModel({ model: 'zhipu/glm-5.2' })).toBe('zhipu/glm-5.2');
+    });
+
     it('ignores persisted model snapshots when a session follows the default model', () => {
         const builder = new KernelRuntimeConfigBuilder({
             defaultModel: 'openai/gpt-4o',

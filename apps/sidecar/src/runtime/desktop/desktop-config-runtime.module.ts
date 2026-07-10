@@ -31,7 +31,7 @@ import { DesktopConfigCategoryController } from '@/modules/config/presentation/c
         },
         {
             provide: CONFIG_SERVICE,
-            useClass: ConfigServiceImpl,
+            useExisting: ConfigServiceImpl,
         },
         ConfigServiceImpl,
         ProviderModelListService,

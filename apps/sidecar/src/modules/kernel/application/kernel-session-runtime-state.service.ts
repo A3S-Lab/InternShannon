@@ -19,6 +19,8 @@ export interface ActiveSessionSummary {
     agentId: string;
     userId: string;
     runtimeKey: string;
+    requestedModel?: string;
+    resolvedModel?: string;
     createdAt: number;
     lastActivityAt: number;
     idleMs: number;
@@ -150,6 +152,8 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
                 agentId: session.agentId,
                 userId: session.userId,
                 runtimeKey: session.runtimeKey,
+                requestedModel: session.runtimeOverrides.model,
+                resolvedModel: session.resolvedModel,
                 createdAt: session.createdAt,
                 lastActivityAt: session.lastActivityAt,
                 idleMs: now - session.lastActivityAt,

@@ -48,6 +48,22 @@ describe('KernelSessionRuntimeStateService', () => {
         expect(service.getActiveSession('session-1')).toBe(activeSession);
         expect(service.activeSessionIds()).toEqual(['session-1']);
     });
+
+    it('reports both requested and resolved models in runtime summaries', () => {
+        const service = new KernelSessionRuntimeStateService(runtimeConfigServiceMock([]));
+        const activeSession = makeActiveSession();
+        activeSession.runtimeOverrides.model = 'zhipu/glm-5.2';
+        activeSession.resolvedModel = 'zhipu/glm-5.2';
+        service.setActiveSession('session-1', activeSession);
+
+        expect(service.activeSessionSummaries(1_500)).toEqual([
+            expect.objectContaining({
+                sessionId: 'session-1',
+                requestedModel: 'zhipu/glm-5.2',
+                resolvedModel: 'zhipu/glm-5.2',
+            }),
+        ]);
+    });
 });
 
 function runtimeConfigServiceMock(configs: KernelRuntimeModelsConfig[]): jest.Mocked<IKernelRuntimeConfigService> {

@@ -29,6 +29,8 @@ interface RuntimeDiagResponse {
         agentId: string;
         userIdHash: string;
         runtimeKey: string;
+        requestedModel?: string;
+        resolvedModel?: string;
         ageMs: number;
         idleMs: number;
         isOwner: boolean;
@@ -81,6 +83,8 @@ export class KernelRuntimeAdminController {
             agentId: item.agentId,
             userIdHash: this.hashUserId(item.userId),
             runtimeKey: item.runtimeKey,
+            requestedModel: item.requestedModel,
+            resolvedModel: item.resolvedModel,
             ageMs: item.ageMs,
             idleMs: item.idleMs,
             isOwner: item.userId === userId,
