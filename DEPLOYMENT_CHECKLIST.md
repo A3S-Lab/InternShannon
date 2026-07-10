@@ -37,15 +37,19 @@ bash scripts/predeploy-check.sh check
 bash scripts/predeploy-check.sh stop
 ```
 
-脚本先校验所有监听 PID，全部通过后才发送 `SIGTERM`。两秒后如仍有残留，
-会重新执行同一套身份校验，通过后才发送 `SIGKILL`。因此即使 5000 同时由
-Control Center 和 rsbuild 监听，也不会先杀掉 rsbuild 再报错。
+脚本先保存并校验不可变的 `(role, port, PID, process start time)` 集合，发送
+`SIGTERM` 前会再次核对监听集合、完整进程身份和启动时间，并且只向已保存的
+PID 发送信号。两秒后如仍有残留，会重新建立和校验快照，通过后才发送
+`SIGKILL`。因此监听者在校验期间变化、PID 被复用，或 5000 同时由 Control
+Center 和 rsbuild 监听时，脚本都会中止，不会按端口终止后来出现的进程。
 
-也可以只操作指定端口：
+也可以只操作指定目标。默认端口可简写为端口；自定义端口必须显式写明角色：
 
 ```bash
 bash scripts/predeploy-check.sh check 29653
 bash scripts/predeploy-check.sh stop 29653
+bash scripts/predeploy-check.sh check sidecar:29653 preview:5001
+bash scripts/predeploy-check.sh stop sidecar:29653 preview:5001
 ```
 
 如从其他 checkout 调用脚本，可显式指定允许的仓库根目录：
@@ -77,6 +81,16 @@ bash scripts/predeploy-check.sh check
 PUBLIC_DESKTOP_DEV_PORT=5001 \
 PUBLIC_DESKTOP_URL=http://127.0.0.1:5001 \
 npx pnpm@9 --filter @internshannon/web run preview
+```
+
+安全脚本可通过显式角色管理该端口，也可以读取同一个环境变量作为默认目标：
+
+```bash
+bash scripts/predeploy-check.sh check preview:5001
+bash scripts/predeploy-check.sh stop preview:5001
+
+PUBLIC_DESKTOP_DEV_PORT=5001 bash scripts/predeploy-check.sh check
+PUBLIC_DESKTOP_DEV_PORT=5001 bash scripts/predeploy-check.sh stop
 ```
 
 sidecar 仍使用 29653 时，可在另一个终端启动：
