@@ -18,13 +18,18 @@ import {
 } from "@/components/workspace/asset-file-manager";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_AGENT_ID, getAgentById, normalizeAgentId } from "@/lib/builtins";
+import { LOCAL_DESKTOP_SKILL_USER_SCOPE } from "@/lib/skill-dirs";
 import { cn } from "@/lib/utils";
 import { workspaceApi } from "@/lib/workspace-api";
 import { getSharedSkillsPath, getUserSkillsPath } from "@/lib/workspace-utils";
 import agentRegistryModel from "@/models/agent-registry.model";
 import { SectionHeader, SidebarLayout, type SidebarSection } from "@/desktop/layouts/sidebar-layout";
 import type { SkillsPageSection, SkillsPageStatus } from "./skills-page-state";
-import { getSkillsPageSectionFromSearch, resolveSkillsPageStatus } from "./skills-page-state";
+import {
+  SKILL_PANEL_ENABLE_RICH_MARKDOWN,
+  getSkillsPageSectionFromSearch,
+  resolveSkillsPageStatus,
+} from "./skills-page-state";
 
 interface SkillsWorkspaceState {
   skillsPath: string | null;
@@ -87,8 +92,8 @@ function useSkillsWorkspace(agentId: string, reloadKey: number) {
       try {
         await agentRegistryModel.loadServerAgents();
         const [skillsPath, sharedSkillsPath] = await Promise.all([
-          getUserSkillsPath(null),
-          getSharedSkillsPath(null),
+          getUserSkillsPath(LOCAL_DESKTOP_SKILL_USER_SCOPE),
+          getSharedSkillsPath(LOCAL_DESKTOP_SKILL_USER_SCOPE),
         ]);
 
         await Promise.all([workspaceApi.mkdir(skillsPath), workspaceApi.mkdir(sharedSkillsPath)]);
@@ -213,6 +218,7 @@ function SkillWorkspacePanel({
           className="h-full"
           commandScope={commandScope}
           autoExpandDepth={2}
+          enableRichMarkdown={SKILL_PANEL_ENABLE_RICH_MARKDOWN}
           onStateChange={handleStateChange}
         />
       </div>

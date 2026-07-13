@@ -1,8 +1,9 @@
 import { agentApi } from "./agent-api";
-import { getAgentWorkspacePath, getSharedSkillsPath } from "./workspace-utils";
+import { getAgentWorkspacePath, getSharedSkillsPath, getUserSkillsPath } from "./workspace-utils";
 import { workspaceApi } from "./workspace-api";
 import { isDesktopRuntime } from "./runtime-environment";
 import { joinWorkspacePath } from "./workspace-path";
+import { resolveAgentSkillDirs } from "./skill-dirs";
 import type { AgentProfile, ScheduledTask } from "./agent-profile.types";
 
 export interface AgentSkillConfig {
@@ -311,16 +312,11 @@ export async function buildAgentRuntimeConfig(
 ): Promise<AgentRuntimeConfig> {
 	const includeWorkspaceSkills = options?.includeWorkspaceSkills ?? true;
 	const skillDirs = includeWorkspaceSkills
-		? Array.from(
-				new Set(
-					[
-						`${await getAgentWorkspacePath(agent.id)}/skills`,
-						await getSharedSkillsPath().catch(() => ""),
-					]
-						.map((dir) => dir.trim())
-						.filter(Boolean),
-				),
-			)
+		? await resolveAgentSkillDirs(agent.id, {
+				getAgentWorkspacePath,
+				getUserSkillsPath,
+				getSharedSkillsPath,
+			})
 		: [];
 	const [skills, globalSkills] = await Promise.all([
 		includeWorkspaceSkills ? loadConfiguredSkills(skillDirs, agent) : [],

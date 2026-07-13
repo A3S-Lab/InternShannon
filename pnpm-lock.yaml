@@ -590,6 +590,9 @@ importers:
       cssnano:
         specifier: ^7.0.7
         version: 7.1.9(postcss@8.5.15)
+      playwright:
+        specifier: 1.61.1
+        version: 1.61.1
       postcss:
         specifier: ^8.4.47
         version: 8.5.15

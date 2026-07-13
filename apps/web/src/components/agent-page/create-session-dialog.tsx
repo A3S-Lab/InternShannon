@@ -319,7 +319,7 @@ export default function CreateSessionDialog({
 				finalPrompt =
 					runtimeConfig.systemPrompt || finalPrompt || targetAgent.systemPrompt;
 				finalSkillDirs = runtimeConfig.skillDirs;
-				finalSkills = finalSkills ?? targetAgent.defaultSkills;
+				finalSkills = finalSkills ?? runtimeConfig.skills.map((skill) => skill.name);
 			}
 
 			finalCwd =

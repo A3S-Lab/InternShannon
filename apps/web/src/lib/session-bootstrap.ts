@@ -5,12 +5,16 @@ import { agentApi, type CreateSessionRequest } from "./agent-api";
 import type { AgentProfile } from "./agent-profile.types";
 import { DEFAULT_AGENT_ID, getAgentById, normalizeAgentId } from "./builtins";
 import { allowsLocalWorkspacePaths } from "./runtime-environment";
-import { buildAgentSessionCreateRequest, buildCreatedSessionInfo } from "./session-bootstrap-state";
+import {
+  buildAgentSessionCreateRequest,
+  buildCreatedSessionInfo,
+  resolveAgentSessionRuntimeOptions,
+} from "./session-bootstrap-state";
 import { defaultSessionTitle } from "./session-title";
 import type { AgentProcessInfo, AgentSessionState } from "./types";
 import { exposeWorkspacePath as exposeRuntimeWorkspacePath } from "./workspace-path";
 import { resolveAgentWorkingDirectory } from "./workspace-utils";
-import type { PromptSlotConfig } from "./agent-runtime-config";
+import { buildAgentRuntimeConfig, type PromptSlotConfig } from "./agent-runtime-config";
 
 const pendingSessionCreations = new Map<
   string,
@@ -317,6 +321,19 @@ export async function createAgentSession(
       (normalizedAgentId === DEFAULT_AGENT_ID ? "auto" : "default");
     const explicitName = options.name?.trim();
     const resolvedCwd = options.cwd?.trim() || (await resolveAgentWorkingDirectory(agent)) || "";
+    const runtimeDefaults = await resolveAgentSessionRuntimeOptions({
+      options,
+      buildRuntimeConfig: () =>
+        buildAgentRuntimeConfig(agent, {
+          includeWorkspaceSkills: !options.apiUrl,
+        }),
+    });
+    const resolvedOptions: CreateAgentSessionOptions = {
+      ...options,
+      systemPrompt: runtimeDefaults.systemPrompt,
+      skills: runtimeDefaults.skills ?? undefined,
+      skillDirs: runtimeDefaults.skillDirs ?? undefined,
+    };
 
     let tempSessionId: string | null = null;
     if (options.optimisticPlaceholder) {
@@ -347,8 +364,8 @@ export async function createAgentSession(
       title: explicitName || undefined,
       permissionMode,
       cwd: resolvedCwd || undefined,
-      options,
-      runtimeOptions: pickDefinedRuntimeOptions(options),
+      options: resolvedOptions,
+      runtimeOptions: pickDefinedRuntimeOptions(resolvedOptions),
     }) as CreateSessionRequest;
 
     let result: Awaited<ReturnType<typeof agentApi.createSession>>;

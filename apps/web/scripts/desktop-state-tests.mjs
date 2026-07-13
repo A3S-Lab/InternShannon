@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 
 const desktopStateSpecs = [
+  "../../scripts/predeploy-check.spec.mjs",
   "../desktop/scripts/desktop-doctor-state.spec.mjs",
   "scripts/desktop-local-banner.spec.mjs",
   "scripts/desktop-local-ready.spec.mjs",
   "scripts/desktop-smoke.spec.mjs",
+  "scripts/skill-loading-smoke.spec.mjs",
   "src/components/agent-page/agent-config-panel-accessibility.spec.ts",
   "src/components/agent-page/agent-session-create-state.spec.ts",
   "src/components/agent-page/agent-session-sidebar-state.spec.ts",
@@ -48,6 +50,7 @@ const desktopStateSpecs = [
   "src/desktop/boot-overlay-accessibility.spec.ts",
   "src/components/workspace/file-tree-editor/image-viewer-state.spec.ts",
   "src/components/workspace/file-tree-editor/keyboard-shortcuts.spec.ts",
+  "src/components/workspace/file-tree-editor/markdown-mode-selection.spec.ts",
   "src/components/workspace/file-tree-editor/native-reveal-state.spec.ts",
   "src/desktop/components/app-update-bootstrap-state.spec.ts",
   "src/desktop/components/backend-startup-guard-accessibility.spec.ts",
@@ -87,7 +90,9 @@ const desktopStateSpecs = [
   "src/lib/desktop-gateway-url.spec.ts",
   "src/lib/key-combo.spec.ts",
   "src/lib/runtime-environment.spec.ts",
+  "src/lib/session-bootstrap-state.spec.ts",
   "src/lib/session-workspace-path.spec.ts",
+  "src/lib/skill-dirs.spec.ts",
   "src/lib/internShannon-memory-timeline-contract.spec.ts",
   "src/lib/internShannon-memory-timeline-conversation.spec.ts",
   "src/lib/internShannon-memory-timeline-item.spec.ts",
