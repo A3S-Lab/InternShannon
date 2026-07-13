@@ -205,6 +205,35 @@ signal_listeners ${signal} preview:5001
 		assert.match(result.stderr, /listeners changed during validation/);
 		assert.doesNotMatch(result.stdout, /SIGNAL/);
 	});
+
+	test(`does not send SIG${signal} when an unvalidated listener joins immediately before signaling`, () => {
+		const result = withSequenceFile((sequenceFile) =>
+			runHarness(
+				`
+listener_pids() {
+  local count
+  count=$(cat "$SEQUENCE_FILE")
+  count=$((count + 1))
+  printf '%s' "$count" > "$SEQUENCE_FILE"
+  if [ "$count" -lt 4 ]; then echo 51001; else printf '51001\\n51002\\n'; fi
+}
+assert_internshannon_process() { return 0; }
+process_start_token() { echo stable-start; }
+print_process_details() { :; }
+kill() { printf 'SIGNAL %s %s\\n' "$1" "$2"; }
+signal_listeners ${signal} preview:5001
+`,
+				{ env: { SEQUENCE_FILE: sequenceFile } },
+			),
+		);
+
+		assert.notEqual(result.status, 0);
+		assert.match(
+			result.stderr,
+			new RegExp(`listeners changed immediately before SIG${signal}`),
+		);
+		assert.doesNotMatch(result.stdout, /SIGNAL/);
+	});
 }
 
 test("signals only the immutable validated PID when the listener stays stable", () => {
@@ -219,6 +248,33 @@ signal_listeners TERM preview:5001
 	assert.equal(result.status, 0, result.stderr);
 	assert.match(result.stdout, /SIGNAL -TERM 51001/);
 	assert.doesNotMatch(result.stdout, /51002/);
+});
+
+test("rechecks the listener set before each signal in a multi-PID snapshot", () => {
+	const result = withSequenceFile((sequenceFile) =>
+		runHarness(
+			`
+listener_pids() {
+  local count
+  count=$(cat "$SEQUENCE_FILE")
+  count=$((count + 1))
+  printf '%s' "$count" > "$SEQUENCE_FILE"
+  if [ "$count" -lt 6 ]; then printf '61001\\n61002\\n'; else printf '61001\\n61002\\n61003\\n'; fi
+}
+assert_internshannon_process() { return 0; }
+process_start_token() { echo stable-start; }
+print_process_details() { :; }
+kill() { printf 'SIGNAL %s %s\\n' "$1" "$2"; }
+signal_listeners TERM preview:5001
+`,
+			{ env: { SEQUENCE_FILE: sequenceFile } },
+		),
+	);
+
+	assert.notEqual(result.status, 0);
+	assert.match(result.stdout, /SIGNAL -TERM 61001/);
+	assert.doesNotMatch(result.stdout, /SIGNAL -TERM 61002/);
+	assert.match(result.stderr, /listeners changed immediately before SIGTERM/);
 });
 
 test("does not signal a reused PID whose process start token changed", () => {

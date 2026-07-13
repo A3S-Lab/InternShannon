@@ -202,6 +202,7 @@ pid_is_listener() {
 
 LISTENER_SNAPSHOTS=()
 VALIDATED_PROCESSES=()
+SIGNALED_PROCESSES=()
 
 capture_listener_snapshot() {
   LISTENER_SNAPSHOTS=()
@@ -284,6 +285,84 @@ revalidate_listener_snapshot() {
   fi
 }
 
+process_was_signaled() {
+  local expected_record="$1"
+  local signaled_record
+
+  [ "${#SIGNALED_PROCESSES[@]}" -eq 0 ] && return 1
+  for signaled_record in "${SIGNALED_PROCESSES[@]}"; do
+    [ "$signaled_record" = "$expected_record" ] && return 0
+  done
+  return 1
+}
+
+# Before each signal, every current listener must belong to the immutable
+# validated set, and every not-yet-signaled process must still be listening.
+assert_signal_listener_set() {
+  local signal="$1"
+  local role="$2"
+  local port="$3"
+  local current_pids current_pid process_record remainder process_role
+  local process_port process_pid found unsafe=0 validated_pids=""
+
+  current_pids=$(listener_pids "$port")
+
+  for current_pid in $current_pids; do
+    found=0
+    for process_record in "${VALIDATED_PROCESSES[@]}"; do
+      process_role=${process_record%%|*}
+      remainder=${process_record#*|}
+      process_port=${remainder%%|*}
+      remainder=${remainder#*|}
+      process_pid=${remainder%%|*}
+      if [ "$process_role" = "$role" ] && [ "$process_port" = "$port" ] && [ "$process_pid" = "$current_pid" ]; then
+        found=1
+        break
+      fi
+    done
+    if [ "$found" -eq 0 ]; then
+      unsafe=1
+      break
+    fi
+  done
+
+  for process_record in "${VALIDATED_PROCESSES[@]}"; do
+    process_role=${process_record%%|*}
+    remainder=${process_record#*|}
+    process_port=${remainder%%|*}
+    remainder=${remainder#*|}
+    process_pid=${remainder%%|*}
+    if [ "$process_role" != "$role" ] || [ "$process_port" != "$port" ]; then
+      continue
+    fi
+    validated_pids="${validated_pids}${process_pid} "
+    if ! process_was_signaled "$process_record" && ! pid_is_in_list "$current_pids" "$process_pid"; then
+      unsafe=1
+    fi
+  done
+
+  if [ "$unsafe" -ne 0 ]; then
+    echo "ERROR: listeners changed immediately before SIG$signal for $role on port $port; remaining processes were not signaled." >&2
+    echo "   validated PIDs: $(pid_set_key "$validated_pids")" >&2
+    echo "   current PIDs:   $(pid_set_key "$current_pids")" >&2
+    for current_pid in $current_pids; do
+      print_process_details "$current_pid"
+    done
+    return 1
+  fi
+}
+
+pid_is_in_list() {
+  local pids="$1"
+  local expected_pid="$2"
+  local pid
+
+  for pid in $pids; do
+    [ "$pid" = "$expected_pid" ] && return 0
+  done
+  return 1
+}
+
 signal_listeners() {
   local signal="$1"
   shift
@@ -292,6 +371,7 @@ signal_listeners() {
   resolve_targets "$@" || return 1
   capture_listener_snapshot || return 1
   revalidate_listener_snapshot || return 1
+  SIGNALED_PROCESSES=()
 
   if [ "${#VALIDATED_PROCESSES[@]}" -eq 0 ]; then
     local target
@@ -322,16 +402,14 @@ signal_listeners() {
       echo "ERROR: PID $pid was reused immediately before SIG$signal; remaining processes were not signaled." >&2
       return 1
     fi
-    if ! pid_is_listener "$port" "$pid"; then
-      echo "ERROR: PID $pid stopped listening on port $port immediately before SIG$signal; remaining processes were not signaled." >&2
-      return 1
-    fi
+    assert_signal_listener_set "$signal" "$role" "$port" || return 1
 
     echo "Sending SIG$signal to verified $role PID $pid on port $port"
     kill -"$signal" "$pid" || {
       echo "ERROR: failed to send SIG$signal to PID $pid." >&2
       return 1
     }
+    SIGNALED_PROCESSES+=("$process_record")
   done
 }
 
