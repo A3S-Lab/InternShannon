@@ -22,8 +22,36 @@ export interface AgentSessionCreateRequestAgentProjection {
 export interface AgentSessionCreateRequestOptionsProjection {
   model?: string;
   followDefaultModel?: boolean;
+  systemPrompt?: string;
   skills?: string[] | null;
   skillDirs?: string[] | null;
+}
+
+export interface AgentSessionRuntimeConfigProjection {
+  systemPrompt?: string;
+  skillDirs: string[];
+  skills: Array<{ name: string }>;
+}
+
+export async function resolveAgentSessionRuntimeOptions(input: {
+  options?: AgentSessionCreateRequestOptionsProjection;
+  buildRuntimeConfig: () => Promise<AgentSessionRuntimeConfigProjection>;
+}): Promise<Pick<AgentSessionCreateRequestOptionsProjection, "systemPrompt" | "skills" | "skillDirs">> {
+  const options = input.options ?? {};
+  if (options.skillDirs !== undefined) {
+    return {
+      systemPrompt: options.systemPrompt,
+      skills: options.skills,
+      skillDirs: options.skillDirs,
+    };
+  }
+
+  const runtimeConfig = await input.buildRuntimeConfig();
+  return {
+    systemPrompt: options.systemPrompt ?? runtimeConfig.systemPrompt,
+    skills: options.skills ?? runtimeConfig.skills.map((skill) => skill.name),
+    skillDirs: runtimeConfig.skillDirs,
+  };
 }
 
 export interface BuildAgentSessionCreateRequestInput {

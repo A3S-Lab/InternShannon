@@ -389,8 +389,9 @@ signal_listeners() {
     pid=${remainder%%|*}
     expected_start=${remainder#*|}
 
-    # Never signal solely because the PID still exists. Recheck the complete
-    # identity, process generation, and listener membership immediately first.
+    # Scan the complete listener set first. Identity and process generation are
+    # deliberately the final checks so PID reuse during lsof cannot reach kill.
+    assert_signal_listener_set "$signal" "$role" "$port" || return 1
     assert_internshannon_process "$pid" "$role"
     rc=$?
     if [ "$rc" -ne 0 ]; then
@@ -402,8 +403,6 @@ signal_listeners() {
       echo "ERROR: PID $pid was reused immediately before SIG$signal; remaining processes were not signaled." >&2
       return 1
     fi
-    assert_signal_listener_set "$signal" "$role" "$port" || return 1
-
     echo "Sending SIG$signal to verified $role PID $pid on port $port"
     kill -"$signal" "$pid" || {
       echo "ERROR: failed to send SIG$signal to PID $pid." >&2

@@ -234,6 +234,34 @@ signal_listeners ${signal} preview:5001
 		);
 		assert.doesNotMatch(result.stdout, /SIGNAL/);
 	});
+
+	test(`does not send SIG${signal} when the PID generation changes during the final listener scan`, () => {
+		const result = withSequenceFile((sequenceFile) => {
+			const generationFile = `${sequenceFile}.generation`;
+			writeFileSync(generationFile, "generation-A");
+			return runHarness(
+				`
+listener_pids() {
+  local count
+  count=$(cat "$SEQUENCE_FILE")
+  count=$((count + 1))
+  printf '%s' "$count" > "$SEQUENCE_FILE"
+  if [ "$count" -ge 4 ]; then printf 'generation-B' > "$GENERATION_FILE"; fi
+  echo 51001
+}
+assert_internshannon_process() { return 0; }
+process_start_token() { cat "$GENERATION_FILE"; }
+kill() { printf 'SIGNAL %s pid=%s generation=%s\\n' "$1" "$2" "$(cat "$GENERATION_FILE")"; }
+signal_listeners ${signal} preview:5001
+`,
+				{ env: { SEQUENCE_FILE: sequenceFile, GENERATION_FILE: generationFile } },
+			);
+		});
+
+		assert.notEqual(result.status, 0);
+		assert.match(result.stderr, /PID 51001 was reused immediately before SIG/);
+		assert.doesNotMatch(result.stdout, /SIGNAL/);
+	});
 }
 
 test("signals only the immutable validated PID when the listener stays stable", () => {

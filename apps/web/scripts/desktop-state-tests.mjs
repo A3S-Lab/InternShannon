@@ -90,6 +90,7 @@ const desktopStateSpecs = [
   "src/lib/desktop-gateway-url.spec.ts",
   "src/lib/key-combo.spec.ts",
   "src/lib/runtime-environment.spec.ts",
+  "src/lib/session-bootstrap-state.spec.ts",
   "src/lib/session-workspace-path.spec.ts",
   "src/lib/skill-dirs.spec.ts",
   "src/lib/internShannon-memory-timeline-contract.spec.ts",

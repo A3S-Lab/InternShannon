@@ -1,6 +1,69 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildAgentSessionCreateRequest, buildCreatedSessionInfo } from "./session-bootstrap-state.ts";
+import {
+  buildAgentSessionCreateRequest,
+  buildCreatedSessionInfo,
+  resolveAgentSessionRuntimeOptions,
+} from "./session-bootstrap-state.ts";
+
+test("resolves runtime skills and directories for the product session creation path", async () => {
+  let buildCount = 0;
+  const resolved = await resolveAgentSessionRuntimeOptions({
+    options: { followDefaultModel: true },
+    async buildRuntimeConfig() {
+      buildCount += 1;
+      return {
+        systemPrompt: "runtime prompt",
+        skillDirs: ["/workspace/agents/default/skills", "/workspace/skills", "/workspace/shared/skills"],
+        skills: [{ name: "builtin" }, { name: "personal-skill" }],
+      };
+    },
+  });
+
+  assert.equal(buildCount, 1);
+  assert.deepEqual(resolved, {
+    systemPrompt: "runtime prompt",
+    skills: ["builtin", "personal-skill"],
+    skillDirs: ["/workspace/agents/default/skills", "/workspace/skills", "/workspace/shared/skills"],
+  });
+});
+
+test("preserves explicit skill selection and directories without resolving runtime defaults", async () => {
+  let buildCount = 0;
+  const resolved = await resolveAgentSessionRuntimeOptions({
+    options: { systemPrompt: "explicit prompt", skills: [], skillDirs: [] },
+    async buildRuntimeConfig() {
+      buildCount += 1;
+      return {
+        systemPrompt: "runtime prompt",
+        skillDirs: ["/workspace/skills"],
+        skills: [{ name: "personal-skill" }],
+      };
+    },
+  });
+
+  assert.equal(buildCount, 0);
+  assert.deepEqual(resolved, { systemPrompt: "explicit prompt", skills: [], skillDirs: [] });
+});
+
+test("keeps explicit prompt and skills while filling missing runtime directories", async () => {
+  const resolved = await resolveAgentSessionRuntimeOptions({
+    options: { systemPrompt: "explicit prompt", skills: ["explicit-skill"] },
+    async buildRuntimeConfig() {
+      return {
+        systemPrompt: "runtime prompt",
+        skillDirs: ["/workspace/skills"],
+        skills: [{ name: "personal-skill" }],
+      };
+    },
+  });
+
+  assert.deepEqual(resolved, {
+    systemPrompt: "explicit prompt",
+    skills: ["explicit-skill"],
+    skillDirs: ["/workspace/skills"],
+  });
+});
 
 test("omits model snapshots when creating a session that follows the system default", () => {
   const request = buildAgentSessionCreateRequest({
