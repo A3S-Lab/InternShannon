@@ -11,6 +11,7 @@ import type {
     RuntimeWorkerAgentSpec,
     SessionRuntimeOverrides,
 } from './session-runtime.types';
+import { resolveSelfApiBaseUrl } from './self-api-base-url';
 
 export class KernelRuntimeConfigBuilder {
     private readonly logger = new Logger(KernelRuntimeConfigBuilder.name);
@@ -79,7 +80,11 @@ export class KernelRuntimeConfigBuilder {
                             model.apiKey,
                         );
                         if (modelApiKey) lines.push(`    apiKey = ${this.hclQuote(modelApiKey)}`);
-                        if (model.baseUrl) lines.push(`    baseUrl = ${this.hclQuote(model.baseUrl)}`);
+                        if (model.baseUrl) {
+                            lines.push(
+                                `    baseUrl = ${this.hclQuote(this.runtimeProviderBaseUrl(provider.name, model.baseUrl))}`,
+                            );
+                        }
                         this.appendHeaders(lines, model.headers, 4);
                         if (model.sessionIdHeader) {
                             lines.push(`    sessionIdHeader = ${this.hclQuote(model.sessionIdHeader)}`);
@@ -154,8 +159,7 @@ export class KernelRuntimeConfigBuilder {
             const pathname = url.pathname.replace(/\/+$/, '');
             // a3s-code appends a fixed provider path, so full Zhipu API roots must be adapted first.
             if (url.hostname === 'open.bigmodel.cn' && pathname === '/api/coding/paas/v4') {
-                const port = process.env.APP_PORT?.trim() || '3000';
-                return `http://127.0.0.1:${port}/api/v1/kernel/llm-compat/zhipu-coding`;
+                return `${resolveSelfApiBaseUrl()}/api/v1/kernel/llm-compat/zhipu-coding`;
             }
             if (
                 providerName.trim().toLowerCase().startsWith('zhipu') &&

@@ -3,10 +3,12 @@ import { KernelRuntimeConfigBuilder } from './kernel-runtime-config.builder';
 describe('KernelRuntimeConfigBuilder', () => {
     const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
     const originalAppPort = process.env.APP_PORT;
+    const originalSelfApiBaseUrl = process.env.SELF_API_BASE_URL;
 
     afterEach(() => {
         restoreEnv('OPENAI_API_KEY', originalOpenAiApiKey);
         restoreEnv('APP_PORT', originalAppPort);
+        restoreEnv('SELF_API_BASE_URL', originalSelfApiBaseUrl);
     });
 
     it('preserves slashes inside provider-qualified model ids', () => {
@@ -130,6 +132,62 @@ describe('KernelRuntimeConfigBuilder', () => {
 
         expect(builder.buildAgentConfig({})).toContain(
             'baseUrl = "http://127.0.0.1:29670/api/v1/kernel/llm-compat/zhipu-coding"',
+        );
+    });
+
+    it('normalizes model-level Zhipu URLs before they override the provider base URL', () => {
+        process.env.APP_PORT = '29670';
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'zhipu/glm-5.2',
+            providers: [
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+                    models: [
+                        {
+                            id: 'glm-5.2',
+                            name: 'GLM-5.2',
+                            family: 'openai',
+                            baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4/',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const hcl = builder.buildAgentConfig({});
+
+        expect(hcl).toContain('  baseUrl = "https://open.bigmodel.cn"');
+        expect(hcl).toContain(
+            '    baseUrl = "http://127.0.0.1:29670/api/v1/kernel/llm-compat/zhipu-coding"',
+        );
+        expect(hcl).not.toContain('baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4/"');
+    });
+
+    it('uses the sidecar default port for Coding Plan compatibility when APP_PORT is unset', () => {
+        delete process.env.APP_PORT;
+        delete process.env.SELF_API_BASE_URL;
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'zhipu/glm-5.2',
+            providers: [
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    models: [
+                        {
+                            id: 'glm-5.2',
+                            name: 'GLM-5.2',
+                            family: 'openai',
+                            baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        expect(builder.buildAgentConfig({})).toContain(
+            'baseUrl = "http://127.0.0.1:29653/api/v1/kernel/llm-compat/zhipu-coding"',
         );
     });
 
