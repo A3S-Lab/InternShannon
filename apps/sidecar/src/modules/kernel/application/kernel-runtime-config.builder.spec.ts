@@ -2,9 +2,11 @@ import { KernelRuntimeConfigBuilder } from './kernel-runtime-config.builder';
 
 describe('KernelRuntimeConfigBuilder', () => {
     const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
+    const originalAppPort = process.env.APP_PORT;
 
     afterEach(() => {
         restoreEnv('OPENAI_API_KEY', originalOpenAiApiKey);
+        restoreEnv('APP_PORT', originalAppPort);
     });
 
     it('preserves slashes inside provider-qualified model ids', () => {
@@ -94,6 +96,41 @@ describe('KernelRuntimeConfigBuilder', () => {
         });
 
         expect(builder.resolveDefaultModel({ model: 'zhipu/glm-5.2' })).toBe('zhipu/glm-5.2');
+    });
+
+    it('normalizes the standard Zhipu base URL before the SDK appends its fixed API path', () => {
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'zhipu/glm-5.2',
+            providers: [
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+                    models: [{ id: 'glm-5.2', name: 'GLM-5.2', family: 'openai' }],
+                },
+            ],
+        });
+
+        expect(builder.buildAgentConfig({})).toContain('baseUrl = "https://open.bigmodel.cn"');
+    });
+
+    it('routes the Zhipu Coding Plan URL through the local compatibility endpoint', () => {
+        process.env.APP_PORT = '29670';
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'zhipu/glm-5.2',
+            providers: [
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+                    models: [{ id: 'glm-5.2', name: 'GLM-5.2', family: 'openai' }],
+                },
+            ],
+        });
+
+        expect(builder.buildAgentConfig({})).toContain(
+            'baseUrl = "http://127.0.0.1:29670/api/v1/kernel/llm-compat/zhipu-coding"',
+        );
     });
 
     it('ignores persisted model snapshots when a session follows the default model', () => {

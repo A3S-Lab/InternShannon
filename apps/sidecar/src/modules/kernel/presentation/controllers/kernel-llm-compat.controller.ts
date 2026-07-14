@@ -1,0 +1,85 @@
+import { All, Controller, Logger, Req, Res, UseGuards } from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
+import type { Request, Response } from 'express';
+import { SkipApiResponse } from '@/shared/api/openapi';
+import { LocalOnlyGuard } from '@/shared/security/local-only.guard';
+
+const ZHIPU_CODING_CHAT_COMPLETIONS_URL =
+    'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions';
+
+@ApiExcludeController()
+@Controller('kernel/llm-compat')
+@UseGuards(LocalOnlyGuard)
+export class KernelLlmCompatController {
+    private readonly logger = new Logger(KernelLlmCompatController.name);
+
+    @All('zhipu-coding/*path')
+    @SkipApiResponse()
+    async proxyZhipuCoding(@Req() request: Request, @Res() response: Response): Promise<void> {
+        if (request.method !== 'POST') {
+            response.status(405).send('Method Not Allowed');
+            return;
+        }
+
+        const authorization = request.headers.authorization;
+        if (!authorization) {
+            response.status(401).send('Missing Authorization header');
+            return;
+        }
+
+        try {
+            const upstream = await fetch(ZHIPU_CODING_CHAT_COMPLETIONS_URL, {
+                method: 'POST',
+                headers: {
+                    authorization,
+                    'content-type': request.headers['content-type'] || 'application/json',
+                    accept: request.headers.accept || 'text/event-stream, application/json',
+                },
+                body: JSON.stringify(request.body ?? {}),
+            });
+
+            response.status(upstream.status);
+            for (const header of ['content-type', 'cache-control', 'x-request-id']) {
+                const value = upstream.headers.get(header);
+                if (value) response.setHeader(header, value);
+            }
+
+            if (!upstream.ok) {
+                const body = await upstream.text();
+                this.logger.warn(
+                    `[zhipu-coding-compat] upstream rejected request: status=${upstream.status} error=${this.errorSummary(body)}`,
+                );
+                response.send(body);
+                return;
+            }
+
+            if (!upstream.body) {
+                response.end();
+                return;
+            }
+
+            const reader = upstream.body.getReader();
+            while (true) {
+                const chunk = await reader.read();
+                if (chunk.done) break;
+                response.write(Buffer.from(chunk.value));
+            }
+            response.end();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.logger.error(`[zhipu-coding-compat] upstream request failed: ${message}`);
+            response.status(502).json({ error: { message: 'Zhipu Coding Plan upstream request failed' } });
+        }
+    }
+
+    private errorSummary(body: string): string {
+        try {
+            const parsed = JSON.parse(body) as { error?: { code?: unknown; message?: unknown } };
+            const code = parsed.error?.code == null ? 'unknown' : String(parsed.error.code);
+            const message = parsed.error?.message == null ? 'unknown' : String(parsed.error.message);
+            return `${code}: ${message}`.slice(0, 500);
+        } catch {
+            return body.slice(0, 500);
+        }
+    }
+}

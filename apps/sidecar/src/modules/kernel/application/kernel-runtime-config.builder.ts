@@ -61,7 +61,7 @@ export class KernelRuntimeConfigBuilder {
                 lines.push(`providers ${this.hclQuote(provider.name)} {`);
                 lines.push(`  apiKey = ${this.hclQuote(this.providerApiKey(provider.name, provider.apiKey))}`);
                 if (provider.baseUrl) {
-                    lines.push(`  baseUrl = ${this.hclQuote(provider.baseUrl)}`);
+                    lines.push(`  baseUrl = ${this.hclQuote(this.runtimeProviderBaseUrl(provider.name, provider.baseUrl))}`);
                 }
                 this.appendHeaders(lines, provider.headers, 2);
                 if (provider.sessionIdHeader) {
@@ -146,6 +146,28 @@ export class KernelRuntimeConfigBuilder {
         lines.push(`  apiKey = ${this.hclQuote(apiKey)}`);
         this.appendSyntheticModel(lines, modelRef.modelId);
         lines.push(`}`);
+    }
+
+    private runtimeProviderBaseUrl(providerName: string, configuredBaseUrl: string): string {
+        try {
+            const url = new URL(configuredBaseUrl.trim());
+            const pathname = url.pathname.replace(/\/+$/, '');
+            // a3s-code appends a fixed provider path, so full Zhipu API roots must be adapted first.
+            if (url.hostname === 'open.bigmodel.cn' && pathname === '/api/coding/paas/v4') {
+                const port = process.env.APP_PORT?.trim() || '3000';
+                return `http://127.0.0.1:${port}/api/v1/kernel/llm-compat/zhipu-coding`;
+            }
+            if (
+                providerName.trim().toLowerCase().startsWith('zhipu') &&
+                url.hostname === 'open.bigmodel.cn' &&
+                pathname === '/api/paas/v4'
+            ) {
+                return url.origin;
+            }
+        } catch {
+            // Preserve custom/non-URL values for the SDK to validate as before.
+        }
+        return configuredBaseUrl;
     }
 
     private appendSyntheticModel(lines: string[], modelId: string): void {

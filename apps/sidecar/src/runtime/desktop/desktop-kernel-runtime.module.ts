@@ -52,6 +52,7 @@ import { WORKSPACE_STORAGE } from '@/modules/kernel/domain/services/workspace-st
 import { DesktopKernelRuntimeConfigService } from '@/modules/kernel/infrastructure/desktop/desktop-kernel-runtime-config.service';
 import { DesktopOpenKernelController } from '@/modules/kernel/presentation/controllers/desktop-open-kernel.controller';
 import { KernelController } from '@/modules/kernel/presentation/controllers/kernel.controller';
+import { KernelLlmCompatController } from '@/modules/kernel/presentation/controllers/kernel-llm-compat.controller';
 import { KernelRuntimeAdminController } from '@/modules/kernel/presentation/controllers/kernel-runtime-admin.controller';
 import { KernelSessionRuntimeController } from '@/modules/kernel/presentation/controllers/kernel-session-runtime.controller';
 import { KernelSessionRuntimeInspectionController } from '@/modules/kernel/presentation/controllers/kernel-session-runtime-inspection.controller';
@@ -75,6 +76,7 @@ const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_IN
     ],
     controllers: [
         KernelController,
+        KernelLlmCompatController,
         KernelSessionWorkspaceController,
         KernelSessionRuntimeController,
         KernelSessionRuntimeInspectionController,
