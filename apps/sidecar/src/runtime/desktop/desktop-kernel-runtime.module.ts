@@ -12,6 +12,7 @@ import { LockedAgentSessionStore } from '@/modules/kernel/application/agents/loc
 import { ApiOperationExecutor } from '@/modules/kernel/application/api-operation-executor.service';
 import { CapabilitiesToolService } from '@/modules/kernel/application/capabilities-tool.service';
 import { CapabilitiesMcpService } from '@/modules/kernel/application/capabilities-mcp.service';
+import { KnowledgeQueryService } from '@/modules/assets/application/knowledge-query.service';
 import { CreateSessionHandler } from '@/modules/kernel/application/commands/create-session';
 import { EndSessionHandler } from '@/modules/kernel/application/commands/end-session';
 import { KernelBtwQueryService } from '@/modules/kernel/application/kernel-btw-query.service';
@@ -49,6 +50,7 @@ import { AGENT_SPEC, type AgentSpec } from '@/modules/kernel/domain/services/age
 import { KERNEL_MESSAGE_RUN_SERVICE } from '@/modules/kernel/domain/services/kernel-message-run.service.interface';
 import { KERNEL_RUNTIME_CONFIG_SERVICE } from '@/modules/kernel/domain/services/kernel-runtime-config.service.interface';
 import { KERNEL_SERVICE } from '@/modules/kernel/domain/services/kernel-service.interface';
+import { KNOWLEDGE_QUERY_PORT } from '@/modules/kernel/domain/services/knowledge-query.port';
 import { WORKSPACE_STORAGE } from '@/modules/kernel/domain/services/workspace-storage.interface';
 import { DesktopKernelRuntimeConfigService } from '@/modules/kernel/infrastructure/desktop/desktop-kernel-runtime-config.service';
 import { DesktopOpenKernelController } from '@/modules/kernel/presentation/controllers/desktop-open-kernel.controller';
@@ -158,6 +160,10 @@ const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_IN
         KernelSessionStatusService,
         KernelToolConfirmationService,
         ApiOperationExecutor,
+        {
+            provide: KNOWLEDGE_QUERY_PORT,
+            useExisting: KnowledgeQueryService,
+        },
         CapabilitiesToolService,
         CapabilitiesMcpService,
         SessionService,

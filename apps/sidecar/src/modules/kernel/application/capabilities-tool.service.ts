@@ -1,11 +1,12 @@
 import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import { ASSET_SERVICE, type IAssetService } from '@/modules/assets/domain/services/asset.service.interface';
-import {
-    KnowledgeQueryService,
-    type KnowledgeScope,
-} from '@/modules/assets/application/knowledge-query.service';
 import type { ApiModule, ApiOperation } from '../domain/services/api-explorer.interface';
 import { IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
+import {
+    KNOWLEDGE_QUERY_PORT,
+    type KnowledgeQueryPort,
+    type KnowledgeQueryScope,
+} from '../domain/services/knowledge-query.port';
 import { LockedAgentSessionStore } from './agents/locked-agent-session.store';
 
 export type CapabilityAction = 'list' | 'describe' | 'search' | 'execute';
@@ -136,7 +137,8 @@ export class CapabilitiesToolService {
         @Optional()
         private readonly lockedAgentSessions?: LockedAgentSessionStore,
         @Optional()
-        private readonly knowledgeQuery?: KnowledgeQueryService,
+        @Inject(KNOWLEDGE_QUERY_PORT)
+        private readonly knowledgeQuery?: KnowledgeQueryPort,
     ) {}
 
     toolDefinition(): CapabilitiesTool {
@@ -262,28 +264,28 @@ export class CapabilitiesToolService {
                 )) as unknown as Record<string, unknown>;
             case 'read':
             case 'read_concept':
-                return this.knowledgeQuery.readScopedConcept(
+                return (await this.knowledgeQuery.readScopedConcept(
                     scope,
                     userId,
                     this.stringValue(params.path) || this.stringValue(params.conceptId) || '',
                     assetId,
-                );
+                )) as CapabilityResult;
             case 'list':
             case 'list_directory':
-                return this.knowledgeQuery.listScopedDirectory(
+                return (await this.knowledgeQuery.listScopedDirectory(
                     scope,
                     userId,
                     this.stringValue(params.path) || this.stringValue(params.directory) || '',
                     assetId,
-                );
+                )) as CapabilityResult;
             case 'tags':
-                return this.knowledgeQuery.listScopedTags(scope, userId, assetId);
+                return (await this.knowledgeQuery.listScopedTags(scope, userId, assetId)) as CapabilityResult;
             default:
                 throw new BadRequestException(`未知 knowledge operation: ${operation}`);
         }
     }
 
-    private knowledgeScope(value: unknown): KnowledgeScope {
+    private knowledgeScope(value: unknown): KnowledgeQueryScope {
         const scope = this.stringValue(value) || 'personal';
         if (scope === 'personal' || scope === 'docs' || scope === 'global') return scope;
         throw new BadRequestException('knowledge scope 必须是 personal、docs 或 global');

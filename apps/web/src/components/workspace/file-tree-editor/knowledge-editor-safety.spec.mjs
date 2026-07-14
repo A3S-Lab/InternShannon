@@ -123,6 +123,9 @@ test("Office editors keep one runtime per file and avoid competing DOM cleanup",
   assert.match(sources[2], /aria-label="幻灯片文本内容"/);
   assert.match(sources[2], /runtime\.slide\.updatePage/);
   assert.match(sources[2], /runtime\.canvasView\.createObjectToPage/);
+  assert.match(sources[0], /\[markDirty, path, readOnly, retryCount\]/);
+  assert.match(sources[1], /\[markDirty, path, readOnly, retryCount\]/);
+  assert.match(sources[2], /\[markDirty, path, readOnly, retryCount, selectTextEntry\]/);
 });
 
 test("DOCX browser conversion does not call the Node Buffer global directly", () => {

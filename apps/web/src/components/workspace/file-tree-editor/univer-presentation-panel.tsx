@@ -291,7 +291,7 @@ export function UniverPresentationPanel({
       disposed = true;
       cleanupRuntime();
     };
-  }, [markDirty, path, readOnly, selectTextEntry]);
+  }, [markDirty, path, readOnly, retryCount, selectTextEntry]);
 
   useEffect(() => {
     const handleSaveAll = (event: Event) => {

@@ -99,6 +99,21 @@ describe("KnowledgeQueryService", () => {
 		);
 	});
 
+	it("falls back to the concept resource or asset path when the page has no explicit citation", async () => {
+		const { asset, knowledge } = createKnowledgeHarness();
+
+		const result = await knowledge.searchAsset(asset.id, "incident freshness", 8);
+		const incident = result.hits.find((hit) => hit.path === "wiki/playbooks/incident.md");
+		const read = await knowledge.readConcept(asset.id, "playbooks/incident");
+
+		expect(incident?.citations).toEqual([
+			`asset://${asset.id}/wiki/playbooks/incident.md`,
+		]);
+		expect(read.citations).toEqual([
+			`asset://${asset.id}/wiki/playbooks/incident.md`,
+		]);
+	});
+
 	it("exposes OKF search/read through the capabilities virtual knowledge module", async () => {
 		const { asset, assets, knowledge } = createKnowledgeHarness();
 		const kernel = {

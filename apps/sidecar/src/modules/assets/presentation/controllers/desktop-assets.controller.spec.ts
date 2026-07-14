@@ -39,6 +39,22 @@ function createHarness(metadata: Record<string, unknown> = {}) {
 }
 
 describe("DesktopAssetsController knowledge safety", () => {
+	it("hides internal snapshot, trash, and derived-index paths from every repository tree level", async () => {
+		const { asset, controller, service } = createHarness();
+		await service.updateBlob(asset.id, "wiki/page.md", "# Visible", "Add page", "main");
+		await service.updateBlob(asset.id, "wiki/.shuan-os-snapshots/page/manifest.json", "[]", "Snapshot", "main");
+		await service.updateBlob(asset.id, ".shuan-os-trash/page.md", "# Trashed", "Trash", "main");
+		await service.updateBlob(asset.id, ".internshannon/knowledge/index/manifest.json", "{}", "Index", "main");
+
+		const root = await controller.repositoryTree(asset.id);
+		const wiki = await controller.repositoryTree(asset.id, undefined, "wiki");
+
+		expect(root.items.map((item) => item.path)).not.toEqual(
+			expect.arrayContaining([".internshannon", ".shuan-os-trash"]),
+		);
+		expect(wiki.items.map((item) => item.path)).toEqual(["wiki/page.md"]);
+	});
+
 	it("round-trips uploaded binary source bytes without UTF-8 decoding", async () => {
 		const { asset, controller } = createHarness();
 		const original = Buffer.from([

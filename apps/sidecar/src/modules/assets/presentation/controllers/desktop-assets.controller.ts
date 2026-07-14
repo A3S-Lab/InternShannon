@@ -84,6 +84,7 @@ interface KnowledgeCurationSuggestion {
 const MAX_OKF_IMPORT_FILES = 5_000;
 const MAX_OKF_IMPORT_BYTES = 20 * 1024 * 1024;
 const TEXT_SOURCE_EXTENSIONS = new Set(['txt', 'csv', 'tsv', 'md', 'json', 'jsonl', 'yaml', 'yml', 'xml', 'html', 'htm', 'log']);
+const INTERNAL_REPOSITORY_SEGMENTS = new Set(['.internshannon', '.shuan-os-snapshots', '.shuan-os-trash']);
 
 @DesktopApi()
 @Controller('assets')
@@ -1205,6 +1206,7 @@ export class DesktopAssetsController {
         const files = new Map<string, RepositoryTreeItem>();
 
         for (const blob of this.contentBlobs(asset)) {
+            if (blob.path.split('/').some(segment => INTERNAL_REPOSITORY_SEGMENTS.has(segment))) continue;
             if (prefix && !blob.path.startsWith(prefix)) continue;
             const rest = prefix ? blob.path.slice(prefix.length) : blob.path;
             if (!rest || rest.startsWith('/')) continue;

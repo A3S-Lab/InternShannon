@@ -111,6 +111,8 @@ export class KnowledgeQueryService {
         const path = this.normalizeConceptPath(pathOrConceptId);
         const content = await this.assets.getBlobContent(asset.id, `wiki/${path}`);
         const document = parseOkfDocument(path, content);
+        const explicitCitations = this.extractCitations(document.body);
+        const resource = this.stringValue(document.frontmatter.resource);
         return {
             assetId: asset.id,
             bundle: this.bundleName(asset),
@@ -120,7 +122,9 @@ export class KnowledgeQueryService {
             frontmatter: document.frontmatter,
             body: document.body,
             content,
-            citations: this.extractCitations(document.body),
+            citations: explicitCitations.length > 0
+                ? explicitCitations
+                : [resource || `asset://${asset.id}/wiki/${path}`],
         };
     }
 
@@ -323,6 +327,7 @@ export class KnowledgeQueryService {
                 const semanticScore = cosineSimilarity(queryEmbedding, batch.vectors[index + 1]);
                 const { path, bundlePath, title, type, description, resource, tags, body, keywordScore } = concept;
                 if (keywordScore <= 0 && semanticScore < 0.12) continue;
+                const explicitCitations = this.extractCitations(body);
                 hits.push({
                     kind: 'concept',
                     assetId: asset.id,
@@ -337,7 +342,9 @@ export class KnowledgeQueryService {
                     snippet: this.snippet(body || description || title, terms),
                     score: keywordScore * weights.keywordWeight + semanticScore * weights.vectorWeight,
                     semanticScore,
-                    citations: this.extractCitations(body),
+                    citations: explicitCitations.length > 0
+                        ? explicitCitations
+                        : [resource || `asset://${asset.id}/${path}`],
                 });
             }
             hits.push(

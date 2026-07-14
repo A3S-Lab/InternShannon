@@ -491,6 +491,18 @@ knowledge asset
 - 真实策展打开文件：在文件已打开时接受并撤销 summary，编辑器标签全程保留、策展侧栏全程保持选中，API 内容在接受后增加并在撤销后精确恢复，console/pageerror 为 0。无头 Edge 无法通过 DOM 读取 Monaco 屏幕外行，不将该限制伪装为可视行断言。
 - 测试清理：本轮上传的 `internshannon-live-*` 临时来源已全部删除并完成全量重建；用户已有的 `queued-ingest-a/b.txt` 夹具和其他资料未删除。
 
+### 合并前多轮测试修复（2026-07-14）
+
+- 首轮扩大测试发现 5 个知识库 PR 问题：MCP controller 缺少统一 OpenAPI/raw response 装饰器、Kernel application 直接依赖 Assets application、repository tree 暴露内部目录、无显式引用的 OKF concept 返回空 citations、DOCX/PPTX 的重新加载状态没有触发初始化 effect。
+- MCP OpenAPI：GET 明确记录为 `405`，POST 记录为原始 `application/json` JSON-RPC 响应，两个端点都使用中文 summary；完整 OpenAPI contract 和真实 `/openapi.json` 探针通过。
+- DDD 边界：在 Kernel domain 新增只读 `KNOWLEDGE_QUERY_PORT`，由 desktop runtime 把 `KnowledgeQueryService` 绑定到端口；Kernel application 不再导入 Assets application，DDD boundary check 通过。
+- 引用闭环：OKF concept 优先保留正文显式 citation；没有显式 citation 时回退到 frontmatter `resource`，再回退到 `asset://<assetId>/wiki/<path>`。搜索结果与 MCP `knowledge_read` 使用同一规则，真实 `BQ-7429` 搜索的全部命中和 concept 读取均具有 citation。
+- 存储边界：repository tree 在任何目录层级过滤 `.internshannon`、`.shuan-os-snapshots` 和 `.shuan-os-trash`，不影响内部摄取、审计和回退数据本身；根目录与 `wiki/` 子目录真实探针均不再暴露内部路径。
+- Office 重试：DOCX、XLSX、PPTX 初始化 effect 都以 `retryCount` 为显式依赖；加载失败后的“重新加载”会重新读取文件。对应安全测试已接入标准 `desktop-state-tests.mjs`，不再依赖手工单独执行。
+- 第一轮定向测试：相关 Jest `33 passed`；知识库覆盖率测试 `45 passed / 1 skipped`，语句 `77.67%`、分支 `62.90%`、函数 `78.89%`、行 `83.60%`；修复后 Sidecar 启动成功，30 项真实 HTTP/MCP/探针和纯 WebSocket 握手全部通过。
+- 第二轮全量测试：Sidecar `51 suites / 296 passed / 1 skipped`，Web 标准状态测试 `657 passed`，OOXML `9 passed`；Sidecar 与 OOXML TypeScript、DDD boundary、Sidecar build（295 files）、Web production build、`git diff --check` 全部通过。
+- 仓库级测试基础设施边界：`origin/main` 的 Sidecar `sql:check` 已引用不存在的 `scripts/check-sql-style.*`，且没有适配 Nest 参数装饰器的 Sidecar Biome 配置；这两项不是本知识库分支引入的差异，本 PR 不用空实现掩盖，也不扩大为无关的全仓 lint/SQL 重构。
+
 ## 历史暂停快照
 
 - 暂停日期：2026-07-10，下班前主动暂停。
@@ -561,5 +573,5 @@ node scripts/build-desktop-sidecar.mjs
 - Office 复杂排版、批注、修订、嵌入对象和图表仍受现有 Univer/OOXML adapter 保真范围限制；Microsoft Word/Excel 基础外部打开已通过，PowerPoint 自动化超时，LibreOffice 未安装，因此完整外部保真矩阵仍未完成。
 - 自动摘要、来源页面和合并草稿已经实现为手动刷新产生的 proposal，默认不主动运行；只有用户接受后才写入，且任何后续实现仍不得绕过审阅覆盖 `wiki/`。
 - 1000 页面迁移夹具已通过，但尚未完成 1000 真实关系节点的浏览器交互性能录制；当前前端以过滤和最多 120 个可见节点控制渲染规模。
-- 全量 sidecar TypeScript 仍有 8 个实施前基线错误；构建和知识库定向测试通过不代表这些仓库级技术债已解决。
+- 全量 Sidecar `tsconfig.build.json --noEmit` 已通过；仓库级 SQL/Biome 测试基础设施缺口按上文单独记录，不与知识库 TypeScript 结果混淆。
 - 原全局默认模型 `zhipu111/glm-5.2` 在真实调用中返回空响应；已切换为通过真实正反例的 `boyue/gpt-5`。若用户之后切回 zhipu provider，需先单独验证该 provider/model 的非空 stream 兼容性。

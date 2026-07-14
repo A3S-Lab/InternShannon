@@ -145,7 +145,7 @@ export function UniverDocumentPanel({
       setStatus("error");
       setError(error instanceof Error ? error.message : "文档保存失败");
     }
-  }, [markDirty, path, readOnly]);
+  }, [markDirty, path, readOnly, retryCount]);
 
   useEffect(() => {
     const container = containerRef.current;
