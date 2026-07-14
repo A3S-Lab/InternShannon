@@ -419,12 +419,17 @@ function buildImageRun(drawing: DrawingInfo): ImageRun | undefined {
         const type = mimeToImageType(drawing.mime);
         return new ImageRun({
             type,
-            data: Buffer.from(drawing.base64, "base64"),
+            data: base64ToBytes(drawing.base64),
             transformation: { width: Math.round(drawing.width), height: Math.round(drawing.height) },
         });
     } catch {
         return undefined;
     }
+}
+
+function base64ToBytes(value: string): Uint8Array {
+    const binary = globalThis.atob(value);
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
 function mimeToImageType(mime: string): "jpg" | "png" | "gif" | "bmp" {

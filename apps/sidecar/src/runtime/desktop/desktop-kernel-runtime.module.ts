@@ -11,6 +11,7 @@ import { AgentRegistry, AssetAgent, DefaultAgent } from '@/modules/kernel/applic
 import { LockedAgentSessionStore } from '@/modules/kernel/application/agents/locked-agent-session.store';
 import { ApiOperationExecutor } from '@/modules/kernel/application/api-operation-executor.service';
 import { CapabilitiesToolService } from '@/modules/kernel/application/capabilities-tool.service';
+import { CapabilitiesMcpService } from '@/modules/kernel/application/capabilities-mcp.service';
 import { CreateSessionHandler } from '@/modules/kernel/application/commands/create-session';
 import { EndSessionHandler } from '@/modules/kernel/application/commands/end-session';
 import { KernelBtwQueryService } from '@/modules/kernel/application/kernel-btw-query.service';
@@ -53,6 +54,7 @@ import { DesktopKernelRuntimeConfigService } from '@/modules/kernel/infrastructu
 import { DesktopOpenKernelController } from '@/modules/kernel/presentation/controllers/desktop-open-kernel.controller';
 import { KernelController } from '@/modules/kernel/presentation/controllers/kernel.controller';
 import { KernelLlmCompatController } from '@/modules/kernel/presentation/controllers/kernel-llm-compat.controller';
+import { KernelCapabilitiesMcpController } from '@/modules/kernel/presentation/controllers/kernel-capabilities-mcp.controller';
 import { KernelRuntimeAdminController } from '@/modules/kernel/presentation/controllers/kernel-runtime-admin.controller';
 import { KernelSessionRuntimeController } from '@/modules/kernel/presentation/controllers/kernel-session-runtime.controller';
 import { KernelSessionRuntimeInspectionController } from '@/modules/kernel/presentation/controllers/kernel-session-runtime-inspection.controller';
@@ -77,6 +79,7 @@ const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_IN
     controllers: [
         KernelController,
         KernelLlmCompatController,
+        KernelCapabilitiesMcpController,
         KernelSessionWorkspaceController,
         KernelSessionRuntimeController,
         KernelSessionRuntimeInspectionController,
@@ -156,6 +159,7 @@ const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_IN
         KernelToolConfirmationService,
         ApiOperationExecutor,
         CapabilitiesToolService,
+        CapabilitiesMcpService,
         SessionService,
         SessionWorkspaceSeedService,
         SessionWorkspaceFileUploadService,

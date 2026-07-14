@@ -1,5 +1,9 @@
 import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import { ASSET_SERVICE, type IAssetService } from '@/modules/assets/domain/services/asset.service.interface';
+import {
+    KnowledgeQueryService,
+    type KnowledgeScope,
+} from '@/modules/assets/application/knowledge-query.service';
 import type { ApiModule, ApiOperation } from '../domain/services/api-explorer.interface';
 import { IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
 import { LockedAgentSessionStore } from './agents/locked-agent-session.store';
@@ -28,34 +32,34 @@ export type CapabilityResult =
 
 export interface CapabilitiesTool {
     name: 'capabilities';
-    description: 'Discover and explore OS capabilities (APIs) available to the agent';
+    description: 'Discover OS APIs and search/read the user-visible OKF knowledge bases';
     input_schema: {
         type: 'object';
         properties: {
             action: {
                 type: 'string';
                 enum: ['list', 'search', 'describe', 'execute'];
-                description: 'Action to perform';
+                description: string;
             };
             module?: {
                 type: 'string';
-                description: 'Module name (used by the describe action)';
+                description: string;
             };
             query?: {
                 type: 'string';
-                description: 'Search keywords (used by the search action)';
+                description: string;
             };
             operation?: {
                 type: 'string';
-                description: 'Operation name (used by execute)';
+                description: string;
             };
             params?: {
                 type: 'object';
-                description: 'Operation parameters (used by execute)';
+                description: string;
             };
             sessionId?: {
                 type: 'string';
-                description: 'Kernel session id for built-in agent asset locking';
+                description: string;
             };
         };
         required: ['action'];
@@ -69,6 +73,58 @@ const A3S_CODE_AGENT_SCAFFOLD_TEMPLATES = new Set([
     'a3s-code-python-tool-agent',
 ]);
 
+const KNOWLEDGE_OPERATIONS: ApiOperation[] = [
+    {
+        name: 'search',
+        operationId: 'knowledge.search',
+        description: 'Search OKF concepts and indexed source chunks in personal, docs, or global knowledge and return cited snippets',
+        method: 'GET',
+        path: 'virtual://knowledge/search',
+        action: 'get',
+        parameters: [
+            { name: 'scope', type: 'string', required: true, description: 'personal, docs, or global' },
+            { name: 'query', type: 'string', required: true, description: 'Knowledge search query' },
+            { name: 'limit', type: 'number', required: false, description: 'Maximum hits, 1-50' },
+        ],
+    },
+    {
+        name: 'read',
+        operationId: 'knowledge.read',
+        description: 'Read one OKF concept or indexed source chunk after search, preserving content, resource, and citations',
+        method: 'GET',
+        path: 'virtual://knowledge/read',
+        action: 'get',
+        parameters: [
+            { name: 'scope', type: 'string', required: true, description: 'personal, docs, or global' },
+            { name: 'path', type: 'string', required: true, description: 'Concept id or path returned by search' },
+            { name: 'assetId', type: 'string', required: false, description: 'Required for a global hit when ambiguous' },
+        ],
+    },
+    {
+        name: 'list',
+        operationId: 'knowledge.list',
+        description: 'List one OKF bundle directory for progressive disclosure',
+        method: 'GET',
+        path: 'virtual://knowledge/list',
+        action: 'list',
+    },
+    {
+        name: 'tags',
+        operationId: 'knowledge.tags',
+        description: 'List OKF tags and concept counts',
+        method: 'GET',
+        path: 'virtual://knowledge/tags',
+        action: 'list',
+    },
+];
+
+const KNOWLEDGE_MODULE: ApiModule = {
+    name: 'knowledge',
+    description: 'Read-only OKF and indexed-source search, reading, and progressive traversal',
+    path: 'virtual://knowledge',
+    operations: KNOWLEDGE_OPERATIONS,
+};
+
 @Injectable()
 export class CapabilitiesToolService {
     constructor(
@@ -79,7 +135,32 @@ export class CapabilitiesToolService {
         private readonly assetService?: IAssetService,
         @Optional()
         private readonly lockedAgentSessions?: LockedAgentSessionStore,
+        @Optional()
+        private readonly knowledgeQuery?: KnowledgeQueryService,
     ) {}
+
+    toolDefinition(): CapabilitiesTool {
+        return {
+            name: 'capabilities',
+            description: 'Discover OS APIs and search/read the user-visible OKF knowledge bases',
+            input_schema: {
+                type: 'object',
+                properties: {
+                    action: {
+                        type: 'string',
+                        enum: ['list', 'search', 'describe', 'execute'],
+                        description: 'Action to perform',
+                    },
+                    module: { type: 'string', description: 'Module name (used by describe and execute)' },
+                    query: { type: 'string', description: 'Search keywords (used by search)' },
+                    operation: { type: 'string', description: 'Operation name (used by execute)' },
+                    params: { type: 'object', description: 'Operation parameters (used by execute)' },
+                    sessionId: { type: 'string', description: 'Kernel session id for agent policy enforcement' },
+                },
+                required: ['action'],
+            },
+        };
+    }
 
     /**
      * Single dispatch entry-point shared by the HTTP controller and any in-process callers.
@@ -90,13 +171,14 @@ export class CapabilitiesToolService {
 
         switch (action) {
             case 'list':
-                return this.kernelService.listModules(userId);
+                return this.withKnowledgeModule(await this.kernelService.listModules(userId));
 
             case 'describe': {
                 const moduleName = input.module ?? input.query;
                 if (!moduleName) {
                     throw new Error('module parameter is required for describe action');
                 }
+                if (this.isKnowledgeModule(moduleName)) return KNOWLEDGE_MODULE;
                 return this.kernelService.getModule(moduleName, userId);
             }
 
@@ -104,7 +186,10 @@ export class CapabilitiesToolService {
                 if (!input.query) {
                     throw new Error('query parameter is required for search action');
                 }
-                return this.kernelService.searchOperations(input.query, userId);
+                return this.withKnowledgeOperations(
+                    await this.kernelService.searchOperations(input.query, userId),
+                    input.query,
+                );
 
             case 'execute': {
                 const moduleName = input.module ?? input.query;
@@ -114,6 +199,9 @@ export class CapabilitiesToolService {
                 }
                 if (!operationName) {
                     throw new Error('operation parameter is required for execute action');
+                }
+                if (this.isKnowledgeModule(moduleName)) {
+                    return this.dispatchKnowledgeOperation(operationName, input.params ?? {}, userId);
                 }
                 const operation = await this.resolveOperation(moduleName, operationName, userId);
                 this.normalizeAssetCreateName(input, operation);
@@ -135,6 +223,75 @@ export class CapabilitiesToolService {
             default:
                 throw new Error(`Unknown action: ${action}`);
         }
+    }
+
+    private withKnowledgeModule(modules: ApiModule[]): ApiModule[] {
+        return this.knowledgeQuery && !modules.some(module => this.isKnowledgeModule(module.name))
+            ? [...modules, KNOWLEDGE_MODULE]
+            : modules;
+    }
+
+    private withKnowledgeOperations(operations: ApiOperation[], query: string): ApiOperation[] {
+        if (!this.knowledgeQuery || !/(knowledge|okf|知识|wiki|笔记|文档)/i.test(query)) return operations;
+        const existing = new Set(operations.map(operation => operation.operationId || operation.name));
+        return [
+            ...operations,
+            ...KNOWLEDGE_OPERATIONS.filter(operation => !existing.has(operation.operationId || operation.name)),
+        ];
+    }
+
+    private isKnowledgeModule(value: string): boolean {
+        return value.trim().toLowerCase() === 'knowledge';
+    }
+
+    private async dispatchKnowledgeOperation(
+        operation: string,
+        params: Record<string, unknown>,
+        userId: string,
+    ): Promise<CapabilityResult> {
+        if (!this.knowledgeQuery) throw new BadRequestException('知识库查询服务不可用');
+        const scope = this.knowledgeScope(params.scope);
+        const assetId = this.stringValue(params.assetId) || undefined;
+        switch (operation.trim().toLowerCase().replace(/^knowledge\./, '')) {
+            case 'search':
+                return (await this.knowledgeQuery.searchScope(
+                    scope,
+                    userId,
+                    this.stringValue(params.query) || this.stringValue(params.q) || '',
+                    this.numberValue(params.limit, 8),
+                )) as unknown as Record<string, unknown>;
+            case 'read':
+            case 'read_concept':
+                return this.knowledgeQuery.readScopedConcept(
+                    scope,
+                    userId,
+                    this.stringValue(params.path) || this.stringValue(params.conceptId) || '',
+                    assetId,
+                );
+            case 'list':
+            case 'list_directory':
+                return this.knowledgeQuery.listScopedDirectory(
+                    scope,
+                    userId,
+                    this.stringValue(params.path) || this.stringValue(params.directory) || '',
+                    assetId,
+                );
+            case 'tags':
+                return this.knowledgeQuery.listScopedTags(scope, userId, assetId);
+            default:
+                throw new BadRequestException(`未知 knowledge operation: ${operation}`);
+        }
+    }
+
+    private knowledgeScope(value: unknown): KnowledgeScope {
+        const scope = this.stringValue(value) || 'personal';
+        if (scope === 'personal' || scope === 'docs' || scope === 'global') return scope;
+        throw new BadRequestException('knowledge scope 必须是 personal、docs 或 global');
+    }
+
+    private numberValue(value: unknown, fallback: number): number {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
     }
 
     /**

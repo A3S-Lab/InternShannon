@@ -94,6 +94,36 @@ describe('KernelSessionRuntimeFactory HITL session options', () => {
     });
 });
 
+describe('KernelSessionRuntimeFactory capabilities MCP registration', () => {
+    it('registers the internal capabilities server for opted-in assistants', async () => {
+        const factory = createRuntimeWorkspaceFactory();
+        const server = (
+            factory as unknown as {
+                capabilitiesMcpServer: () => { name: string; transport: { type: string; url: string } };
+            }
+        ).capabilitiesMcpServer();
+
+        expect(server).toEqual({
+            name: 'internshannon',
+            enabled: true,
+            transport: {
+                type: 'streamable-http',
+                url: `http://127.0.0.1:${process.env.APP_PORT || '29653'}/api/v1/kernel/mcp`,
+            },
+        });
+        expect(
+            (
+                factory as unknown as { shouldEnableCapabilities: (value: SessionRuntimeOverrides) => boolean }
+            ).shouldEnableCapabilities({ allowCapabilities: true }),
+        ).toBe(true);
+        expect(
+            (
+                factory as unknown as { shouldEnableCapabilities: (value: SessionRuntimeOverrides) => boolean }
+            ).shouldEnableCapabilities({ skills: ['capabilities'] }),
+        ).toBe(true);
+    });
+});
+
 function createRuntimeWorkspaceFactory(): KernelSessionRuntimeFactory {
     return new KernelSessionRuntimeFactory(
         {} as IKernelService,

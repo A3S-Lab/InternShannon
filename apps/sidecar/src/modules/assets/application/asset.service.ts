@@ -26,6 +26,7 @@ import {
     CollaboratorInvitationWithAsset,
     CreateCollaboratorInvitationInput,
     ExternalSyncLinkage,
+    AssetBlobData,
     IAssetService,
     PullRequestChecks,
 } from '../domain/services/asset.service.interface';
@@ -98,22 +99,70 @@ export {
 const PERSONAL_KNOWLEDGE_ASSET_NAME = 'personal-knowledge';
 const PERSONAL_KNOWLEDGE_DESCRIPTION =
     '系统为每位用户自动创建的专属知识库,作为内核循环工程的默认上下文载体。';
-const PERSONAL_KNOWLEDGE_PURPOSE_MD = `# Purpose
+
+const ASSET_BLOB_MIME_TYPES: Record<string, string> = {
+    md: 'text/markdown',
+    txt: 'text/plain',
+    json: 'application/json',
+    yaml: 'application/yaml',
+    yml: 'application/yaml',
+    csv: 'text/csv',
+    pdf: 'application/pdf',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+
+function assetBlobMimeType(path: string, isBinary: boolean): string {
+    const extension = path.split('.').pop()?.toLowerCase() ?? '';
+    return ASSET_BLOB_MIME_TYPES[extension] ?? (isBinary ? 'application/octet-stream' : 'text/plain');
+}
+
+const TEXT_ASSET_BLOB_EXTENSIONS = new Set([
+    'txt', 'csv', 'tsv', 'md', 'json', 'jsonl', 'yaml', 'yml', 'xml', 'html', 'htm', 'log',
+]);
+
+function decodeLegacyTextBlob(path: string, bytes: Buffer): string | null {
+    const extension = path.split('.').pop()?.toLowerCase() ?? '';
+    if (!TEXT_ASSET_BLOB_EXTENSIONS.has(extension)) return null;
+    try {
+        return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+        return null;
+    }
+}
+const PERSONAL_KNOWLEDGE_PURPOSE_MD = `---
+type: Knowledge Purpose
+title: 知识库目标
+---
+
+# Purpose
 
 这是本用户的专属知识库,由系统自动创建并随内核循环工程持续维护。
 
-把日常沉淀的资料、笔记、来源文档放进 \`raw/sources/\`,经两步 LLM 摄取后会在 \`wiki/\`
-下生成相互链接的知识页面;内核循环的新鲜度扫描器会保持派生索引(图谱/检索)与 git 同步。
+把来源文档放进 \`raw/sources/\` 后会建立可追溯的文本和检索索引；用户与 agent 可在 \`wiki/\`
+维护 OKF 知识页面。自动建链和页面建议必须经过审阅，不会静默覆盖手写内容。
 `;
-const PERSONAL_KNOWLEDGE_SCHEMA_MD = `# Schema
+const PERSONAL_KNOWLEDGE_SCHEMA_MD = `---
+type: Knowledge Schema
+title: 知识库结构
+---
+
+# Schema
 
 - entities: 人物、组织、项目等实体页面
 - concepts: 概念与术语
 - sources: 来源文档的归档与摘要
 
-无需严格遵循;摄取时 LLM 会参考此文件组织页面结构。
+无需严格遵循；创建和策展知识页面时可参考此文件，自动建议必须经过审阅。
 `;
 const PERSONAL_KNOWLEDGE_INDEX_MD = `---
+okf_version: "0.1"
 type: synthesis
 title: 知识库总览
 ---
@@ -133,19 +182,30 @@ const GLOBAL_KNOWLEDGE_OWNER_ID = 'builtin-docs';
 const PLATFORM_DOCS_DOMAIN = PLATFORM_DOCS_GLOBAL_DOMAIN;
 const PLATFORM_DOCS_KNOWLEDGE_NAME = 'os-docs-global-knowledge';
 const PLATFORM_DOCS_KNOWLEDGE_DESCRIPTION = 'internShannon 文档中心的全局共享知识库:面向所有用户公开,供internShannon结合文档作答。';
-const PLATFORM_DOCS_KNOWLEDGE_PURPOSE_MD = `# Purpose
+const PLATFORM_DOCS_KNOWLEDGE_PURPOSE_MD = `---
+type: Knowledge Purpose
+title: 平台文档知识库目标
+---
 
-这是internShannon 文档中心的【全局共享知识库】,由系统从内置 os-docs 文档自动摄取并维护,面向所有用户公开只读。
+# Purpose
+
+这是internShannon 文档中心的【全局共享知识库】,由系统从内置 os-docs 文档建立可追溯索引,面向所有用户公开只读。
 internShannon在回答问题时可经渐进式 API 检索此处,以internShannon 官方文档为依据并标注来源。
 `;
-const PLATFORM_DOCS_KNOWLEDGE_SCHEMA_MD = `# Schema
+const PLATFORM_DOCS_KNOWLEDGE_SCHEMA_MD = `---
+type: Knowledge Schema
+title: 平台文档知识库结构
+---
+
+# Schema
 
 - 平台中间件:a3s-* 系列(box / code / gateway / lane / memory / power / search …)
 - 开放平台:open-platform-* 系列(资产 / 工作流 / 注册表 / 市场 / 发布 / 集成 …)
 
-摄取时 LLM 会参考此文件组织页面结构。
+创建和策展知识页面时可参考此文件；自动建议必须经过审阅。
 `;
 const PLATFORM_DOCS_KNOWLEDGE_INDEX_MD = `---
+okf_version: "0.1"
 type: synthesis
 title: internShannon 文档中心
 ---
@@ -486,13 +546,13 @@ export class AssetServiceImpl implements IAssetService {
         const isPlatformDocs = domain === PLATFORM_DOCS_DOMAIN;
         const purpose = isPlatformDocs
             ? PLATFORM_DOCS_KNOWLEDGE_PURPOSE_MD
-            : `# Purpose\n\n这是【全局共享知识库】域 \`${domain}\`,面向所有用户公开只读。把来源文档放进 \`raw/sources/\`,经两步 LLM 摄取后会在 \`wiki/\` 下生成相互链接的知识页面。\n`;
+            : `---\ntype: Knowledge Purpose\ntitle: 全局知识库目标(${domain})\n---\n\n# Purpose\n\n这是【全局共享知识库】域 \`${domain}\`,面向所有用户公开只读。来源文档放进 \`raw/sources/\` 后建立可追溯索引；\`wiki/\` 保存经过用户审阅的 OKF 知识页面。\n`;
         const schema = isPlatformDocs
             ? PLATFORM_DOCS_KNOWLEDGE_SCHEMA_MD
-            : `# Schema\n\n无需严格遵循;摄取时 LLM 会参考此文件组织页面结构。\n`;
+            : `---\ntype: Knowledge Schema\ntitle: 全局知识库结构(${domain})\n---\n\n# Schema\n\n无需严格遵循；创建和策展知识页面时可参考此文件，自动建议必须经过审阅。\n`;
         const index = isPlatformDocs
             ? PLATFORM_DOCS_KNOWLEDGE_INDEX_MD
-            : `---\ntype: synthesis\ntitle: 全局知识库(${domain})\n---\n\n# 全局知识库(${domain})\n\n全局共享知识库入口;上传来源文档后,这里会逐步汇总成可检索、可关联的知识网络。\n`;
+            : `---\nokf_version: "0.1"\ntype: synthesis\ntitle: 全局知识库(${domain})\n---\n\n# 全局知识库(${domain})\n\n全局共享知识库入口;上传来源文档后,这里会逐步汇总成可检索、可关联的知识网络。\n`;
         await this.gitRepo.seedRepositoryFiles(
             asset,
             [
@@ -1559,22 +1619,82 @@ export class AssetServiceImpl implements IAssetService {
     }
 
     async getBlobContent(assetId: string, path: string): Promise<string> {
+        const blob = await this.getBlobData(assetId, path);
+        if (blob.encoding === 'base64') {
+            throw new BadRequestException('二进制文件不能作为 UTF-8 文本读取');
+        }
+        return blob.content;
+    }
+
+    async getBlobData(assetId: string, path: string): Promise<AssetBlobData> {
         const asset = await this.requireAsset(assetId);
         const contents = asset.metadata?.blobContents;
         if (contents && typeof contents === 'object' && !Array.isArray(contents)) {
             const content = (contents as Record<string, unknown>)[path];
             if (typeof content === 'string') {
-                return content;
+                const encodings = (asset.metadata?.blobEncodings ?? {}) as Record<string, unknown>;
+                const entity = asset.blobs.find(blob => blob.path === path);
+                const storedEncoding = encodings[path] === 'base64' || entity?.isBinary ? 'base64' : 'utf8';
+                const bytes = storedEncoding === 'base64' ? Buffer.from(content, 'base64') : Buffer.from(content, 'utf8');
+                const legacyText = storedEncoding === 'base64' ? decodeLegacyTextBlob(path, bytes) : null;
+                const encoding = legacyText === null ? storedEncoding : 'utf8';
+                return {
+                    path,
+                    encoding,
+                    content: legacyText ?? content,
+                    size: bytes.byteLength,
+                    contentSha: entity?.contentSha || createHash('sha1').update(bytes).digest('hex'),
+                    isBinary: encoding === 'base64',
+                    mime: assetBlobMimeType(path, encoding === 'base64'),
+                };
+            }
+        }
+        if (this.assetRepository.readBlobData) {
+            const bytes = await this.assetRepository.readBlobData(assetId, path);
+            if (bytes) {
+                const entity = asset.blobs.find(blob => blob.path === path);
+                const storedEncoding = entity?.isBinary ? 'base64' : 'utf8';
+                const legacyText = storedEncoding === 'base64' ? decodeLegacyTextBlob(path, bytes) : null;
+                const encoding = legacyText === null ? storedEncoding : 'utf8';
+                return {
+                    path,
+                    encoding,
+                    content: legacyText ?? (encoding === 'base64' ? bytes.toString('base64') : bytes.toString('utf8')),
+                    size: bytes.byteLength,
+                    contentSha: entity?.contentSha || createHash('sha1').update(bytes).digest('hex'),
+                    isBinary: encoding === 'base64',
+                    mime: assetBlobMimeType(path, encoding === 'base64'),
+                };
             }
         }
         if (this.gitRepo) {
             const blob = await this.gitRepo.readBlob(asset, path, asset.defaultBranch);
             if (blob?.content !== undefined) {
-                return blob.encoding === 'base64' ? Buffer.from(blob.content, 'base64').toString('utf8') : blob.content;
+                const bytes = this.repositoryBlobContentBuffer(blob);
+                const legacyText = blob.encoding === 'base64' ? decodeLegacyTextBlob(path, bytes) : null;
+                const encoding = legacyText === null ? blob.encoding : 'utf8';
+                return {
+                    path,
+                    encoding,
+                    content: legacyText ?? blob.content,
+                    size: blob.size,
+                    contentSha: createHash('sha1').update(bytes).digest('hex'),
+                    isBinary: encoding === 'base64',
+                    mime: assetBlobMimeType(path, encoding === 'base64'),
+                };
             }
         }
         if (asset.content && ['content', 'README.md', 'readme.md'].includes(path)) {
-            return asset.content;
+            const bytes = Buffer.from(asset.content, 'utf8');
+            return {
+                path,
+                encoding: 'utf8',
+                content: asset.content,
+                size: bytes.byteLength,
+                contentSha: createHash('sha1').update(bytes).digest('hex'),
+                isBinary: false,
+                mime: assetBlobMimeType(path, false),
+            };
         }
         throw new NotFoundException('Blob content not found');
     }
@@ -1592,7 +1712,93 @@ export class AssetServiceImpl implements IAssetService {
         blobSha: string;
         implicitLifecycleTransition?: { from: string; to: string };
     }> {
+        return this.updateBlobData(
+            assetId,
+            path,
+            Buffer.from(content, 'utf8'),
+            false,
+            message,
+            branch,
+            authorName,
+            authorEmail,
+        );
+    }
+
+    async updateBlobBinary(
+        assetId: string,
+        path: string,
+        content: Buffer,
+        message: string,
+        branch: string,
+        authorName?: string,
+        authorEmail?: string,
+    ): Promise<{
+        commitSha: string;
+        blobSha: string;
+        implicitLifecycleTransition?: { from: string; to: string };
+    }> {
+        return this.updateBlobData(assetId, path, content, true, message, branch, authorName, authorEmail);
+    }
+
+    async migrateKnowledgeStorage(assetId: string): Promise<{
+        supported: boolean;
+        migratedPaths: string[];
+        migratedBytes: number;
+        metadataBytesBefore: number;
+        metadataBytesAfter: number;
+    }> {
         const asset = await this.requireAsset(assetId);
+        const existingContents = { ...((asset.metadata?.blobContents ?? {}) as Record<string, string>) };
+        const existingEncodings = {
+            ...((asset.metadata?.blobEncodings ?? {}) as Record<string, 'utf8' | 'base64'>),
+        };
+        const metadataBytesBefore = Buffer.byteLength(JSON.stringify(existingContents), 'utf8');
+        if (!this.assetRepository.writeBlobData || !this.assetRepository.readBlobData) {
+            return { supported: false, migratedPaths: [], migratedBytes: 0, metadataBytesBefore, metadataBytesAfter: metadataBytesBefore };
+        }
+        const paths = Object.keys(existingContents).filter(path => this.isExternalKnowledgeBlobPath(path));
+        let migratedBytes = 0;
+        for (const path of paths) {
+            const encoding = existingEncodings[path] === 'base64' ? 'base64' : 'utf8';
+            const bytes = Buffer.from(existingContents[path], encoding);
+            await this.assetRepository.writeBlobData(assetId, path, bytes);
+            const persisted = await this.assetRepository.readBlobData(assetId, path);
+            if (!persisted || createHash('sha1').update(persisted).digest('hex') !== createHash('sha1').update(bytes).digest('hex')) {
+                throw new Error(`Knowledge storage migration SHA verification failed: ${path}`);
+            }
+            migratedBytes += bytes.byteLength;
+            delete existingContents[path];
+            delete existingEncodings[path];
+        }
+        if (paths.length > 0) {
+            asset.updateMetadata({ blobContents: existingContents, blobEncodings: existingEncodings });
+            await this.assetRepository.save(asset);
+        }
+        return {
+            supported: true,
+            migratedPaths: paths.sort(),
+            migratedBytes,
+            metadataBytesBefore,
+            metadataBytesAfter: Buffer.byteLength(JSON.stringify(existingContents), 'utf8'),
+        };
+    }
+
+    private async updateBlobData(
+        assetId: string,
+        path: string,
+        contentBytes: Buffer,
+        isBinary: boolean,
+        message: string,
+        branch: string,
+        authorName?: string,
+        authorEmail?: string,
+    ): Promise<{
+        commitSha: string;
+        blobSha: string;
+        implicitLifecycleTransition?: { from: string; to: string };
+    }> {
+        const asset = await this.requireAsset(assetId);
+        const content = isBinary ? contentBytes.toString('base64') : contentBytes.toString('utf8');
 
         // 隐式 lifecycle 转换：published / packaged 状态收到写入，自动回到 developing。
         // 仅在内存上改 metadata；两条分支下面都会跑 assetRepository.save(asset) 把它落盘。
@@ -1606,7 +1812,7 @@ export class AssetServiceImpl implements IAssetService {
         // 落到 metadata 模拟，否则"git 是否生效"变成不可见的运行时状态。
         // desktop 模式（gitRepo 未注册）：走下方 metadata 模拟分支。
         if (this.gitRepo) {
-            const result = await this.gitRepo.commitFile(asset, path, content, {
+            const result = await this.gitRepo.commitFile(asset, path, isBinary ? contentBytes : content, {
                 message: message || `Update ${path}`,
                 branch: branch || asset.defaultBranch,
                 authorName,
@@ -1620,15 +1826,31 @@ export class AssetServiceImpl implements IAssetService {
             };
         }
 
-        const blobSha = createHash('sha1').update(content).digest('hex');
-        const existingContents = (asset.metadata?.blobContents ?? {}) as Record<string, string>;
-        const previousContent = existingContents[path];
-        existingContents[path] = content;
+        const blobSha = createHash('sha1').update(contentBytes).digest('hex');
+        const existingContents = { ...((asset.metadata?.blobContents ?? {}) as Record<string, string>) };
+        const existingEncodings = {
+            ...((asset.metadata?.blobEncodings ?? {}) as Record<string, 'utf8' | 'base64'>),
+        };
+        let previousContent: string | undefined = existingContents[path];
+        const previousEncoding = existingEncodings[path] ?? 'utf8';
+        const useExternalBlobStore = this.isExternalKnowledgeBlobPath(path) && Boolean(this.assetRepository.writeBlobData);
+        if (useExternalBlobStore) {
+            if (previousContent === undefined && this.assetRepository.readBlobData) {
+                const previousBytes = await this.assetRepository.readBlobData(assetId, path);
+                previousContent = previousBytes?.toString(previousEncoding === 'base64' ? 'base64' : 'utf8');
+            }
+            await this.assetRepository.writeBlobData?.(assetId, path, contentBytes);
+            delete existingContents[path];
+            delete existingEncodings[path];
+        } else {
+            existingContents[path] = content;
+            existingEncodings[path] = isBinary ? 'base64' : 'utf8';
+        }
         const createdAt = new Date();
         const currentBranch = branch || asset.defaultBranch || 'main';
         const parentCommitSha = latestCommitShaForBranch(asset, currentBranch);
         const commitSha = createHash('sha1')
-            .update(`${assetId}:${path}:${createdAt.toISOString()}:${content}`)
+            .update(`${assetId}:${path}:${createdAt.toISOString()}:${blobSha}`)
             .digest('hex');
         const blobs = [
             ...(asset.blobs ?? []).filter(blob => blob.path !== path),
@@ -1636,9 +1858,9 @@ export class AssetServiceImpl implements IAssetService {
                 id: blobSha,
                 assetId,
                 path,
-                size: Buffer.byteLength(content, 'utf8'),
+                size: contentBytes.byteLength,
                 contentSha: blobSha,
-                isBinary: false,
+                isBinary,
             },
         ];
         const commit = {
@@ -1655,17 +1877,20 @@ export class AssetServiceImpl implements IAssetService {
         const branches = upsertBranchCommit(asset, currentBranch, commitSha);
         const commitDiffs = {
             ...((asset.metadata?.commitDiffs ?? {}) as Record<string, string>),
-            [commitSha]: singleFileDiff(path, previousContent, content),
+            [commitSha]: isBinary || previousEncoding === 'base64'
+                ? `Binary file changed: ${path}\n`
+                : singleFileDiff(path, previousContent, content),
         };
         asset.updateMetadata({
             blobContents: existingContents,
+            blobEncodings: existingEncodings,
             blobs,
             commits: [commit, ...(asset.commits ?? [])],
             commitDiffs,
             branches,
         });
 
-        if (['README.md', 'readme.md', 'content'].includes(path)) {
+        if (!isBinary && ['README.md', 'readme.md', 'content'].includes(path)) {
             asset.updateContent(content);
         }
 
@@ -1710,6 +1935,9 @@ export class AssetServiceImpl implements IAssetService {
         }
 
         const existingContents = { ...((asset.metadata?.blobContents ?? {}) as Record<string, string>) };
+        const existingEncodings = {
+            ...((asset.metadata?.blobEncodings ?? {}) as Record<string, 'utf8' | 'base64'>),
+        };
         const existingBlobs = asset.blobs ?? [];
         const removedPaths = new Set<string>();
         const isTarget = (candidate: string) =>
@@ -1719,6 +1947,7 @@ export class AssetServiceImpl implements IAssetService {
             if (!isTarget(candidate)) continue;
             removedPaths.add(candidate);
             delete existingContents[candidate];
+            delete existingEncodings[candidate];
         }
         for (const blob of existingBlobs) {
             if (isTarget(blob.path)) {
@@ -1752,6 +1981,7 @@ export class AssetServiceImpl implements IAssetService {
 
         asset.updateMetadata({
             blobContents: existingContents,
+            blobEncodings: existingEncodings,
             blobs,
             commits: [commit, ...(asset.commits ?? [])],
             commitDiffs,
@@ -1764,6 +1994,9 @@ export class AssetServiceImpl implements IAssetService {
         );
 
         await this.assetRepository.save(asset);
+        if (this.assetRepository.deleteBlobData) {
+            await Promise.all(Array.from(removedPaths, path => this.assetRepository.deleteBlobData?.(assetId, path)));
+        }
         return { commitSha, deleted: true };
     }
 
@@ -1819,6 +2052,9 @@ export class AssetServiceImpl implements IAssetService {
         }
 
         const existingContents = { ...((asset.metadata?.blobContents ?? {}) as Record<string, string>) };
+        const existingEncodings = {
+            ...((asset.metadata?.blobEncodings ?? {}) as Record<string, 'utf8' | 'base64'>),
+        };
         const existingBlobs = asset.blobs ?? [];
         const movedPaths = new Map<string, string>();
         const isTarget = (candidate: string) =>
@@ -1846,6 +2082,24 @@ export class AssetServiceImpl implements IAssetService {
             if (existingContents[source] === undefined) continue;
             existingContents[target] = existingContents[source];
             delete existingContents[source];
+            if (existingEncodings[source]) {
+                existingEncodings[target] = existingEncodings[source];
+                delete existingEncodings[source];
+            }
+        }
+        const externalMoves: Array<{ source: string; target: string }> = [];
+        if (this.assetRepository.readBlobData && this.assetRepository.writeBlobData) {
+            for (const [source, target] of movedPaths) {
+                if (existingContents[source] !== undefined) continue;
+                const bytes = await this.assetRepository.readBlobData(assetId, source);
+                if (!bytes) continue;
+                await this.assetRepository.writeBlobData(assetId, target, bytes);
+                const persisted = await this.assetRepository.readBlobData(assetId, target);
+                if (!persisted || createHash('sha1').update(persisted).digest('hex') !== createHash('sha1').update(bytes).digest('hex')) {
+                    throw new Error(`Blob rename SHA verification failed: ${source} -> ${target}`);
+                }
+                externalMoves.push({ source, target });
+            }
         }
 
         const blobs = existingBlobs.map(blob =>
@@ -1882,6 +2136,7 @@ export class AssetServiceImpl implements IAssetService {
 
         asset.updateMetadata({
             blobContents: existingContents,
+            blobEncodings: existingEncodings,
             blobs,
             commits: [commit, ...(asset.commits ?? [])],
             commitDiffs,
@@ -1894,6 +2149,9 @@ export class AssetServiceImpl implements IAssetService {
         );
 
         await this.assetRepository.save(asset);
+        if (this.assetRepository.deleteBlobData) {
+            await Promise.all(externalMoves.map(move => this.assetRepository.deleteBlobData?.(assetId, move.source)));
+        }
         return { commitSha, blobSha, fromPath: normalizedFrom, toPath: normalizedTo };
     }
 
@@ -2018,9 +2276,12 @@ export class AssetServiceImpl implements IAssetService {
     private async gatherSearchableBlobContents(
         asset: Asset,
     ): Promise<{ contents: Record<string, string>; truncated: boolean }> {
-        const contents: Record<string, string> = {
-            ...((asset.metadata?.blobContents ?? {}) as Record<string, string>),
-        };
+        const cachedContents = (asset.metadata?.blobContents ?? {}) as Record<string, string>;
+        const cachedEncodings = (asset.metadata?.blobEncodings ?? {}) as Record<string, string>;
+        const contents: Record<string, string> = {};
+        for (const [path, content] of Object.entries(cachedContents)) {
+            if (cachedEncodings[path] !== 'base64') contents[path] = content;
+        }
 
         if (!this.gitRepo) {
             return { contents, truncated: false };
@@ -2445,6 +2706,14 @@ export class AssetServiceImpl implements IAssetService {
             .map(segment => segment.trim())
             .filter(segment => segment && segment !== '.' && segment !== '..')
             .join('/');
+    }
+
+    private isExternalKnowledgeBlobPath(path: string): boolean {
+        return (
+            path.startsWith('.internshannon/knowledge/index/') ||
+            path.startsWith('wiki/') ||
+            path.startsWith('raw/sources/')
+        );
     }
 
     private serializeBlob(blob: Pick<Blob, 'id' | 'assetId' | 'path' | 'size' | 'contentSha' | 'isBinary'>) {

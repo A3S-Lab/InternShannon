@@ -447,16 +447,24 @@ export interface CreateSessionRequest {
 
 /** One knowledge-base hit — matches the backend wiki/knowledge search hit shape. */
 export interface KnowledgeSearchHit {
+  assetId?: string;
+  bundle?: string;
+  conceptId?: string;
   path: string;
   title: string;
   type: string | null;
   snippet: string;
   score: number;
+  description?: string;
+  resource?: string;
+  tags?: string[];
+  citations?: string[];
 }
 
 /** Response of the personal / docs knowledge search endpoints. */
 export interface KnowledgeSearchResult {
   assetId: string;
+  scope?: KnowledgeBaseScope | "global" | "asset";
   query: string;
   hits: KnowledgeSearchHit[];
 }
@@ -469,15 +477,25 @@ function normalizeKnowledgeSearchResult(raw: unknown, query: string): KnowledgeS
   const hits = (Array.isArray(record.hits) ? record.hits : [])
     .filter(isRecord)
     .map((hit) => ({
+      assetId: optionalString(hit.assetId),
+      bundle: optionalString(hit.bundle),
+      conceptId: optionalString(hit.conceptId),
       path: optionalString(hit.path) ?? "",
       title: optionalString(hit.title) ?? optionalString(hit.path) ?? "未命名片段",
       type: optionalString(hit.type) ?? null,
       snippet: optionalString(hit.snippet) ?? "",
       score: optionalNumber(hit.score) ?? 0,
+      description: optionalString(hit.description),
+      resource: optionalString(hit.resource),
+      tags: Array.isArray(hit.tags) ? hit.tags.filter((item): item is string => typeof item === "string") : undefined,
+      citations: Array.isArray(hit.citations)
+        ? hit.citations.filter((item): item is string => typeof item === "string")
+        : undefined,
     }))
     .filter((hit) => hit.path || hit.snippet);
   return {
     assetId: optionalString(record.assetId) ?? "",
+    scope: optionalString(record.scope) as KnowledgeSearchResult["scope"],
     query: optionalString(record.query) ?? query,
     hits,
   };

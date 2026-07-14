@@ -2455,7 +2455,12 @@ async function buildWorkspaceTree(
   }
 
   const entries = await workspaceApi.readDir(path);
-  const visibleEntries = entries.filter((entry) => entry.name !== ".shuan-os-trash");
+  const visibleEntries = entries.filter(
+    (entry) =>
+      entry.name !== ".shuan-os-trash" &&
+      entry.name !== ".shuan-os-snapshots" &&
+      entry.name !== ".internshannon",
+  );
   const diagnostics: WorkspaceTreeDiagnostics = {
     partialLoadErrorCount: 0,
     partialLoadErrorSamples: [],
@@ -7933,6 +7938,27 @@ export function FileTreeEditor({
         }
         return;
       }
+      if (command === "open-file-preserve-sidebar") {
+        if (detail.path) handleFileClick(detail.path, { pinned: true });
+        return;
+      }
+      if (command === "reload-file") {
+        if (!detail.path) return;
+        const path = detail.path;
+        const panel = dockviewRef.current?.api.getPanel(path);
+        if (!panel) return;
+        if (dirtyFilesRef.current.has(path)) {
+          toast.warning("文件有未保存修改，已跳过自动刷新");
+          return;
+        }
+        void readTextFile(path)
+          .then((content) => replaceEditorPanelContent(path, content))
+          .catch(() => {
+            panel.api.close();
+            void loadTree({ force: true });
+          });
+        return;
+      }
       if (command === "search") {
         if (showGlobalSearchPanel) {
           showSidebarPanel("search");
@@ -7968,6 +7994,8 @@ export function FileTreeEditor({
     handleCreateFolder,
     loadTree,
     openRootInFinder,
+    readTextFile,
+    replaceEditorPanelContent,
     revealInExplorer,
     rootPath,
     saveAllDirty,

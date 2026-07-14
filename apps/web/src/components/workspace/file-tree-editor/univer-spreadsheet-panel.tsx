@@ -30,6 +30,7 @@ import {
   workbookBytesToUniverSnapshot,
 } from "@a3s-lab/ooxml";
 import { OfficePanelShell, type OfficePanelStatus } from "./office-panel-shell";
+import { disposeUniverAfterReactCommit } from "./univer-runtime-lifecycle";
 
 type SaveStatus = OfficePanelStatus;
 
@@ -119,6 +120,8 @@ export function UniverSpreadsheetPanel({
   const readOnly = params?.readOnly === true;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const runtimeRef = useRef<UniverRuntime | null>(null);
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
   const dirtyRef = useRef(false);
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -130,18 +133,17 @@ export function UniverSpreadsheetPanel({
       dirtyRef.current = nextDirty;
       setStatus(nextDirty ? "dirty" : "ready");
       const nextTitle =
-        params?.workbenchVariant === "vscode" || !nextDirty
+        paramsRef.current?.workbenchVariant === "vscode" || !nextDirty
           ? fileName
           : `${fileName} *`;
       api.setTitle(nextTitle);
       api.updateParameters({
-        ...(params ?? {}),
         ...api.getParameters(),
         isDirty: nextDirty,
       });
-      params?.onDirtyChange?.(path, nextDirty);
+      paramsRef.current?.onDirtyChange?.(path, nextDirty);
     },
-    [api, fileName, params, path]
+    [api, fileName, path]
   );
 
   const handleSave = useCallback(async () => {
@@ -166,10 +168,11 @@ export function UniverSpreadsheetPanel({
     let disposed = false;
 
     const cleanupRuntime = () => {
-      runtimeRef.current?.commandDisposable?.dispose();
-      runtimeRef.current?.univer.dispose();
+      const runtime = runtimeRef.current;
       runtimeRef.current = null;
-      container.replaceChildren();
+      if (!runtime) return;
+      runtime.commandDisposable?.dispose();
+      disposeUniverAfterReactCommit(runtime.univer);
     };
 
     cleanupRuntime();

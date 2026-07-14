@@ -5,6 +5,7 @@ import { isDesktopRuntime } from "./runtime-environment";
 import { joinWorkspacePath } from "./workspace-path";
 import { resolveAgentSkillDirs } from "./skill-dirs";
 import type { AgentProfile, ScheduledTask } from "./agent-profile.types";
+import { PROGRESSIVE_API_SKILL_NAME } from "./core-skills";
 
 export interface AgentSkillConfig {
 	name: string;
@@ -92,10 +93,12 @@ async function loadConfiguredSkills(
 ): Promise<AgentSkillConfig[]> {
 	const byName = new Map<string, AgentSkillConfig>();
 
-	for (const name of agent.defaultSkills ?? []) {
-		const trimmed = name.trim();
-		if (!trimmed) continue;
-		byName.set(trimmed, { name: trimmed });
+	if (!isDesktopRuntime()) {
+		for (const name of agent.defaultSkills ?? []) {
+			const trimmed = name.trim();
+			if (!trimmed) continue;
+			byName.set(trimmed, { name: trimmed });
+		}
 	}
 
 	for (const skillsDir of skillDirs) {
@@ -154,6 +157,9 @@ async function loadConfiguredSkills(
 }
 
 async function loadGlobalSkills(): Promise<AgentSkillConfig[]> {
+	// The desktop SDK owns its built-in skill registry. The Web-side catalog is
+	// product metadata, not proof that Skill(name) can load at runtime.
+	if (isDesktopRuntime()) return [];
 	try {
 		const skills = await agentApi.listSkills();
 		return skills
@@ -322,6 +328,8 @@ export async function buildAgentRuntimeConfig(
 		includeWorkspaceSkills ? loadConfiguredSkills(skillDirs, agent) : [],
 		loadGlobalSkills(),
 	]);
+	const visibleSkills = desktopRuntimeSkills(skills);
+	const visibleGlobalSkills = desktopRuntimeSkills(globalSkills);
 
 	const scheduledTasks = (agent.scheduledTasks ?? []).map((task) => ({
 		...task,
@@ -332,16 +340,23 @@ export async function buildAgentRuntimeConfig(
 	);
 
 	return {
-		systemPrompt: buildRuntimeSystemPrompt(
+			systemPrompt: buildRuntimeSystemPrompt(
 			basePrompt,
-			globalSkills,
-			skills,
+			visibleGlobalSkills,
+			visibleSkills,
 			scheduledTasks,
 			agent.id,
 		),
 		skillDirs,
 		scheduledTasks,
-		globalSkills,
-		skills,
+		globalSkills: visibleGlobalSkills,
+		skills: visibleSkills,
 	};
+}
+
+function desktopRuntimeSkills(skills: AgentSkillConfig[]): AgentSkillConfig[] {
+	if (!isDesktopRuntime()) return skills;
+	// Desktop exposes progressive APIs as a real MCP tool. Advertising the old
+	// skill name makes models call Skill(capabilities), but no such SKILL.md exists.
+	return skills.filter((skill) => skill.name.trim() !== PROGRESSIVE_API_SKILL_NAME);
 }

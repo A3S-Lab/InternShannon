@@ -110,6 +110,23 @@ function decodeBase64Bytes(value: string): Uint8Array {
   return bufferCtor?.from(value, "base64") ?? new Uint8Array();
 }
 
+function encodeBase64Bytes(value: Uint8Array): string {
+  if (typeof globalThis.btoa === "function") {
+    const chunkSize = 0x8000;
+    let binary = "";
+    for (let offset = 0; offset < value.length; offset += chunkSize) {
+      binary += String.fromCharCode(...value.subarray(offset, offset + chunkSize));
+    }
+    return globalThis.btoa(binary);
+  }
+  const bufferCtor = (
+    globalThis as {
+      Buffer?: { from(input: Uint8Array): { toString(encoding: string): string } };
+    }
+  ).Buffer;
+  return bufferCtor?.from(value).toString("base64") ?? "";
+}
+
 function encodeUtf8Bytes(value: string): Uint8Array {
   return new TextEncoder().encode(value);
 }
@@ -458,7 +475,7 @@ export const workspaceApi = {
         isFile: item.type === "blob",
         size: item.size ?? undefined,
         extension: item.type === "blob" ? getFileExtension(item.name) : undefined,
-        isBinary: false,
+        isBinary: item.type === "blob" ? item.isBinary === true : false,
       }));
     }
     const qs = `?path=${encodeURIComponent(normalizedPath)}`;
@@ -544,8 +561,22 @@ export const workspaceApi = {
   },
 
   writeBinaryFile: (path: string, data: number[]) => {
-    if (parseAssetWorkspacePath(path)) {
-      unsupportedAssetWorkspaceOperation("写入二进制文件");
+    const parsed = parseAssetWorkspacePath(path);
+    if (parsed) {
+      if (!parsed.relativePath) {
+        unsupportedAssetWorkspaceOperation("写入资产根目录");
+      }
+      return assetsApi
+        .updateBlob(parsed.assetId, parsed.relativePath, {
+          content: encodeBase64Bytes(Uint8Array.from(data)),
+          encoding: "base64",
+          message: assetCommitMessage(parsed.relativePath),
+          branch: parsed.ref,
+        })
+        .then(() => {
+          invalidateAssetWorkspaceTreeCache(parsed);
+          return { success: true };
+        });
     }
     return apiFetch("/workspace/write-binary", {
       method: "POST",

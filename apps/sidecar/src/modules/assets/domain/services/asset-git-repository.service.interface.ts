@@ -162,7 +162,7 @@ export interface IAssetGitRepositoryService {
     commitFile(
         asset: Asset,
         filePath: string,
-        content: string,
+        content: string | Buffer,
         options: RepositoryCommitFileOptions,
     ): Promise<RepositoryCommitFileResult>;
     /**

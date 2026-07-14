@@ -837,6 +837,7 @@ export interface AssetRepositoryTreeItem {
   mode: string;
   sha: string;
   size: number | null;
+  isBinary?: boolean;
 }
 
 export interface AssetRepositoryTree {
@@ -859,10 +860,14 @@ export interface AssetRepositoryBlob {
   encoding: "utf8" | "base64";
   content: string;
   size: number;
+  contentSha: string;
+  isBinary: boolean;
+  mime: string;
 }
 
 export interface UpdateAssetBlobInput {
   content: string;
+  encoding?: "utf8" | "base64";
   message: string;
   branch: string;
   authorName?: string;
@@ -1155,12 +1160,17 @@ export const assetCategories: Array<{ value: AssetCategory; label: string }> = [
 ];
 
 // ---- Knowledge wiki (llm_wiki-style) ----
-export type WikiPageType = "entity" | "concept" | "source" | "query" | "synthesis" | "comparison";
+export type WikiPageType = string;
 
 export interface WikiSourceEntry {
   path: string;
   name: string;
   size: number;
+  status?: "indexed" | "waiting_for_ocr" | "unsupported" | "error" | "pending";
+  error?: string;
+  retryable?: boolean;
+  chunkCount?: number;
+  extractionMethod?: "native" | "ocr";
 }
 
 export interface WikiPageEntry {
@@ -1230,6 +1240,8 @@ export interface WikiHealth {
   pageCount: number;
   sourceCount: number;
   ingestedSourceCount: number;
+  waitingForOcrCount: number;
+  ingestionErrorCount: number;
   lastIngestedAt: string | null;
   taggedPageCount: number;
   brokenLinks: WikiBrokenLink[];
@@ -1240,6 +1252,14 @@ export interface WikiConfig {
   purpose: string;
   schema: string;
   knowledgeType: string | null;
+  embedding: {
+    provider: string;
+    model: string;
+    dimensions: number;
+    keywordWeight: number;
+    vectorWeight: number;
+    mmrLambda: number;
+  };
 }
 
 export interface WikiGraphNode {
@@ -1248,6 +1268,9 @@ export interface WikiGraphNode {
   type: WikiPageType | null;
   sourceCount: number;
   degree: number;
+  tags?: string[];
+  community?: number;
+  kind?: "concept" | "source";
 }
 
 export interface WikiGraphEdge {
@@ -1255,11 +1278,13 @@ export interface WikiGraphEdge {
   target: string;
   weight: number;
   signals: { directLink: number; sourceOverlap: number; adamicAdar: number; typeAffinity: number };
+  kind?: "concept-link" | "source-concept";
 }
 
 export interface WikiGraph {
   nodes: WikiGraphNode[];
   edges: WikiGraphEdge[];
+  filters?: { types: string[]; tags: string[] };
 }
 
 export interface WikiSearchHit {
@@ -1273,6 +1298,47 @@ export interface WikiSearchHit {
 export interface WikiSearchResult {
   query: string;
   hits: WikiSearchHit[];
+  ranking?: "hybrid-mmr-v1";
+}
+
+export interface OkfDiagnostic {
+  severity: "error" | "warning";
+  path: string;
+  code: string;
+  message: string;
+}
+
+export interface OkfConceptSummary {
+  conceptId: string;
+  path: string;
+  type: string;
+  title: string;
+  description?: string;
+  resource?: string;
+  tags: string[];
+  timestamp?: string;
+  extensions: Record<string, unknown>;
+}
+
+export interface OkfBundleValidation {
+  valid: boolean;
+  version: string;
+  documentCount: number;
+  conceptCount: number;
+  concepts: OkfConceptSummary[];
+  diagnostics: OkfDiagnostic[];
+}
+
+export interface OkfImportResult {
+  imported: number;
+  paths: string[];
+  validation: OkfBundleValidation;
+}
+
+export interface OkfExportResult {
+  filename: string;
+  contentBase64: string;
+  validation: OkfBundleValidation;
 }
 
 export interface WikiIngestJobProgress {
@@ -1289,6 +1355,11 @@ export interface WikiIngestJobStatus {
   progress: WikiIngestJobProgress | number | string | boolean | object;
   failedReason?: string;
   result?: Record<string, unknown>;
+  sourcePaths?: string[];
+  createdAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  retryOf?: string;
 }
 
 export type WikiCurationStatusValue =
@@ -1309,6 +1380,30 @@ export interface WikiCurationStatus {
   /** 自动策展开关(默认 true);引擎是否实际在跑(LOOP_ENGINE_ENABLED)。 */
   autoCuration: boolean;
   engineEnabled: boolean;
+}
+
+export interface WikiCurationSuggestion {
+  id: string;
+  kind: "link" | "summary" | "page" | "merge";
+  status: "pending" | "accepted" | "rejected" | "reverted";
+  sourcePath: string;
+  targetPath: string;
+  targetTitle: string;
+  reason: string;
+  similarity: number;
+  createdAt: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  commitSha?: string;
+  proposedContent?: string;
+  citations?: string[];
+  appliedMode?: "append" | "create";
+}
+
+export interface WikiCurationSuggestionsResult {
+  assetId: string;
+  pendingCount?: number;
+  suggestions: WikiCurationSuggestion[];
 }
 
 /**
@@ -1733,6 +1828,14 @@ export const assetsApi = {
   /** 配置知识库自动策展开关。 */
   wikiSetCurationConfig: (id: string, autoCuration: boolean) =>
     apiClient.put<{ assetId: string; autoCuration: boolean }>(`/api/assets/${id}/wiki/curation/config`, { autoCuration }),
+  wikiListCurationSuggestions: (id: string, options?: ApiRequestInit) =>
+    apiClient.get<WikiCurationSuggestionsResult>(`/api/assets/${id}/wiki/curation/suggestions`, options),
+  wikiRefreshCurationSuggestions: (id: string) =>
+    apiClient.post<WikiCurationSuggestionsResult>(`/api/assets/${id}/wiki/curation/suggestions/refresh`),
+  wikiReviewCurationSuggestion: (id: string, suggestionId: string, decision: "accept" | "reject" | "revert") =>
+    apiClient.post<WikiCurationSuggestion>(`/api/assets/${id}/wiki/curation/suggestions/${suggestionId}/review`, {
+      decision,
+    }),
   /** 手动执行内核循环(策展):为该知识库立即入队一条 curation 运行。 */
   runKnowledgeCuration: (assetId: string) =>
     apiClient.post<{ enqueued: boolean; runId?: string; reason?: string; engineEnabled: boolean }>(
@@ -1756,9 +1859,20 @@ export const assetsApi = {
       `/api/assets/${id}/wiki/pages/rename`,
       input,
     ),
-  wikiGraph: (id: string) => apiClient.get<WikiGraph>(`/api/assets/${id}/wiki/graph`),
+  wikiGraph: (id: string, filters?: { q?: string; type?: string; tag?: string }) =>
+    apiClient.get<WikiGraph>(`/api/assets/${id}/wiki/graph${toQuery(filters)}`),
   wikiSearch: (id: string, q: string, limit?: number, options?: ApiRequestInit) =>
     apiClient.get<WikiSearchResult>(`/api/assets/${id}/wiki/search${toQuery({ q, limit })}`, options),
+  wikiEvaluateSearch: (id: string, input: { cases: Array<{ query: string; expectedPaths: string[] }>; k?: number }) =>
+    apiClient.post<{
+      k: number;
+      caseCount: number;
+      recallAtK: number;
+      mrr: number;
+      emptyResultRate: number;
+      elapsedMs: number;
+      ranking: "hybrid-mmr-v1";
+    }>(`/api/assets/${id}/wiki/evaluate`, input),
   /** 反向链接:所有通过已解析 [[wikilink]] 指向该页面的页面(入链)。 */
   wikiBacklinks: (id: string, path: string) =>
     apiClient.get<WikiBacklinksResult>(`/api/assets/${id}/wiki/backlinks${toQuery({ path })}`),
@@ -1771,16 +1885,42 @@ export const assetsApi = {
   wikiHealth: (id: string, options?: ApiRequestInit) =>
     apiClient.get<WikiHealth>(`/api/assets/${id}/wiki/health`, options),
   wikiGetConfig: (id: string) => apiClient.get<WikiConfig>(`/api/assets/${id}/wiki/config`),
-  wikiUpdateConfig: (id: string, input: { purpose?: string; schema?: string; knowledgeType?: string }) =>
+  wikiUpdateConfig: (
+    id: string,
+    input: {
+      purpose?: string;
+      schema?: string;
+      knowledgeType?: string;
+      embedding?: Partial<WikiConfig["embedding"]>;
+    },
+  ) =>
     apiClient.put<WikiConfig>(`/api/assets/${id}/wiki/config`, input),
   wikiReindex: (id: string) =>
     apiClient.post<{ nodeCount: number; linkCount: number }>(`/api/assets/${id}/wiki/reindex`),
+  wikiMigrateStorage: (id: string) =>
+    apiClient.post<{
+      supported: boolean;
+      migratedPaths: string[];
+      migratedBytes: number;
+      metadataBytesBefore: number;
+      metadataBytesAfter: number;
+    }>(`/api/assets/${id}/wiki/storage/migrate`),
+  wikiValidateOkf: (id: string) =>
+    apiClient.get<OkfBundleValidation>(`/api/assets/${id}/wiki/okf/validate`),
+  wikiImportOkf: (id: string, archiveBase64: string, overwrite = false) =>
+    apiClient.post<OkfImportResult>(`/api/assets/${id}/wiki/okf/import`, { archiveBase64, overwrite }),
+  wikiExportOkf: (id: string) =>
+    apiClient.get<OkfExportResult>(`/api/assets/${id}/wiki/okf/export`),
   wikiStartIngest: (id: string, sourcePaths: string[]) =>
     apiClient.post<WikiIngestJobStatus>(`/api/assets/${id}/wiki/ingest-jobs`, { sourcePaths }),
   wikiIngestStatus: (id: string, jobId: string) =>
     apiClient.get<WikiIngestJobStatus>(`/api/assets/${id}/wiki/ingest-jobs/${jobId}`),
   wikiListIngestJobs: (id: string, limit?: number) =>
     apiClient.get<WikiIngestJobStatus[]>(`/api/assets/${id}/wiki/ingest-jobs${toQuery({ limit })}`),
+  wikiCancelIngest: (id: string, jobId: string) =>
+    apiClient.post<WikiIngestJobStatus>(`/api/assets/${id}/wiki/ingest-jobs/${jobId}/cancel`),
+  wikiRetryIngest: (id: string, jobId: string) =>
+    apiClient.post<WikiIngestJobStatus>(`/api/assets/${id}/wiki/ingest-jobs/${jobId}/retry`),
   /** 知识库编辑审计流:最近的页面/源文档/摄取/域治理变更记录(谁 / 动作 / 目标 / 时间)。 */
   wikiAuditLog: (id: string, limit?: number) =>
     apiClient.get<WikiAuditEntry[]>(`/api/assets/${id}/wiki/audit-log${toQuery({ limit })}`),

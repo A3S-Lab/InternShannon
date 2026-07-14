@@ -13,6 +13,7 @@ import * as path from 'path';
 import { MetricsService } from '@/shared/observability/metrics';
 import { IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
 import { AgentRegistry } from './agents/agent-registry';
+import { INTERNAL_CAPABILITIES_MCP_SERVER_NAME } from './capabilities-runtime.constants';
 import { classifyWebSearchReadiness, verifyBrowserBinary } from './kernel-browser-binary-check';
 import {
     confirmationPolicyForMode,
@@ -217,7 +218,14 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         };
 
         const session = this.createOrResumeSdkSession(agent, workspace, sessionId, sessionOptions);
-        const allMcpServers = [...(finalOverrides.mcpServers ?? []), ...profileMcpServers];
+        const internalMcpServers = this.shouldEnableCapabilities(finalOverrides)
+            ? [this.capabilitiesMcpServer()]
+            : [];
+        const allMcpServers = this.uniqueMcpServers([
+            ...internalMcpServers,
+            ...(finalOverrides.mcpServers ?? []),
+            ...profileMcpServers,
+        ]);
         const mcpInitErrors = await this.applyMcpServers(session, allMcpServers);
 
         this.registerWorkers(session, resolvedAgentId);
@@ -362,6 +370,30 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         return results
             .map(r => (r.status === 'fulfilled' ? r.value : { name: 'unknown', error: String(r.reason) }))
             .filter((e): e is RuntimeMcpInitError => e !== null);
+    }
+
+    private shouldEnableCapabilities(overrides: SessionRuntimeOverrides): boolean {
+        return overrides.allowCapabilities === true || (overrides.skills ?? []).includes('capabilities');
+    }
+
+    private capabilitiesMcpServer(): RuntimeMcpServerConfig {
+        const port = process.env.APP_PORT || '29653';
+        return {
+            name: INTERNAL_CAPABILITIES_MCP_SERVER_NAME,
+            enabled: true,
+            transport: {
+                type: 'streamable-http',
+                url: `http://127.0.0.1:${port}/api/v1/kernel/mcp`,
+            },
+        };
+    }
+
+    private uniqueMcpServers(servers: RuntimeMcpServerConfig[]): RuntimeMcpServerConfig[] {
+        const byName = new Map<string, RuntimeMcpServerConfig>();
+        for (const server of servers) {
+            if (!byName.has(server.name)) byName.set(server.name, server);
+        }
+        return [...byName.values()];
     }
 
     /**
