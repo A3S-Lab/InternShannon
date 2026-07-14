@@ -2,9 +2,13 @@ import { KernelRuntimeConfigBuilder } from './kernel-runtime-config.builder';
 
 describe('KernelRuntimeConfigBuilder', () => {
     const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
+    const originalAppPort = process.env.APP_PORT;
+    const originalSelfApiBaseUrl = process.env.SELF_API_BASE_URL;
 
     afterEach(() => {
         restoreEnv('OPENAI_API_KEY', originalOpenAiApiKey);
+        restoreEnv('APP_PORT', originalAppPort);
+        restoreEnv('SELF_API_BASE_URL', originalSelfApiBaseUrl);
     });
 
     it('preserves slashes inside provider-qualified model ids', () => {
@@ -56,6 +60,134 @@ describe('KernelRuntimeConfigBuilder', () => {
 
         expect(() => builder.resolveDefaultModel({})).toThrow(
             'No valid API key configured for default model openai/gpt-4o.',
+        );
+    });
+
+    it('does not silently fall back when an explicitly selected session model is unavailable', () => {
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'boyue/gpt-5',
+            providers: [
+                {
+                    name: 'boyue',
+                    apiKey: 'boyue-key',
+                    models: [{ id: 'gpt-5', name: 'GPT-5', family: 'openai' }],
+                },
+            ],
+        });
+
+        expect(() => builder.resolveDefaultModel({ model: 'zhipu/glm-5.2' })).toThrow(
+            'No valid API key configured for selected session model zhipu/glm-5.2.',
+        );
+    });
+
+    it('uses an explicitly selected credentialed session model instead of the configured default', () => {
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'boyue/gpt-5',
+            providers: [
+                {
+                    name: 'boyue',
+                    apiKey: 'boyue-key',
+                    models: [{ id: 'gpt-5', name: 'GPT-5', family: 'openai' }],
+                },
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    models: [{ id: 'glm-5.2', name: 'GLM-5.2', family: 'glm' }],
+                },
+            ],
+        });
+
+        expect(builder.resolveDefaultModel({ model: 'zhipu/glm-5.2' })).toBe('zhipu/glm-5.2');
+    });
+
+    it('normalizes the standard Zhipu base URL before the SDK appends its fixed API path', () => {
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'zhipu/glm-5.2',
+            providers: [
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+                    models: [{ id: 'glm-5.2', name: 'GLM-5.2', family: 'openai' }],
+                },
+            ],
+        });
+
+        expect(builder.buildAgentConfig({})).toContain('baseUrl = "https://open.bigmodel.cn"');
+    });
+
+    it('routes the Zhipu Coding Plan URL through the local compatibility endpoint', () => {
+        process.env.APP_PORT = '29670';
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'zhipu/glm-5.2',
+            providers: [
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+                    models: [{ id: 'glm-5.2', name: 'GLM-5.2', family: 'openai' }],
+                },
+            ],
+        });
+
+        expect(builder.buildAgentConfig({})).toContain(
+            'baseUrl = "http://127.0.0.1:29670/api/v1/kernel/llm-compat/zhipu-coding"',
+        );
+    });
+
+    it('normalizes model-level Zhipu URLs before they override the provider base URL', () => {
+        process.env.APP_PORT = '29670';
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'zhipu/glm-5.2',
+            providers: [
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+                    models: [
+                        {
+                            id: 'glm-5.2',
+                            name: 'GLM-5.2',
+                            family: 'openai',
+                            baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4/',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const hcl = builder.buildAgentConfig({});
+
+        expect(hcl).toContain('  baseUrl = "https://open.bigmodel.cn"');
+        expect(hcl).toContain(
+            '    baseUrl = "http://127.0.0.1:29670/api/v1/kernel/llm-compat/zhipu-coding"',
+        );
+        expect(hcl).not.toContain('baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4/"');
+    });
+
+    it('uses the sidecar default port for Coding Plan compatibility when APP_PORT is unset', () => {
+        delete process.env.APP_PORT;
+        delete process.env.SELF_API_BASE_URL;
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: 'zhipu/glm-5.2',
+            providers: [
+                {
+                    name: 'zhipu',
+                    apiKey: 'zhipu-key',
+                    models: [
+                        {
+                            id: 'glm-5.2',
+                            name: 'GLM-5.2',
+                            family: 'openai',
+                            baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+                        },
+                    ],
+                },
+            ],
+        });
+
+        expect(builder.buildAgentConfig({})).toContain(
+            'baseUrl = "http://127.0.0.1:29653/api/v1/kernel/llm-compat/zhipu-coding"',
         );
     });
 

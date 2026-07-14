@@ -11,6 +11,7 @@ import type {
     RuntimeWorkerAgentSpec,
     SessionRuntimeOverrides,
 } from './session-runtime.types';
+import { resolveSelfApiBaseUrl } from './self-api-base-url';
 
 export class KernelRuntimeConfigBuilder {
     private readonly logger = new Logger(KernelRuntimeConfigBuilder.name);
@@ -61,7 +62,7 @@ export class KernelRuntimeConfigBuilder {
                 lines.push(`providers ${this.hclQuote(provider.name)} {`);
                 lines.push(`  apiKey = ${this.hclQuote(this.providerApiKey(provider.name, provider.apiKey))}`);
                 if (provider.baseUrl) {
-                    lines.push(`  baseUrl = ${this.hclQuote(provider.baseUrl)}`);
+                    lines.push(`  baseUrl = ${this.hclQuote(this.runtimeProviderBaseUrl(provider.name, provider.baseUrl))}`);
                 }
                 this.appendHeaders(lines, provider.headers, 2);
                 if (provider.sessionIdHeader) {
@@ -79,7 +80,11 @@ export class KernelRuntimeConfigBuilder {
                             model.apiKey,
                         );
                         if (modelApiKey) lines.push(`    apiKey = ${this.hclQuote(modelApiKey)}`);
-                        if (model.baseUrl) lines.push(`    baseUrl = ${this.hclQuote(model.baseUrl)}`);
+                        if (model.baseUrl) {
+                            lines.push(
+                                `    baseUrl = ${this.hclQuote(this.runtimeProviderBaseUrl(provider.name, model.baseUrl))}`,
+                            );
+                        }
                         this.appendHeaders(lines, model.headers, 4);
                         if (model.sessionIdHeader) {
                             lines.push(`    sessionIdHeader = ${this.hclQuote(model.sessionIdHeader)}`);
@@ -148,6 +153,27 @@ export class KernelRuntimeConfigBuilder {
         lines.push(`}`);
     }
 
+    private runtimeProviderBaseUrl(providerName: string, configuredBaseUrl: string): string {
+        try {
+            const url = new URL(configuredBaseUrl.trim());
+            const pathname = url.pathname.replace(/\/+$/, '');
+            // a3s-code appends a fixed provider path, so full Zhipu API roots must be adapted first.
+            if (url.hostname === 'open.bigmodel.cn' && pathname === '/api/coding/paas/v4') {
+                return `${resolveSelfApiBaseUrl()}/api/v1/kernel/llm-compat/zhipu-coding`;
+            }
+            if (
+                providerName.trim().toLowerCase().startsWith('zhipu') &&
+                url.hostname === 'open.bigmodel.cn' &&
+                pathname === '/api/paas/v4'
+            ) {
+                return url.origin;
+            }
+        } catch {
+            // Preserve custom/non-URL values for the SDK to validate as before.
+        }
+        return configuredBaseUrl;
+    }
+
     private appendSyntheticModel(lines: string[], modelId: string): void {
         lines.push(`  models ${this.hclQuote(modelId)} {`);
         lines.push(`    name = ${this.hclQuote(modelId)}`);
@@ -186,9 +212,20 @@ export class KernelRuntimeConfigBuilder {
     }
 
     resolveDefaultModel(overrides: SessionRuntimeOverrides): string {
-        const overrideModel = this.parseModelRef(overrides.model);
-        if (overrideModel && this.hasModelApiKey(overrideModel)) {
-            return `${overrideModel.providerName}/${overrideModel.modelId}`;
+        const requestedModel = overrides.model?.trim() ?? '';
+        const overrideModel = this.parseModelRef(requestedModel);
+        if (requestedModel) {
+            if (!overrideModel) {
+                throw new Error(`Invalid selected session model ${requestedModel}. Expected provider/model.`);
+            }
+
+            const resolvedOverride = `${overrideModel.providerName}/${overrideModel.modelId}`;
+            if (!this.hasModelApiKey(overrideModel)) {
+                throw new Error(
+                    `No valid API key configured for selected session model ${resolvedOverride}. Please refresh AI settings and configure the selected provider API key.`,
+                );
+            }
+            return resolvedOverride;
         }
 
         const configuredDefault = this.parseModelRef(this.modelsConfig?.defaultModel ?? undefined);
@@ -202,7 +239,7 @@ export class KernelRuntimeConfigBuilder {
         }
 
         if (!this.modelsConfig?.providers?.length && this.envOpenAiApiKey()) {
-            return overrideModel ? `${overrideModel.providerName}/${overrideModel.modelId}` : `openai/${this.envOpenAiModel()}`;
+            return `openai/${this.envOpenAiModel()}`;
         }
 
         const configuredDefaultText = this.modelsConfig?.defaultModel?.trim() ?? '';
@@ -212,9 +249,8 @@ export class KernelRuntimeConfigBuilder {
             );
         }
 
-        const requested = overrideModel ? `${overrideModel.providerName}/${overrideModel.modelId}` : configuredDefaultText;
         throw new Error(
-            `No valid API key configured for default model ${requested}. Please configure a provider API key in System > AI settings, or set OPENAI_API_KEY in the environment.`,
+            `No valid API key configured for default model ${configuredDefaultText}. Please configure a provider API key in System > AI settings, or set OPENAI_API_KEY in the environment.`,
         );
     }
 

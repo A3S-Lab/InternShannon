@@ -2,6 +2,7 @@ import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
 import { ApiOperation } from '../domain/services/api-explorer.interface';
+import { resolveSelfApiBaseUrl } from './self-api-base-url';
 
 @Injectable()
 export class ApiOperationExecutor {
@@ -13,10 +14,7 @@ export class ApiOperationExecutor {
      * 端口取 APP_PORT(默认 29653,与 main.ts 一致)。SELF_API_BASE_URL 可整体覆盖(同样只给 host:port)。
      */
     private get selfApiBaseUrl(): string {
-        const override = process.env.SELF_API_BASE_URL?.trim();
-        if (override) return override.replace(/\/+$/, '');
-        const port = process.env.APP_PORT || '29653';
-        return `http://127.0.0.1:${port}`;
+        return resolveSelfApiBaseUrl();
     }
 
     async execute(
