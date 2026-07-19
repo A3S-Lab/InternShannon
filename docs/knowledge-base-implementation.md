@@ -250,7 +250,7 @@ knowledge asset
 验证：
 
 - 使用 Microsoft Office 和 LibreOffice 分别人工打开保存后的代表性 DOCX/XLSX/PPTX，并记录视觉/结构差异；无法保真的特性必须在 UI 降级提示中体现。
-- OKF fixture 做 validate -> import -> edit -> export -> re-import，比较 concept、未知字段、正文和标准/相对/wikilink 链接；继续覆盖 ZIP 路径穿越、大小和文件数限制。
+- Run each OKF fixture through validate -> import -> edit -> export -> re-import, compare concepts, unknown fields, bodies, and standard/relative/wikilink links, and retain coverage for ZIP traversal, normalized-path collisions, decompression expansion, byte limits, and entry-count limits.
 - 对话 E2E 记录实际 `knowledge.search` 和 `knowledge.read` 调用；有结果时引用可打开，无结果、无权限和跨 scope 时不得编造知识库依据。
 
 ### Phase 9：审阅式生成和高级检索/图谱（P2，最后实施）
@@ -282,6 +282,14 @@ knowledge asset
 
 ## 变更日志
 
+### 2026-07-19
+
+- Moved OKF import/export, knowledge-graph, and curation workflows into dedicated application services so the HTTP controller only converts parameters and delegates.
+- Changed OKF ZIP import to validate the Base64/compressed input, central-directory entry count, declared per-entry size, and cumulative expansion before extracting entries sequentially.
+- Defined import limits of 5,000 ZIP entries, a 24 MiB archive, 20 MiB of cumulative Markdown content, and 4 MiB per document; stream reads enforce the per-entry and cumulative byte limits again.
+- Reject file-array and ZIP destinations that collide after path normalization or case folding before constructing the destination map.
+- Split the KnowledgePage overview, graph, curation, operations/audit, and search settings by concern; added PR checks for DDD boundaries, knowledge/OKF tests, and sidecar/web production builds.
+
 ### 2026-07-10
 
 - 创建实施跟踪文档。
@@ -303,8 +311,8 @@ knowledge asset
   - 新增纯函数 OKF v0.1 模块：YAML frontmatter、concept、diagnostic、链接解析和 bundle validation。
   - concept 强制非空 `type`；未知类型和未知 frontmatter 扩展字段保留并可被 UI/图谱读取。
   - 支持 bundle-absolute/relative Markdown links，同时保留 `[[wikilink]]`。
-  - 新增 validate、目录/ZIP import、ZIP export 端点；导入先校验再写入，并限制 5000 文件/20 MB 解压正文。
-  - ZIP 导入支持剥离单一顶层目录，拒绝路径穿越；导出不重新序列化 concept，确保原文和扩展字段不变。
+  - Added validate, directory/ZIP import, and ZIP export endpoints. Imports validate before writing and enforce limits of 5,000 ZIP entries, 24 MiB of compressed input, 4 MiB per document, and 20 MiB of cumulative expanded content.
+  - ZIP import strips a single common root and rejects path traversal and normalized-destination collisions. Export preserves original concept text and extension fields without reserialization.
   - KnowledgePage 增加独立的 OKF 导入/导出图标命令，与原始资料导入分开。
   - 新 scaffold 的 `wiki/index.md` 声明 `okf_version: "0.1"`；Wiki 类型契约放宽为任意字符串。
 - 完成 Phase 3：

@@ -8,6 +8,13 @@ const knowledgePageSource = readFileSync(
   fileURLToPath(new URL("../../../desktop/pages/knowledge/KnowledgePage.tsx", import.meta.url)),
   "utf8",
 );
+const readKnowledgeSource = (path) =>
+  readFileSync(fileURLToPath(new URL(`../../../desktop/pages/knowledge/${path}`, import.meta.url)), "utf8");
+const knowledgeExplorerSource = readKnowledgeSource("components/knowledge-explorer-pane.tsx");
+const knowledgeGraphSource = readKnowledgeSource("components/knowledge-graph-pane.tsx");
+const knowledgeCurationSource = readKnowledgeSource("components/knowledge-curation-pane.tsx");
+const knowledgeSettingsSource = readKnowledgeSource("components/knowledge-settings-pane.tsx");
+const knowledgeUtilsSource = readKnowledgeSource("knowledge-page-utils.ts");
 
 test("KnowledgePage forces Markdown source mode so OKF frontmatter survives saves", () => {
   assert.match(knowledgePageSource, /<AssetFileManager[\s\S]*?enableRichMarkdown=\{false\}/);
@@ -42,27 +49,33 @@ test("KnowledgePage searches indexed OKF content instead of filtering titles onl
 });
 
 test("KnowledgePage opens overview results without replacing the overview sidebar", () => {
-  assert.match(knowledgePageSource, /dispatchFileTreeEditorCommand\("open-file-preserve-sidebar", "desktop-knowledge", `\$\{assetRoot\}\/\$\{path\}`\)/);
+  assert.match(
+    knowledgePageSource,
+    /dispatchFileTreeEditorCommand\(\s*"open-file-preserve-sidebar",\s*"desktop-knowledge",\s*`\$\{assetRoot\}\/\$\{path\}`,\s*\)/,
+  );
   assert.match(fileTreeEditorSource, /command === "open-file-preserve-sidebar"/);
-  assert.match(knowledgePageSource, /onClick=\{\(\) => props\.onOpenPath\(page\.path\)\}/);
+  assert.match(knowledgePageSource, /<OverviewPane/);
+  assert.match(knowledgeExplorerSource, /onClick=\{\(\) => props\.onOpenPath\(page\.path\)\}/);
 });
 
 test("KnowledgePage can restore and persist the local retrieval defaults", () => {
-  assert.match(knowledgePageSource, /DEFAULT_KNOWLEDGE_EMBEDDING[\s\S]*?model: "local-hash-v1"/);
-  assert.match(knowledgePageSource, /keywordWeight: 1[\s\S]*?vectorWeight: 6[\s\S]*?mmrLambda: 0\.78/);
-  assert.match(knowledgePageSource, />\s*\u6062\u590d\u9ed8\u8ba4\s*</);
-  assert.match(knowledgePageSource, /props\.onSave\(defaults\)/);
+  assert.match(knowledgePageSource, /<KnowledgeSettingsPane/);
+  assert.match(knowledgeUtilsSource, /DEFAULT_KNOWLEDGE_EMBEDDING[\s\S]*?model: "local-hash-v1"/);
+  assert.match(knowledgeUtilsSource, /keywordWeight: 1[\s\S]*?vectorWeight: 6[\s\S]*?mmrLambda: 0\.78/);
+  assert.match(knowledgeSettingsSource, />\s*\u6062\u590d\u9ed8\u8ba4\s*</);
+  assert.match(knowledgeSettingsSource, /props\.onSave\(defaults\)/);
 });
 
 test("KnowledgePage renders real graph edges without a synthetic Vault center", () => {
-  assert.match(knowledgePageSource, /visibleEdges\.map/);
-  assert.match(knowledgePageSource, /<line/);
-  assert.match(knowledgePageSource, /forceGraphLayout/);
-  assert.match(knowledgePageSource, /markerEnd="url\(#knowledge-graph-arrow\)"/);
-  assert.match(knowledgePageSource, /setSelectedEdgeKey\(edgeKey\(edge\)\)/);
-  assert.match(knowledgePageSource, /高亮关系/);
-  assert.match(knowledgePageSource, /matchedPaths\.has\(edge\.source\)/);
-  assert.doesNotMatch(knowledgePageSource, />Vault</);
+  assert.match(knowledgePageSource, /<GraphPane graph=\{graph\}/);
+  assert.match(knowledgeGraphSource, /visibleEdges\.map/);
+  assert.match(knowledgeGraphSource, /<line/);
+  assert.match(knowledgeGraphSource, /forceGraphLayout/);
+  assert.match(knowledgeGraphSource, /markerEnd="url\(#knowledge-graph-arrow\)"/);
+  assert.match(knowledgeGraphSource, /setSelectedEdgeKey\(edgeKey\(edge\)\)/);
+  assert.match(knowledgeGraphSource, /高亮关系/);
+  assert.match(knowledgeGraphSource, /matchedPaths\.has\(edge\.source\)/);
+  assert.doesNotMatch(knowledgeGraphSource, />Vault</);
 });
 
 test("KnowledgePage exposes review controls for curation suggestions", () => {
@@ -70,8 +83,9 @@ test("KnowledgePage exposes review controls for curation suggestions", () => {
   assert.match(assetsApiSource, /wikiListCurationSuggestions/);
   assert.match(assetsApiSource, /wikiRefreshCurationSuggestions/);
   assert.match(assetsApiSource, /wikiReviewCurationSuggestion/);
-  assert.match(knowledgePageSource, /aria-label="接受建链建议"/);
-  assert.match(knowledgePageSource, /aria-label="拒绝建链建议"/);
+  assert.match(knowledgePageSource, /<CurationPane/);
+  assert.match(knowledgeCurationSource, /aria-label="接受建链建议"/);
+  assert.match(knowledgeCurationSource, /aria-label="拒绝建链建议"/);
 });
 
 test("KnowledgePage exposes ingest progress, audit, storage migration, and embedding configuration", () => {
@@ -95,17 +109,20 @@ test("curation reloads clean open files and protects unsaved editor content", ()
 });
 
 test("KnowledgePage keeps the original knowledge-base name and summary", () => {
-  assert.match(knowledgePageSource, />\s*书小安知识库\s*</);
-  assert.match(knowledgePageSource, /formatRelativeTime\(props\.health\.lastIngestedAt\)/);
+  assert.match(knowledgePageSource, /<ExplorerHeader health=\{health\}/);
+  assert.match(knowledgeExplorerSource, />\s*书小安知识库\s*</);
+  assert.match(knowledgeExplorerSource, /formatRelativeTime\(props\.health\.lastIngestedAt\)/);
 });
 
 test("KnowledgePage keeps generated knowledge review-only and exposes graph exploration controls", () => {
-  assert.match(knowledgePageSource, /suggestion\.kind === "summary"/);
-  assert.match(knowledgePageSource, /suggestion\.kind === "merge"/);
-  assert.match(knowledgePageSource, /撤销已接受的建议/);
-  assert.match(knowledgePageSource, /placeholder="搜索节点"/);
-  assert.match(knowledgePageSource, /全部类型/);
-  assert.match(knowledgePageSource, /community/);
+  assert.match(knowledgePageSource, /<CurationPane/);
+  assert.match(knowledgePageSource, /<GraphPane/);
+  assert.match(knowledgeCurationSource, /suggestion\.kind === "summary"/);
+  assert.match(knowledgeCurationSource, /suggestion\.kind === "merge"/);
+  assert.match(knowledgeCurationSource, /撤销已接受的建议/);
+  assert.match(knowledgeGraphSource, /placeholder="搜索节点"/);
+  assert.match(knowledgeGraphSource, /全部类型/);
+  assert.match(knowledgeGraphSource, /community/);
 });
 
 test("Office editors keep one runtime per file and avoid competing DOM cleanup", () => {

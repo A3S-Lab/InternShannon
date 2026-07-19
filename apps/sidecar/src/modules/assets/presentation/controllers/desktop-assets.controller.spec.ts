@@ -1,8 +1,14 @@
 import { createHash } from "node:crypto";
 import JSZip = require("jszip");
 import { AssetServiceImpl } from "../../application/asset.service";
+import { KnowledgeAuditService } from "../../application/knowledge-audit.service";
+import { KnowledgeContentService } from "../../application/knowledge-content.service";
+import { KnowledgeCurationService } from "../../application/knowledge-curation.service";
+import { KnowledgeGraphService } from "../../application/knowledge-graph.service";
+import { KnowledgeIngestJobService } from "../../application/knowledge-ingest-job.service";
 import { KnowledgeQueryService } from "../../application/knowledge-query.service";
 import { KnowledgeIngestionService } from "../../application/knowledge-ingestion.service";
+import { KnowledgeOkfService } from "../../application/knowledge-okf.service";
 import { Asset } from "../../domain/entities/asset.entity";
 import type { IAssetRepository } from "../../domain/repositories/asset.repository.interface";
 import { DesktopAssetsController } from "./desktop-assets.controller";
@@ -28,13 +34,42 @@ function createHarness(metadata: Record<string, unknown> = {}) {
 	const service = new AssetServiceImpl(repository);
 	const ingestion = new KnowledgeIngestionService(service);
 	const knowledge = new KnowledgeQueryService(service, ingestion);
+	const audit = new KnowledgeAuditService(service);
+	const content = new KnowledgeContentService(service);
+	const graph = new KnowledgeGraphService(content, ingestion);
+	const ingestJobs = new KnowledgeIngestJobService(service, ingestion, audit);
+	const curation = new KnowledgeCurationService(
+		service,
+		content,
+		graph,
+		ingestion,
+		knowledge,
+		audit,
+	);
+	const okf = new KnowledgeOkfService(service, content, audit);
 	return {
 		asset,
 		repository,
 		service,
 		ingestion,
 		knowledge,
-		controller: new DesktopAssetsController(service, ingestion, knowledge),
+		audit,
+		content,
+		graph,
+		ingestJobs,
+		curation,
+		okf,
+		controller: new DesktopAssetsController(
+			service,
+			ingestion,
+			knowledge,
+			ingestJobs,
+			audit,
+			content,
+			graph,
+			curation,
+			okf,
+		),
 	};
 }
 
