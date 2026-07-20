@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { DesktopOwnerId } from '@/shared/security/decorators/desktop-owner.decorator';
 import { DesktopApi } from '@/shared/security/desktop-access';
@@ -7,6 +7,19 @@ import { ApiCreatedResponse, ApiOkResponse } from '@/shared/api/openapi';
 import { ASSET_SERVICE, type IAssetService } from '@/modules/assets/domain/services/asset.service.interface';
 import type { Asset } from '@/modules/assets/domain/entities/asset.entity';
 import type { Blob } from '@/modules/assets/domain/entities/blob.entity';
+import { KnowledgeQueryService } from '@/modules/assets/application/knowledge-query.service';
+import { KnowledgeIngestionService } from '@/modules/assets/application/knowledge-ingestion.service';
+import { KnowledgeAuditService } from '@/modules/assets/application/knowledge-audit.service';
+import { KnowledgeIngestJobService } from '@/modules/assets/application/knowledge-ingest-job.service';
+import { KnowledgeContentService } from '@/modules/assets/application/knowledge-content.service';
+import { KnowledgeGraphService } from '@/modules/assets/application/knowledge-graph.service';
+import { KnowledgeCurationService } from '@/modules/assets/application/knowledge-curation.service';
+import { KnowledgeOkfService } from '@/modules/assets/application/knowledge-okf.service';
+import { ImportOkfRequestDto } from '@/modules/assets/presentation/dto/request/import-okf.request.dto';
+import {
+    ReviewKnowledgeCurationSuggestionRequestDto,
+    UpdateKnowledgeCurationConfigRequestDto,
+} from '@/modules/assets/presentation/dto/request/knowledge-curation.request.dto';
 
 type RepositoryTreeItem = {
     path: string;
@@ -15,12 +28,12 @@ type RepositoryTreeItem = {
     mode: string;
     sha: string;
     size: number | null;
+    isBinary?: boolean;
 };
-
-type WikiPageType = 'entity' | 'concept' | 'source' | 'query' | 'synthesis' | 'comparison';
 
 interface UpdateBlobBody {
     content?: string;
+    encoding?: 'utf8' | 'base64';
     message?: string;
     branch?: string;
     authorName?: string;
@@ -43,15 +56,58 @@ interface UploadSourcesBody {
     ingest?: boolean;
 }
 
+const TEXT_SOURCE_EXTENSIONS = new Set(['txt', 'csv', 'tsv', 'md', 'json', 'jsonl', 'yaml', 'yml', 'xml', 'html', 'htm', 'log']);
+const INTERNAL_REPOSITORY_SEGMENTS = new Set(['.internshannon', '.shuan-os-snapshots', '.shuan-os-trash']);
+
 @DesktopApi()
 @Controller('assets')
 export class DesktopAssetsController {
-    constructor(@Inject(ASSET_SERVICE) private readonly assets: IAssetService) {}
+    constructor(
+        @Inject(ASSET_SERVICE) private readonly assets: IAssetService,
+        private readonly ingestion: KnowledgeIngestionService,
+        private readonly knowledge: KnowledgeQueryService,
+        private readonly ingestJobs: KnowledgeIngestJobService,
+        private readonly audit: KnowledgeAuditService,
+        private readonly content: KnowledgeContentService,
+        private readonly graph: KnowledgeGraphService,
+        private readonly curation: KnowledgeCurationService,
+        private readonly okf: KnowledgeOkfService,
+    ) {}
 
     @Get('me/knowledge')
     @ApiOkResponse({ summary: '获取我的个人知识库资产' })
     async getMyKnowledge(@DesktopOwnerId() userId: string) {
         return this.assetDto(await this.assets.getOrCreatePersonalKnowledge(userId));
+    }
+
+    @Get('me/knowledge/search')
+    @ApiOkResponse({ summary: '搜索当前用户的 OKF 个人知识库' })
+    async searchMyKnowledge(
+        @DesktopOwnerId() userId: string,
+        @Query('q') query: string,
+        @Query('limit') limit?: string,
+    ) {
+        return this.knowledge.searchScope('personal', userId, query, this.searchLimit(limit));
+    }
+
+    @Get('docs/knowledge/search')
+    @ApiOkResponse({ summary: '搜索书小安文档 OKF 知识库' })
+    async searchDocsKnowledge(
+        @DesktopOwnerId() userId: string,
+        @Query('q') query: string,
+        @Query('limit') limit?: string,
+    ) {
+        return this.knowledge.searchScope('docs', userId, query, this.searchLimit(limit));
+    }
+
+    @Get('docs/knowledge/search-all')
+    @ApiOkResponse({ summary: '跨域搜索全部公开 OKF 知识库' })
+    async searchAllKnowledge(
+        @DesktopOwnerId() userId: string,
+        @Query('q') query: string,
+        @Query('limit') limit?: string,
+    ) {
+        return this.knowledge.searchScope('global', userId, query, this.searchLimit(limit));
     }
 
     @Get(':id/repository')
@@ -103,14 +159,11 @@ export class DesktopAssetsController {
     async repositoryBlob(@Param('id') id: string, @Query('path') path: string, @Query('ref') ref?: string) {
         const asset = await this.requireAsset(id);
         const normalizedPath = this.requireBlobPath(path);
-        const content = await this.assets.getBlobContent(asset.id, normalizedPath);
+        const blob = await this.assets.getBlobData(asset.id, normalizedPath);
         return {
             assetId: asset.id,
             ref: ref?.trim() || asset.defaultBranch || 'main',
-            path: normalizedPath,
-            encoding: 'utf8' as const,
-            content,
-            size: Buffer.byteLength(content, 'utf8'),
+            ...blob,
         };
     }
 
@@ -118,6 +171,17 @@ export class DesktopAssetsController {
     @ApiCreatedResponse({ summary: '更新资产仓库文件' })
     async updateBlob(@Param('id') id: string, @Query('path') path: string, @Body() body: UpdateBlobBody) {
         const normalizedPath = this.requireBlobPath(path);
+        if (body.encoding === 'base64') {
+            return this.assets.updateBlobBinary(
+                id,
+                normalizedPath,
+                Buffer.from(body.content || '', 'base64'),
+                body.message || `Update ${normalizedPath}`,
+                body.branch || 'main',
+                body.authorName,
+                body.authorEmail,
+            );
+        }
         return this.assets.updateBlob(
             id,
             normalizedPath,
@@ -163,12 +227,28 @@ export class DesktopAssetsController {
     @ApiOkResponse({ summary: '列出资产 Wiki 来源' })
     async listWikiSources(@Param('id') id: string) {
         const asset = await this.requireAsset(id);
-        return this.sourceEntries(asset);
+        const manifest = await this.ingestion.getManifest(id);
+        const byPath = new Map(manifest.sources.map(source => [source.path, source]));
+        return this.content.sourceEntries(asset).map(source => {
+            const indexed = byPath.get(source.path);
+            return {
+                ...source,
+                status: indexed?.status ?? 'pending',
+                error: indexed?.error,
+                retryable: indexed?.retryable,
+                chunkCount: indexed?.chunkCount ?? 0,
+                extractionMethod: indexed?.extractionMethod,
+            };
+        });
     }
 
     @Post(':id/wiki/sources')
     @ApiCreatedResponse({ summary: '上传资产 Wiki 来源' })
-    async uploadWikiSources(@Param('id') id: string, @Body() body: UploadSourcesBody) {
+    async uploadWikiSources(
+        @Param('id') id: string,
+        @Body() body: UploadSourcesBody,
+        @DesktopOwnerId() userId = 'system',
+    ) {
         const sources = Array.isArray(body.sources) ? body.sources : [];
         if (sources.length === 0) {
             throw new BadRequestException('sources is required');
@@ -179,139 +259,385 @@ export class DesktopAssetsController {
             const contentBase64 = source.contentBase64 || '';
             const buffer = Buffer.from(contentBase64, 'base64');
             const path = `raw/sources/${name}`;
-            await this.assets.updateBlob(id, path, buffer.toString('utf8'), `Import ${name}`, 'main');
+            const extension = name.split('.').pop()?.toLowerCase() ?? '';
+            const update = TEXT_SOURCE_EXTENSIONS.has(extension)
+                ? await this.assets.updateBlob(id, path, buffer.toString('utf8'), `Import ${name}`, 'main')
+                : await this.assets.updateBlobBinary(id, path, buffer, `Import ${name}`, 'main');
+            await this.recordAudit(id, {
+                action: 'source.upload',
+                target: path,
+                actorId: userId,
+                commitSha: update.commitSha,
+                metadata: { size: buffer.byteLength },
+            });
             paths.push(path);
         }
-        return { paths };
+        const job = body.ingest === true ? await this.ingestJobs.start(id, paths, userId) : undefined;
+        return { paths, job };
     }
 
     @Delete(':id/wiki/sources')
     @ApiOkResponse({ summary: '删除资产 Wiki 来源' })
-    async deleteWikiSource(@Param('id') id: string, @Query('path') path: string) {
+    async deleteWikiSource(
+        @Param('id') id: string,
+        @Query('path') path: string,
+        @DesktopOwnerId() userId = 'system',
+    ) {
         const normalizedPath = this.requireBlobPath(path);
         const result = await this.assets.deleteBlob(id, normalizedPath, `Delete ${normalizedPath}`, 'main');
+        await this.recordAudit(id, {
+            action: 'source.delete',
+            target: normalizedPath,
+            actorId: userId,
+            commitSha: result.commitSha,
+        });
         return { deleted: result.deleted, path: normalizedPath };
+    }
+
+    @Post(':id/wiki/ingest-jobs')
+    @ApiCreatedResponse({ summary: '启动异步知识库摄取任务' })
+    async startWikiIngestJob(
+        @Param('id') id: string,
+        @Body() body: { sourcePaths?: string[] },
+        @DesktopOwnerId() userId = 'system',
+    ) {
+        return this.ingestJobs.start(id, Array.isArray(body.sourcePaths) ? body.sourcePaths : [], userId);
+    }
+
+    @Get(':id/wiki/ingest-jobs')
+    @ApiOkResponse({ summary: '列出知识库摄取任务' })
+    async listWikiIngestJobs(@Param('id') id: string, @Query('limit') limit?: string) {
+        return this.ingestJobs.list(id, this.searchLimit(limit));
+    }
+
+    @Get(':id/wiki/ingest-jobs/:jobId')
+    @ApiOkResponse({ summary: '获取知识库摄取任务状态' })
+    async wikiIngestJobStatus(@Param('id') id: string, @Param('jobId') jobId: string) {
+        return this.ingestJobs.get(id, jobId);
+    }
+
+    @Post(':id/wiki/ingest-jobs/:jobId/cancel')
+    @ApiCreatedResponse({ summary: '取消知识库摄取任务' })
+    async cancelWikiIngestJob(@Param('id') id: string, @Param('jobId') jobId: string) {
+        return this.ingestJobs.cancel(id, jobId);
+    }
+
+    @Post(':id/wiki/ingest-jobs/:jobId/retry')
+    @ApiCreatedResponse({ summary: '重试失败的知识库摄取任务' })
+    async retryWikiIngestJob(
+        @Param('id') id: string,
+        @Param('jobId') jobId: string,
+        @DesktopOwnerId() userId = 'system',
+    ) {
+        return this.ingestJobs.retry(id, jobId, userId);
     }
 
     @Get(':id/wiki/pages')
     @ApiOkResponse({ summary: '列出资产 Wiki 页面' })
     async listWikiPages(@Param('id') id: string) {
-        const asset = await this.requireAsset(id);
-        return this.pageEntries(asset);
+        const asset = await this.content.requireAsset(id);
+        return this.content.pageEntries(asset, await this.content.loadContents(asset, 'wiki/'));
     }
 
     @Get(':id/wiki/graph')
     @ApiOkResponse({ summary: '获取资产 Wiki 图谱' })
-    async wikiGraph(@Param('id') id: string) {
-        const asset = await this.requireAsset(id);
-        const pages = this.pageEntries(asset);
-        const contents = this.blobContents(asset);
-        const byAlias = new Map<string, string>();
-        for (const page of pages) {
-            byAlias.set(page.title.toLowerCase(), page.path);
-            byAlias.set(this.titleFromPath(page.path).toLowerCase(), page.path);
-            byAlias.set(page.path.toLowerCase(), page.path);
-        }
+    async wikiGraph(
+        @Param('id') id: string,
+        @Query('q') query?: string,
+        @Query('type') requestedType?: string,
+        @Query('tag') requestedTag?: string,
+    ) {
+        return this.graph.graph(id, { query, type: requestedType, tag: requestedTag });
+    }
 
-        const edgeWeights = new Map<string, { source: string; target: string; weight: number }>();
-        for (const page of pages) {
-            const content = contents[page.path] ?? '';
-            for (const targetAlias of this.wikilinks(content)) {
-                const target = byAlias.get(targetAlias.toLowerCase());
-                if (!target || target === page.path) continue;
-                const key = `${page.path}\n${target}`;
-                const previous = edgeWeights.get(key);
-                edgeWeights.set(key, {
-                    source: page.path,
-                    target,
-                    weight: (previous?.weight ?? 0) + 1,
-                });
-            }
-        }
+    @Get(':id/wiki/backlinks')
+    @ApiOkResponse({ summary: '获取指向指定 Wiki 页面的反向链接' })
+    async wikiBacklinks(@Param('id') id: string, @Query('path') path: string) {
+        const normalizedPath = this.requireBlobPath(path);
+        return this.graph.backlinks(id, normalizedPath);
+    }
 
-        const degree = new Map<string, number>();
-        const edges = Array.from(edgeWeights.values()).map(edge => {
-            degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1);
-            degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
-            return {
-                ...edge,
-                signals: {
-                    directLink: edge.weight,
-                    sourceOverlap: 0,
-                    adamicAdar: 0,
-                    typeAffinity: 0,
-                },
-            };
+    @Get(':id/wiki/similar')
+    @ApiOkResponse({ summary: '使用本地 embedding 查找语义相关 Wiki 页面' })
+    async wikiSimilar(@Param('id') id: string, @Query('path') path: string, @Query('limit') limit?: string) {
+        return this.knowledge.findSimilarConcepts(id, path, this.searchLimit(limit));
+    }
+
+    @Get(':id/wiki/search')
+    @ApiOkResponse({ summary: '搜索指定资产中的 OKF concept' })
+    async wikiSearch(@Param('id') id: string, @Query('q') query: string, @Query('limit') limit?: string) {
+        return this.knowledge.searchAsset(id, query, this.searchLimit(limit));
+    }
+
+    @Post(':id/wiki/evaluate')
+    @ApiCreatedResponse({ summary: '运行知识库检索评测集' })
+    async evaluateWikiSearch(
+        @Param('id') id: string,
+        @Body() body: { cases?: Array<{ query?: string; expectedPaths?: string[] }>; k?: number },
+    ) {
+        const cases = (Array.isArray(body.cases) ? body.cases : []).flatMap(item => {
+            const query = item.query?.trim();
+            const expectedPaths = Array.isArray(item.expectedPaths) ? item.expectedPaths.filter(Boolean) : [];
+            return query && expectedPaths.length > 0 ? [{ query, expectedPaths }] : [];
         });
+        if (cases.length === 0) throw new BadRequestException('evaluation cases are required');
+        return this.knowledge.evaluateAsset(id, cases, body.k);
+    }
 
-        return {
-            nodes: pages.map(page => ({
-                path: page.path,
-                title: page.title,
-                type: page.type,
-                sourceCount: page.sources.length,
-                degree: degree.get(page.path) ?? 0,
-            })),
-            edges,
-        };
+    @Get(':id/wiki/concept')
+    @ApiOkResponse({ summary: '读取指定 OKF concept' })
+    async readWikiConcept(@Param('id') id: string, @Query('path') path: string) {
+        return this.knowledge.readConcept(id, path);
+    }
+
+    @Get(':id/wiki/directory')
+    @ApiOkResponse({ summary: '渐进式列出 OKF bundle 目录' })
+    async listWikiDirectory(@Param('id') id: string, @Query('path') path?: string) {
+        return this.knowledge.listDirectory(id, path);
+    }
+
+    @Get(':id/wiki/tags')
+    @ApiOkResponse({ summary: '聚合 OKF concept 标签' })
+    async wikiTags(@Param('id') id: string) {
+        return this.knowledge.listTags(id);
     }
 
     @Patch(':id/wiki/pages')
     @ApiOkResponse({ summary: '保存资产 Wiki 页面' })
-    async saveWikiPage(@Param('id') id: string, @Body() body: { path?: string; content?: string }) {
+    async saveWikiPage(
+        @Param('id') id: string,
+        @Body() body: { path?: string; content?: string },
+        @DesktopOwnerId() userId = 'system',
+    ) {
         const path = this.requireBlobPath(body.path);
-        await this.assets.updateBlob(id, path, body.content ?? '', `Update ${path}`, 'main');
+        const result = await this.assets.updateBlob(id, path, body.content ?? '', `Update ${path}`, 'main');
+        await this.recordAudit(id, {
+            action: 'page.save',
+            target: path,
+            actorId: userId,
+            commitSha: result.commitSha,
+        });
         return { saved: true, path };
     }
 
     @Delete(':id/wiki/pages')
     @ApiOkResponse({ summary: '删除资产 Wiki 页面' })
-    async deleteWikiPage(@Param('id') id: string, @Query('path') path: string) {
+    async deleteWikiPage(
+        @Param('id') id: string,
+        @Query('path') path: string,
+        @DesktopOwnerId() userId = 'system',
+    ) {
         const normalizedPath = this.requireBlobPath(path);
         const result = await this.assets.deleteBlob(id, normalizedPath, `Delete ${normalizedPath}`, 'main');
+        await this.recordAudit(id, {
+            action: 'page.delete',
+            target: normalizedPath,
+            actorId: userId,
+            commitSha: result.commitSha,
+        });
         return { deleted: result.deleted, path: normalizedPath };
     }
 
     @Post(':id/wiki/pages/rename')
     @ApiCreatedResponse({ summary: '重命名资产 Wiki 页面' })
-    async renameWikiPage(@Param('id') id: string, @Body() body: { fromPath?: string; toPath?: string }) {
+    async renameWikiPage(
+        @Param('id') id: string,
+        @Body() body: { fromPath?: string; toPath?: string },
+        @DesktopOwnerId() userId = 'system',
+    ) {
         const fromPath = this.requireBlobPath(body.fromPath);
         const toPath = this.requireBlobPath(body.toPath);
-        await this.assets.renameBlob(id, fromPath, toPath, `Rename ${fromPath} to ${toPath}`, 'main');
+        const result = await this.assets.renameBlob(id, fromPath, toPath, `Rename ${fromPath} to ${toPath}`, 'main');
+        await this.recordAudit(id, {
+            action: 'page.rename',
+            target: toPath,
+            fromTarget: fromPath,
+            actorId: userId,
+            commitSha: result.commitSha,
+        });
         return { renamed: true, fromPath, toPath };
     }
 
     @Get(':id/wiki/health')
     @ApiOkResponse({ summary: '获取资产 Wiki 健康状态' })
     async wikiHealth(@Param('id') id: string) {
+        return this.graph.health(id);
+    }
+
+    @Get(':id/wiki/config')
+    @ApiOkResponse({ summary: '获取知识库配置' })
+    async wikiConfig(@Param('id') id: string) {
         const asset = await this.requireAsset(id);
-        const pages = this.pageEntries(asset);
-        const sources = this.sourceEntries(asset);
+        const knowledge = this.content.knowledgeMetadata(asset);
+        const embedding = this.objectMetadataValue(knowledge.embedding);
         return {
-            pageCount: pages.length,
-            sourceCount: sources.length,
-            ingestedSourceCount: sources.length,
-            lastIngestedAt: this.latestContentUpdatedAt(asset),
-            taggedPageCount: pages.filter(page => page.tags.length > 0).length,
-            brokenLinks: [],
-            orphanPages: pages
-                .filter(page => page.path !== 'wiki/index.md')
-                .map(page => ({
-                    path: page.path,
-                    title: page.title,
-                    type: page.type,
-                })),
+            purpose: await this.assets.getBlobContent(id, 'purpose.md').catch(() => ''),
+            schema: await this.assets.getBlobContent(id, 'schema.md').catch(() => ''),
+            knowledgeType: this.stringMetadataValue(knowledge.knowledgeType) || null,
+            embedding: {
+                provider: this.stringMetadataValue(embedding.provider) || 'local',
+                model: this.stringMetadataValue(embedding.model) || 'local-hash-v1',
+                dimensions: this.numberMetadataValue(embedding.dimensions) || 192,
+                keywordWeight: this.numberMetadataValue(embedding.keywordWeight) ?? 1,
+                vectorWeight: this.numberMetadataValue(embedding.vectorWeight) ?? 6,
+                mmrLambda: this.numberMetadataValue(embedding.mmrLambda) ?? 0.78,
+            },
         };
+    }
+
+    @Put(':id/wiki/config')
+    @ApiOkResponse({ summary: '更新知识库配置' })
+    async updateWikiConfig(
+        @Param('id') id: string,
+        @Body()
+        body: {
+            purpose?: string;
+            schema?: string;
+            knowledgeType?: string;
+            embedding?: {
+                provider?: string;
+                model?: string;
+                dimensions?: number;
+                keywordWeight?: number;
+                vectorWeight?: number;
+                mmrLambda?: number;
+            };
+        },
+        @DesktopOwnerId() userId = 'system',
+    ) {
+        if (typeof body.purpose === 'string') {
+            await this.assets.updateBlob(id, 'purpose.md', body.purpose, 'Update knowledge purpose', 'main');
+        }
+        if (typeof body.schema === 'string') {
+            await this.assets.updateBlob(id, 'schema.md', body.schema, 'Update knowledge schema', 'main');
+        }
+        const asset = await this.requireAsset(id);
+        const current = this.content.knowledgeMetadata(asset);
+        const currentEmbedding = this.objectMetadataValue(current.embedding);
+        const embedding = body.embedding
+            ? {
+                  ...currentEmbedding,
+                  ...Object.fromEntries(
+                      Object.entries(body.embedding).filter(([, value]) => value !== undefined && value !== ''),
+                  ),
+              }
+            : currentEmbedding;
+        const knowledge = {
+            ...current,
+            ...(typeof body.knowledgeType === 'string' ? { knowledgeType: body.knowledgeType.trim() } : {}),
+            embedding,
+        };
+        await this.assets.updateAsset(id, { metadata: { knowledge } });
+        await this.recordAudit(id, {
+            action: 'config.update',
+            target: 'knowledge',
+            actorId: userId,
+            metadata: {
+                embeddingProvider: this.stringMetadataValue(embedding.provider) || 'local',
+                embeddingModel: this.stringMetadataValue(embedding.model) || 'local-hash-v1',
+            },
+        });
+        return this.wikiConfig(id);
     }
 
     @Post(':id/wiki/reindex')
     @ApiCreatedResponse({ summary: '重建资产 Wiki 索引' })
-    async wikiReindex(@Param('id') id: string) {
+    async wikiReindex(@Param('id') id: string, @DesktopOwnerId() userId = 'system') {
         const asset = await this.requireAsset(id);
-        return {
-            nodeCount: this.pageEntries(asset).length,
-            linkCount: 0,
+        const ingestion = await this.ingestion.reindex(asset.id);
+        const summary = await this.graph.summary(id);
+        const curation = await this.curation.refreshAfterReindex(id).catch(() => null);
+        const result = {
+            ...summary,
+            ...ingestion,
+            curationPendingCount: curation?.pendingCount ?? 0,
         };
+        await this.recordAudit(id, {
+            action: 'ingest.complete',
+            actorId: userId,
+            metadata: { sourceCount: ingestion.sourceCount, chunkCount: ingestion.chunkCount, synchronous: true },
+        });
+        return result;
+    }
+
+    @Post(':id/wiki/storage/migrate')
+    @ApiCreatedResponse({ summary: '迁移旧知识库 metadata 正文到资产存储' })
+    async migrateWikiStorage(@Param('id') id: string, @DesktopOwnerId() userId = 'system') {
+        const result = await this.assets.migrateKnowledgeStorage(id);
+        await this.recordAudit(id, {
+            action: 'storage.migrate',
+            target: 'knowledge',
+            actorId: userId,
+            metadata: result,
+        });
+        return result;
+    }
+
+    @Get(':id/wiki/curation')
+    @ApiOkResponse({ summary: '获取知识库策展审阅状态' })
+    async wikiCurationStatus(@Param('id') id: string) {
+        return this.curation.status(id);
+    }
+
+    @Put(':id/wiki/curation/config')
+    @ApiOkResponse({ summary: '更新知识库自动策展建议开关' })
+    async updateWikiCurationConfig(
+        @Param('id') id: string,
+        @Body() body: UpdateKnowledgeCurationConfigRequestDto,
+        @DesktopOwnerId() userId = 'system',
+    ) {
+        return this.curation.updateConfig(id, body.autoCuration === true, userId);
+    }
+
+    @Get(':id/wiki/curation/suggestions')
+    @ApiOkResponse({ summary: '列出待审阅的知识库建链建议' })
+    async listCurationSuggestions(@Param('id') id: string) {
+        return this.curation.list(id);
+    }
+
+    @Post(':id/wiki/curation/suggestions/refresh')
+    @ApiCreatedResponse({ summary: '根据本地语义相似度刷新建链建议' })
+    async refreshCurationSuggestions(@Param('id') id: string) {
+        return this.curation.refresh(id);
+    }
+
+    @Post(':id/wiki/curation/suggestions/:suggestionId/review')
+    @ApiCreatedResponse({ summary: '接受或拒绝一条知识库建链建议' })
+    async reviewCurationSuggestion(
+        @Param('id') id: string,
+        @Param('suggestionId') suggestionId: string,
+        @DesktopOwnerId() userId: string,
+        @Body() body: ReviewKnowledgeCurationSuggestionRequestDto,
+    ) {
+        return this.curation.review(id, suggestionId, userId, body.decision);
+    }
+
+    @Get(':id/wiki/audit-log')
+    @ApiOkResponse({ summary: '获取统一知识库审计流' })
+    async wikiAuditLog(@Param('id') id: string, @Query('limit') limit?: string) {
+        return this.curation.auditLog(id, this.searchLimit(limit));
+    }
+
+    @Get(':id/wiki/okf/validate')
+    @ApiOkResponse({ summary: '校验知识库的 OKF v0.1 兼容性' })
+    async validateOkf(@Param('id') id: string) {
+        return this.okf.validate(id);
+    }
+
+    @Post(':id/wiki/okf/import')
+    @ApiCreatedResponse({ summary: '导入 OKF v0.1 bundle' })
+    async importOkf(
+        @Param('id') id: string,
+        @Body() body: ImportOkfRequestDto,
+        @DesktopOwnerId() userId = 'system',
+    ) {
+        return this.okf.import(id, body, userId);
+    }
+
+    @Get(':id/wiki/okf/export')
+    @ApiOkResponse({ summary: '导出 OKF v0.1 ZIP bundle' })
+    async exportOkf(@Param('id') id: string) {
+        return this.okf.export(id);
     }
 
     private async requireAsset(id: string): Promise<Asset> {
@@ -320,6 +646,13 @@ export class DesktopAssetsController {
             throw new NotFoundException('Asset not found');
         }
         return asset;
+    }
+
+    private async recordAudit(
+        assetId: string,
+        entry: Parameters<KnowledgeAuditService['append']>[1],
+    ): Promise<void> {
+        await this.audit.append(assetId, entry);
     }
 
     private assetDto(asset: Asset) {
@@ -339,6 +672,7 @@ export class DesktopAssetsController {
         const files = new Map<string, RepositoryTreeItem>();
 
         for (const blob of this.contentBlobs(asset)) {
+            if (blob.path.split('/').some(segment => INTERNAL_REPOSITORY_SEGMENTS.has(segment))) continue;
             if (prefix && !blob.path.startsWith(prefix)) continue;
             const rest = prefix ? blob.path.slice(prefix.length) : blob.path;
             if (!rest || rest.startsWith('/')) continue;
@@ -362,6 +696,7 @@ export class DesktopAssetsController {
                     mode: '100644',
                     sha: blob.contentSha || blob.id || this.shaForText(blob.path),
                     size: typeof blob.size === 'number' ? blob.size : null,
+                    isBinary: blob.isBinary,
                 });
             }
         }
@@ -398,90 +733,16 @@ export class DesktopAssetsController {
             : {};
     }
 
-    private pageEntries(asset: Asset) {
-        const contents = this.blobContents(asset);
-        return Object.entries(contents)
-            .filter(([path]) => path.startsWith('wiki/') && path.toLowerCase().endsWith('.md'))
-            .map(([path, content]) => {
-                const frontmatter = this.readFrontmatter(content);
-                return {
-                    path,
-                    title: frontmatter.title || this.titleFromPath(path),
-                    type: this.wikiPageType(frontmatter.type),
-                    sources: [],
-                    tags: frontmatter.tags ?? [],
-                };
-            })
-            .sort((left, right) => left.title.localeCompare(right.title, 'zh-CN'));
+    private stringMetadataValue(value: unknown): string {
+        return typeof value === 'string' ? value : '';
     }
 
-    private sourceEntries(asset: Asset) {
-        const contents = this.blobContents(asset);
-        return Object.entries(contents)
-            .filter(([path]) => path.startsWith('raw/sources/'))
-            .map(([path, content]) => ({
-                path,
-                name: path.split('/').pop() || path,
-                size: Buffer.byteLength(content, 'utf8'),
-            }))
-            .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'));
+    private numberMetadataValue(value: unknown): number | undefined {
+        return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
     }
 
-    private readFrontmatter(content: string): { title?: string; type?: string; tags?: string[] } {
-        const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content);
-        if (!match) return {};
-        const result: { title?: string; type?: string; tags?: string[] } = {};
-        for (const line of match[1].split(/\r?\n/)) {
-            const separator = line.indexOf(':');
-            if (separator <= 0) continue;
-            const key = line.slice(0, separator).trim();
-            const value = line.slice(separator + 1).trim();
-            if (key === 'title') result.title = value.replace(/^['"]|['"]$/g, '');
-            if (key === 'type') result.type = value.replace(/^['"]|['"]$/g, '');
-            if (key === 'tags') {
-                result.tags = value
-                    .replace(/^\[|\]$/g, '')
-                    .split(',')
-                    .map(item => item.trim().replace(/^['"]|['"]$/g, ''))
-                    .filter(Boolean);
-            }
-        }
-        return result;
-    }
-
-    private wikilinks(content: string): string[] {
-        const links: string[] = [];
-        const pattern = /\[\[([^\]\n|#]+)(?:[|#][^\]\n]+)?\]\]/g;
-        let match: RegExpExecArray | null;
-        while ((match = pattern.exec(content)) !== null) {
-            const target = match[1]?.trim();
-            if (target) links.push(target);
-        }
-        return links;
-    }
-
-    private wikiPageType(value?: string): WikiPageType | null {
-        return value === 'entity' ||
-            value === 'concept' ||
-            value === 'source' ||
-            value === 'query' ||
-            value === 'synthesis' ||
-            value === 'comparison'
-            ? value
-            : null;
-    }
-
-    private titleFromPath(path: string): string {
-        const name = path.split('/').pop() || path;
-        return name.replace(/\.[^.]+$/, '') || name;
-    }
-
-    private latestContentUpdatedAt(asset: Asset): string | null {
-        const times = [asset.updatedAt, ...asset.commits.map(commit => commit.createdAt)]
-            .map(value => new Date(value).getTime())
-            .filter(Number.isFinite);
-        if (times.length === 0) return null;
-        return new Date(Math.max(...times)).toISOString();
+    private objectMetadataValue(value: unknown): Record<string, unknown> {
+        return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
     }
 
     private requireBlobPath(value: string | undefined): string {
@@ -490,6 +751,10 @@ export class DesktopAssetsController {
             throw new BadRequestException('path is required');
         }
         return normalized;
+    }
+
+    private searchLimit(value?: string): number {
+        return Math.max(1, Math.min(50, Number(value) || 8));
     }
 
     private normalizeBlobPath(value: string | undefined): string {

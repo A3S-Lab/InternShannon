@@ -206,7 +206,8 @@ export class AssetAgent implements AgentSpec {
       // isCloudRuntimeSkillAllowed deny,这里显式 opt-in;CapabilitiesToolService
       // 的 assertSingleAssetSessionCanExecute 内层 RBAC 兜底,只允许 assets
       // 写操作且锁定本会话绑定的单资产。
-      skills: ["a3s-code-agent-framework", "capabilities"],
+      allowCapabilities: true,
+      skills: ["a3s-code-agent-framework"],
     };
   }
 

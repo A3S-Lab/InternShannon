@@ -1,7 +1,7 @@
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import * as mammoth from "mammoth";
 import type { IDocumentData } from "@univerjs/core";
-import { getOfficeExtension, getOfficeFileName } from "../shared/file";
+import { bytesToArrayBuffer, getOfficeExtension, getOfficeFileName } from "../shared/file";
 import { plainTextToUniverDocumentSnapshot, univerDocumentSnapshotToPlainText } from "../shared/text";
 import { htmlToUniverDocumentBody } from "./html-to-univer";
 import { univerDocumentSnapshotToRichDocxBytes } from "./univer-to-docx";
@@ -27,10 +27,16 @@ export async function docxBytesToUniverDocumentSnapshot(
         throw new Error("Only .docx documents can be imported by the current OOXML adapter.");
     }
 
-    const buffer = Buffer.from(data);
+    const arrayBuffer = bytesToArrayBuffer(data);
+    const nodeBuffer = (globalThis as unknown as {
+        Buffer?: { from(value: Uint8Array): Buffer };
+    }).Buffer;
+    const mammothInput = nodeBuffer
+        ? { buffer: nodeBuffer.from(data) }
+        : { arrayBuffer };
 
     try {
-        const htmlResult = await mammoth.convertToHtml({ buffer });
+        const htmlResult = await mammoth.convertToHtml(mammothInput);
         const html = htmlResult.value || "";
         const { body, tableSource, drawings, drawingsOrder } = htmlToUniverDocumentBody(html);
         const snapshot = plainTextToUniverDocumentSnapshot(options.filename, "");
@@ -42,7 +48,7 @@ export async function docxBytesToUniverDocumentSnapshot(
         return snapshot;
     } catch {
         // 兜底：纯文本导入，保留历史行为。
-        const raw = await mammoth.extractRawText({ buffer });
+        const raw = await mammoth.extractRawText(mammothInput);
         return plainTextToUniverDocumentSnapshot(options.filename, raw.value || "");
     }
 }

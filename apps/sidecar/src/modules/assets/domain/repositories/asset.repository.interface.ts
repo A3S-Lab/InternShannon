@@ -33,6 +33,10 @@ export interface AssetCatalogFilters {
 }
 
 export interface IAssetRepository {
+    /** Desktop implementations may keep derived/heavy blob bytes outside asset metadata. */
+    readBlobData?(assetId: string, path: string): Promise<Buffer | null>;
+    writeBlobData?(assetId: string, path: string, content: Buffer): Promise<void>;
+    deleteBlobData?(assetId: string, path: string): Promise<void>;
     findById(id: string): Promise<Asset | null>;
     /**
      * Like {@link findById} but omits the heavy `metadata.blobContents` blob —

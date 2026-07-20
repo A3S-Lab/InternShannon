@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
-import { desktopJsonFilePath } from '@/shared/infrastructure/desktop/desktop-paths';
+import * as path from 'node:path';
+import { createHash } from 'node:crypto';
+import { desktopDataDir, desktopJsonFilePath } from '@/shared/infrastructure/desktop/desktop-paths';
 import {
     matchesAssetCatalogProfile,
     readAssetCatalogProfile,
@@ -23,11 +25,13 @@ import { PageQueryOptions, PageResult } from '@/shared/domain/pagination';
 export class DesktopAssetRepository implements IAssetRepository {
     private readonly logger = new Logger(DesktopAssetRepository.name);
     private readonly assetsPath: string;
+    private readonly blobRoot: string;
     private assetsCache: Map<string, Asset> = new Map();
     private loaded = false;
 
     constructor() {
         this.assetsPath = desktopJsonFilePath('assets.json', this.logger);
+        this.blobRoot = path.join(desktopDataDir(), 'asset-blobs');
     }
 
     private async loadAssets(): Promise<Map<string, Asset>> {
@@ -146,6 +150,31 @@ export class DesktopAssetRepository implements IAssetRepository {
         const assets = await this.loadAssets();
         assets.delete(id);
         await this.saveAssets();
+        fs.rmSync(this.assetBlobDir(id), { recursive: true, force: true });
+    }
+
+    async readBlobData(assetId: string, blobPath: string): Promise<Buffer | null> {
+        const target = this.blobFilePath(assetId, blobPath);
+        return fs.existsSync(target) ? fs.readFileSync(target) : null;
+    }
+
+    async writeBlobData(assetId: string, blobPath: string, content: Buffer): Promise<void> {
+        const target = this.blobFilePath(assetId, blobPath);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, content);
+    }
+
+    async deleteBlobData(assetId: string, blobPath: string): Promise<void> {
+        fs.rmSync(this.blobFilePath(assetId, blobPath), { force: true });
+    }
+
+    private assetBlobDir(assetId: string): string {
+        return path.join(this.blobRoot, createHash('sha256').update(assetId).digest('hex'));
+    }
+
+    private blobFilePath(assetId: string, blobPath: string): string {
+        const digest = createHash('sha256').update(blobPath).digest('hex');
+        return path.join(this.assetBlobDir(assetId), digest.slice(0, 2), digest);
     }
 
     async findByOwnerId(ownerId: string, _ownerType: 'user' | 'organization'): Promise<Asset[]> {

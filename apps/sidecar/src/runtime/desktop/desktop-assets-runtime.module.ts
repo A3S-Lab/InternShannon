@@ -3,6 +3,15 @@ import { DesktopAssetsModule } from '@/modules/assets/infrastructure/desktop/des
 import { AssetAccessService } from '@/modules/assets/application/asset-access.service';
 import { AssetServiceImpl } from '@/modules/assets/application/asset.service';
 import { AssetUrlResolverService } from '@/modules/assets/application/asset-url-resolver.service';
+import { KnowledgeQueryService } from '@/modules/assets/application/knowledge-query.service';
+import { KnowledgeIngestionService } from '@/modules/assets/application/knowledge-ingestion.service';
+import { KnowledgeAuditService } from '@/modules/assets/application/knowledge-audit.service';
+import { KnowledgeIngestJobService } from '@/modules/assets/application/knowledge-ingest-job.service';
+import { KnowledgeEmbeddingService } from '@/modules/assets/application/knowledge-embedding.service';
+import { KnowledgeContentService } from '@/modules/assets/application/knowledge-content.service';
+import { KnowledgeGraphService } from '@/modules/assets/application/knowledge-graph.service';
+import { KnowledgeCurationService } from '@/modules/assets/application/knowledge-curation.service';
+import { KnowledgeOkfService } from '@/modules/assets/application/knowledge-okf.service';
 import { ASSET_SERVICE } from '@/modules/assets/domain/services/asset.service.interface';
 import { DesktopAssetsController } from '@/modules/assets/presentation/controllers/desktop-assets.controller';
 import { DesktopConfigRuntimeModule } from './desktop-config-runtime.module';
@@ -14,11 +23,33 @@ import { DesktopConfigRuntimeModule } from './desktop-config-runtime.module';
         AssetServiceImpl,
         AssetAccessService,
         AssetUrlResolverService,
+        KnowledgeIngestionService,
+        KnowledgeQueryService,
+        KnowledgeAuditService,
+        KnowledgeIngestJobService,
+        KnowledgeEmbeddingService,
+        KnowledgeContentService,
+        KnowledgeGraphService,
+        KnowledgeCurationService,
+        KnowledgeOkfService,
         {
             provide: ASSET_SERVICE,
             useExisting: AssetServiceImpl,
         },
     ],
-    exports: [ASSET_SERVICE, AssetAccessService, AssetUrlResolverService],
+    exports: [
+        ASSET_SERVICE,
+        AssetAccessService,
+        AssetUrlResolverService,
+        KnowledgeIngestionService,
+        KnowledgeQueryService,
+        KnowledgeAuditService,
+        KnowledgeIngestJobService,
+        KnowledgeEmbeddingService,
+        KnowledgeContentService,
+        KnowledgeGraphService,
+        KnowledgeCurationService,
+        KnowledgeOkfService,
+    ],
 })
 export class DesktopAssetsRuntimeModule {}

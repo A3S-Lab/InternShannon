@@ -25,6 +25,7 @@ import { DesktopConfigCategoryController } from '@/modules/config/presentation/c
         PluginsController,
     ],
     providers: [
+        ConfigServiceImpl,
         {
             provide: CONFIG_REPOSITORY,
             useClass: FileConfigRepository,
@@ -33,7 +34,6 @@ import { DesktopConfigCategoryController } from '@/modules/config/presentation/c
             provide: CONFIG_SERVICE,
             useExisting: ConfigServiceImpl,
         },
-        ConfigServiceImpl,
         ProviderModelListService,
         DesktopModelConfigSyncService,
         AclConfigService,

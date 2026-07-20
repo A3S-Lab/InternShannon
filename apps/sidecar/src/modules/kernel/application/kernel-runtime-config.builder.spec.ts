@@ -279,6 +279,21 @@ describe('KernelRuntimeConfigBuilder', () => {
         expect(extra).toContain('Ordinary hand-authored source files');
         expect(extra).toContain('A single huge write is not a batch edit');
     });
+
+    it('grounds personal and product answers through the virtual OKF knowledge module', () => {
+        const builder = new KernelRuntimeConfigBuilder(null);
+
+        const extra = builder.composeExtraSlot({ allowCapabilities: true });
+
+        expect(extra).toContain('mounted, authorized personal knowledge-base tool');
+        expect(extra).toContain('scope `personal`');
+        expect(extra).toContain('scope `docs`');
+        expect(extra).toContain('mcp__internshannon__capabilities');
+        expect(extra).toContain('mcp__internshannon__knowledge_search');
+        expect(extra).toContain('mcp__internshannon__knowledge_read');
+        expect(extra).toContain('do not ask the user for access');
+        expect(extra).toContain('never fabricate knowledge content');
+    });
 });
 
 function restoreEnv(name: string, value: string | undefined) {

@@ -12,6 +12,11 @@ import type {
     SessionRuntimeOverrides,
 } from './session-runtime.types';
 import { resolveSelfApiBaseUrl } from './self-api-base-url';
+import {
+    CAPABILITIES_RUNTIME_TOOL_NAME,
+    KNOWLEDGE_READ_RUNTIME_TOOL_NAME,
+    KNOWLEDGE_SEARCH_RUNTIME_TOOL_NAME,
+} from './capabilities-runtime.constants';
 
 export class KernelRuntimeConfigBuilder {
     private readonly logger = new Logger(KernelRuntimeConfigBuilder.name);
@@ -693,6 +698,7 @@ export class KernelRuntimeConfigBuilder {
             extra: overrides.extra || '',
             permissionMode: overrides.permissionMode || '',
             skills: overrides.skills || [],
+            allowCapabilities: overrides.allowCapabilities,
             skillDirs: overrides.skillDirs || [],
             builtinSkills: overrides.builtinSkills,
             enforceActiveSkillToolRestrictions: overrides.enforceActiveSkillToolRestrictions,
@@ -749,26 +755,38 @@ export class KernelRuntimeConfigBuilder {
      * Note: planning mode, tool-use protocol, response format, etc. all live in
      * the SDK's core prompt — do not duplicate them here.
      */
-    composeExtraSlot(overrides: Pick<SessionRuntimeOverrides, 'extra' | 'systemPrompt' | 'searchConfig'>): string {
+    composeExtraSlot(
+        overrides: Pick<
+            SessionRuntimeOverrides,
+            'extra' | 'systemPrompt' | 'searchConfig' | 'allowCapabilities' | 'skills'
+        >,
+    ): string {
         return [
             overrides.extra?.trim(),
             overrides.systemPrompt?.trim(),
-            this.responseGuards(),
+            this.responseGuards(overrides),
             this.searchPolicy(overrides.searchConfig),
         ]
             .filter(Boolean)
             .join('\n\n');
     }
 
-    private responseGuards(): string {
+    private responseGuards(
+        overrides: Pick<SessionRuntimeOverrides, 'allowCapabilities' | 'skills'> = {},
+    ): string {
         const workspacePolicy = [
             '- For local file operations such as listing, reading, writing, or editing files, use the available local tools directly when the user provides enough information. Do not ask unnecessary clarification questions.',
         ];
-        // Knowledge-base grounding self-gates on `capabilities` being listed.
-        const knowledgeGrounding = [
-            "- When `capabilities` is listed in this session and the user's question may relate to their own stored or personal knowledge, first use `capabilities` to search their personal knowledge base (module: assets, the personal-knowledge \"search\" operation) and ground your answer on the returned hits, citing each source's title/path. If nothing relevant is found, answer normally and say so briefly; never fabricate knowledge-base content.",
-            "- When `capabilities` is listed and the question is about 书小安 itself — how to use the desktop app, its features, concepts, or product documentation — first use `capabilities` to search the global documentation knowledge base (module: assets; the docs-knowledge \"search-all\" operation for cross-domain questions, or the per-domain \"search\" operation when the target domain is known) and ground your answer on the returned hits, citing each source's title/path in user-facing product language. If the docs base returns nothing relevant, fall back to `capabilities` operation discovery (list/search/describe over the relevant module) to answer accurately; never fabricate documentation or capabilities.",
-        ];
+        // Knowledge-base grounding self-gates on the actual MCP tool being listed.
+        const capabilitiesEnabled =
+            overrides.allowCapabilities === true || (overrides.skills ?? []).includes('capabilities');
+        const knowledgeGrounding = capabilitiesEnabled
+            ? [
+                  `- This session has a mounted, authorized personal knowledge-base tool: \`${KNOWLEDGE_SEARCH_RUNTIME_TOOL_NAME}\`. For every request that asks to search, recall, or answer from the user's personal knowledge base, you MUST call it with scope \`personal\` before answering. Do not substitute workspace \`grep\`, do not claim the knowledge base is unavailable, and do not ask the user for access or a directory path.`,
+                  `- After \`${KNOWLEDGE_SEARCH_RUNTIME_TOOL_NAME}\` returns relevant hits, call \`${KNOWLEDGE_READ_RUNTIME_TOOL_NAME}\` for the most relevant path before answering. Cite the returned bundle/title/path and preserve resource/citations. If search returns zero relevant hits, explicitly say the personal knowledge base had no relevant result; never fabricate knowledge content.`,
+                  `- For questions about 书小安 itself, use \`${KNOWLEDGE_SEARCH_RUNTIME_TOOL_NAME}\` with scope \`docs\` first and scope \`global\` when the question crosses documentation domains. Use \`${KNOWLEDGE_READ_RUNTIME_TOOL_NAME}\` before answering and cite the result. \`${CAPABILITIES_RUNTIME_TOOL_NAME}\` remains available for non-knowledge API discovery.`,
+              ]
+            : [];
         return [
             '# Runtime Response Contract',
             '- You are 书小安, a cognition-driven intelligent assistant.',

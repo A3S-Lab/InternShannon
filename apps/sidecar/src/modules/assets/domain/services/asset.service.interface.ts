@@ -33,6 +33,16 @@ import { AssetCatalogFilters } from '../repositories/asset.repository.interface'
 
 export const ASSET_SERVICE = Symbol('ASSET_SERVICE');
 
+export interface AssetBlobData {
+    path: string;
+    encoding: 'utf8' | 'base64';
+    content: string;
+    size: number;
+    contentSha: string;
+    isBinary: boolean;
+    mime: string;
+}
+
 /**
  * Optional external-provider linkage used when persisting issue/PR comments and
  * reviews that originate from an external repository sync or inbound webhook.
@@ -433,6 +443,7 @@ export interface IAssetService {
     listBlobs(assetId: string, treeSha: string): Promise<Blob[]>;
     getBlob(assetId: string, path: string): Promise<Blob | null>;
     getBlobContent(assetId: string, path: string): Promise<string>;
+    getBlobData(assetId: string, path: string): Promise<AssetBlobData>;
     /**
      * 拉资产 git 仓库在指定 ref(branch/tag/commit)处的 tar.gz 归档,
      * 仅服务于 serving-isolation 容器冷启动拉源码。null 表示后端不支持归档。
@@ -450,6 +461,26 @@ export interface IAssetService {
         commitSha: string;
         blobSha: string;
         implicitLifecycleTransition?: { from: string; to: string };
+    }>;
+    updateBlobBinary(
+        assetId: string,
+        path: string,
+        content: Buffer,
+        message: string,
+        branch: string,
+        authorName?: string,
+        authorEmail?: string,
+    ): Promise<{
+        commitSha: string;
+        blobSha: string;
+        implicitLifecycleTransition?: { from: string; to: string };
+    }>;
+    migrateKnowledgeStorage(assetId: string): Promise<{
+        supported: boolean;
+        migratedPaths: string[];
+        migratedBytes: number;
+        metadataBytesBefore: number;
+        metadataBytesAfter: number;
     }>;
     deleteBlob(
         assetId: string,

@@ -1,25 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileSliders } from "lucide-react";
+import { Check, FileSliders } from "lucide-react";
 import {
   CommandType,
+  ICommandService,
   type ICommandInfo,
   LogLevel,
   LocaleType,
   Univer,
   UniverInstanceType,
 } from "@univerjs/core";
-import { FUniver } from "@univerjs/core/facade";
 import {
-  UniverRenderEnginePlugin,
-  UniverUIPlugin,
+  UniverDocsCorePreset,
 } from "@univerjs/preset-docs-core";
 import docsZhCN from "@univerjs/preset-docs-core/locales/zh-CN";
 import {
+  PageElementType,
   SlideDataModel,
   UniverSlidesPlugin,
   type ISlideData,
 } from "@univerjs/slides";
-import { UniverSlidesUIPlugin } from "@univerjs/slides-ui";
+import { CanvasView, UniverSlidesUIPlugin } from "@univerjs/slides-ui";
 import slidesZhCN from "@univerjs/slides-ui/locale/zh-CN";
 import "@univerjs/preset-docs-core/lib/index.css";
 import "@univerjs/slides-ui/lib/index.css";
@@ -37,6 +37,7 @@ import {
   univerSlideSnapshotToPptxBytes,
 } from "@a3s-lab/ooxml";
 import { OfficePanelShell, type OfficePanelStatus } from "./office-panel-shell";
+import { disposeUniverAfterReactCommit } from "./univer-runtime-lifecycle";
 
 type SaveStatus = OfficePanelStatus;
 
@@ -51,15 +52,17 @@ interface UniverPresentationPanelParams {
 interface UniverPresentationRuntime {
   univer: { dispose(): void };
   slide: SlideDataModel;
+  canvasView: CanvasView;
   originalBytes: Uint8Array;
   commandDisposable?: { dispose(): void };
 }
 
-type SlidesUniverAPI = ReturnType<typeof FUniver.newAPI> & {
-  onCommandExecuted(listener: (command: ICommandInfo) => void): {
-    dispose(): void;
-  };
-};
+interface SlideTextEntry {
+  key: string;
+  pageId: string;
+  elementId: string;
+  text: string;
+}
 
 function createSlidesUniver(container: HTMLElement) {
   const univer = new Univer({
@@ -68,19 +71,24 @@ function createSlidesUniver(container: HTMLElement) {
     locales: { [LocaleType.ZH_CN]: { ...docsZhCN, ...slidesZhCN } },
   });
 
-  univer.registerPlugin(UniverRenderEnginePlugin);
-  univer.registerPlugin(UniverUIPlugin, {
+  const docsPreset = UniverDocsCorePreset({
     container,
     header: false,
     toolbar: true,
     footer: {},
-  } as never);
+  });
+  for (const entry of docsPreset.plugins) {
+    const [PluginCtor, config] = Array.isArray(entry)
+      ? entry
+      : [entry, undefined];
+    univer.registerPlugin(PluginCtor as never, config as never);
+  }
   univer.registerPlugin(UniverSlidesPlugin);
   univer.registerPlugin(UniverSlidesUIPlugin);
 
   return {
     univer,
-    univerAPI: FUniver.newAPI(univer) as SlidesUniverAPI,
+    commandService: univer.__getInjector().get(ICommandService),
   };
 }
 
@@ -98,11 +106,35 @@ async function bytesToSlideSnapshot(
   return pptxBytesToUniverSlideSnapshot(data, { filename: path });
 }
 
+const PERSISTENT_SLIDE_COMMAND_IDS = new Set([
+  "slide.command.insert-float-image",
+  "slide.operation.add-text",
+  "slide.operation.append-slide",
+  "slide.operation.delete-element",
+  "slide.operation.edit-arrow",
+  "slide.operation.insert-float-shape.ellipse",
+  "slide.operation.insert-float-shape.rectangle",
+  "slide.operation.update-element",
+]);
+
 function isSlideMutation(command: ICommandInfo, slideId: string) {
   const params = command.params as { unitId?: string } | undefined;
   if (params?.unitId && params.unitId !== slideId) return false;
-  return (
-    command.type === CommandType.MUTATION || command.id.startsWith("slide.")
+  return command.type === CommandType.MUTATION || PERSISTENT_SLIDE_COMMAND_IDS.has(command.id);
+}
+
+function slideTextEntries(snapshot: ISlideData): SlideTextEntry[] {
+  const pages = snapshot.body?.pages ?? {};
+  const pageOrder = snapshot.body?.pageOrder ?? Object.keys(pages);
+  return pageOrder.flatMap((pageId) =>
+    Object.values(pages[pageId]?.pageElements ?? {})
+      .filter((element) => element.type === PageElementType.TEXT && element.richText)
+      .map((element) => ({
+        key: `${pageId}:${element.id}`,
+        pageId,
+        elementId: element.id,
+        text: element.richText?.text ?? element.richText?.rich?.body?.dataStream?.replace(/\r\n$/, "") ?? "",
+      }))
   );
 }
 
@@ -116,10 +148,15 @@ export function UniverPresentationPanel({
   const readOnly = params?.readOnly === true || ext !== "pptx";
   const containerRef = useRef<HTMLDivElement | null>(null);
   const runtimeRef = useRef<UniverPresentationRuntime | null>(null);
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
   const dirtyRef = useRef(false);
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [textEntries, setTextEntries] = useState<SlideTextEntry[]>([]);
+  const [selectedTextKey, setSelectedTextKey] = useState<string | null>(null);
+  const [textDraft, setTextDraft] = useState("");
 
   const markDirty = useCallback(
     (nextDirty: boolean) => {
@@ -127,18 +164,17 @@ export function UniverPresentationPanel({
       dirtyRef.current = nextDirty;
       setStatus(nextDirty ? "dirty" : "ready");
       const nextTitle =
-        params?.workbenchVariant === "vscode" || !nextDirty
+        paramsRef.current?.workbenchVariant === "vscode" || !nextDirty
           ? fileName
           : `${fileName} *`;
       api.setTitle(nextTitle);
       api.updateParameters({
-        ...(params ?? {}),
         ...api.getParameters(),
         isDirty: nextDirty,
       });
-      params?.onDirtyChange?.(path, nextDirty);
+      paramsRef.current?.onDirtyChange?.(path, nextDirty);
     },
-    [api, fileName, params, path]
+    [api, fileName, path]
   );
 
   const handleSave = useCallback(async () => {
@@ -156,7 +192,36 @@ export function UniverPresentationPanel({
       setStatus("error");
       setError(error instanceof Error ? error.message : "演示文稿保存失败");
     }
-  }, [markDirty, path, readOnly, retryCount]);
+  }, [markDirty, path, readOnly]);
+
+  const selectTextEntry = useCallback((entry: SlideTextEntry) => {
+    setSelectedTextKey(entry.key);
+    setTextDraft(entry.text);
+  }, []);
+
+  const applyTextEdit = useCallback(() => {
+    const runtime = runtimeRef.current;
+    const entry = textEntries.find((item) => item.key === selectedTextKey);
+    if (!runtime || !entry || entry.text === textDraft) return;
+    const pages = runtime.slide.getPages();
+    const page = pages[entry.pageId];
+    const element = page?.pageElements[entry.elementId];
+    if (!page || !element?.richText) return;
+    const nextElement = {
+      ...element,
+      richText: { ...element.richText, text: textDraft, rich: undefined },
+    };
+    const nextPage = {
+      ...page,
+      pageElements: { ...page.pageElements, [entry.elementId]: nextElement },
+    };
+    runtime.slide.updatePage(entry.pageId, nextPage);
+    runtime.canvasView.removeObjectById(entry.elementId, entry.pageId, runtime.slide.getUnitId());
+    const object = runtime.canvasView.createObjectToPage(nextElement, entry.pageId, runtime.slide.getUnitId());
+    if (object) runtime.canvasView.setObjectActiveByPage(object, entry.pageId, runtime.slide.getUnitId());
+    setTextEntries((current) => current.map((item) => item.key === entry.key ? { ...item, text: textDraft } : item));
+    markDirty(true);
+  }, [markDirty, selectedTextKey, textDraft, textEntries]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -165,15 +230,19 @@ export function UniverPresentationPanel({
     let disposed = false;
 
     const cleanupRuntime = () => {
-      runtimeRef.current?.commandDisposable?.dispose();
-      runtimeRef.current?.univer.dispose();
+      const runtime = runtimeRef.current;
       runtimeRef.current = null;
-      container.replaceChildren();
+      if (!runtime) return;
+      runtime.commandDisposable?.dispose();
+      disposeUniverAfterReactCommit(runtime.univer);
     };
 
     cleanupRuntime();
     setStatus("loading");
     setError(null);
+    setTextEntries([]);
+    setSelectedTextKey(null);
+    setTextDraft("");
     dirtyRef.current = false;
 
     workspaceApi
@@ -184,13 +253,14 @@ export function UniverPresentationPanel({
       }))
       .then(({ data, snapshot }) => {
         if (disposed) return;
-        const { univer, univerAPI } = createSlidesUniver(container);
+        const { univer, commandService } = createSlidesUniver(container);
         const slide = univer.createUnit<ISlideData, SlideDataModel>(
           UniverInstanceType.UNIVER_SLIDE,
           snapshot
         );
         const slideId = slide.getUnitId();
-        const commandDisposable = univerAPI.onCommandExecuted((command) => {
+        const canvasView = univer.__getInjector().get(CanvasView);
+        const commandDisposable = commandService.onCommandExecuted((command) => {
           if (
             !readOnly &&
             !dirtyRef.current &&
@@ -202,9 +272,13 @@ export function UniverPresentationPanel({
         runtimeRef.current = {
           univer,
           slide,
+          canvasView,
           originalBytes: data,
           commandDisposable,
         };
+        const entries = slideTextEntries(snapshot);
+        setTextEntries(entries);
+        if (entries[0]) selectTextEntry(entries[0]);
         setStatus("ready");
       })
       .catch((error) => {
@@ -217,7 +291,7 @@ export function UniverPresentationPanel({
       disposed = true;
       cleanupRuntime();
     };
-  }, [markDirty, path, readOnly]);
+  }, [markDirty, path, readOnly, retryCount, selectTextEntry]);
 
   useEffect(() => {
     const handleSaveAll = (event: Event) => {
@@ -257,7 +331,45 @@ export function UniverPresentationPanel({
         runtimeRef.current && dirtyRef.current ? "重试保存" : "重新加载"
       }
     >
-      <div ref={containerRef} className="h-full w-full" />
+      <div className="flex h-full min-h-0 w-full">
+        <div ref={containerRef} className="min-w-0 flex-1" />
+        <aside className="flex w-64 shrink-0 flex-col border-l border-border-light bg-[#f7f7f5]">
+          <div className="border-b border-border-light bg-white px-3 py-2 text-xs font-semibold text-foreground">幻灯片文字</div>
+          <div className="max-h-36 space-y-1 overflow-y-auto p-2">
+            {textEntries.map((entry, index) => (
+              <button
+                key={entry.key}
+                type="button"
+                onClick={() => selectTextEntry(entry)}
+                className={`block w-full rounded-md px-2 py-1.5 text-left text-xs ${selectedTextKey === entry.key ? "bg-primary/10 text-primary" : "bg-white text-foreground hover:bg-muted"}`}
+              >
+                <span className="block truncate">{index + 1}. {entry.text || "空文本框"}</span>
+              </button>
+            ))}
+          </div>
+          {selectedTextKey ? (
+            <div className="flex min-h-0 flex-1 flex-col gap-2 border-t border-border-light p-2">
+              <textarea
+                value={textDraft}
+                onChange={(event) => setTextDraft(event.target.value)}
+                className="min-h-24 flex-1 resize-none rounded-md border border-border bg-white p-2 text-xs leading-5 text-foreground outline-none focus:border-primary/40"
+                aria-label="幻灯片文本内容"
+              />
+              <button
+                type="button"
+                onClick={applyTextEdit}
+                disabled={textEntries.find((entry) => entry.key === selectedTextKey)?.text === textDraft}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"
+              >
+                <Check className="size-3.5" />
+                应用文字
+              </button>
+            </div>
+          ) : (
+            <div className="p-3 text-xs text-muted-foreground">暂无可编辑文本</div>
+          )}
+        </aside>
+      </div>
     </OfficePanelShell>
   );
 }

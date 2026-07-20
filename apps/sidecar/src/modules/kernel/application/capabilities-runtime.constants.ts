@@ -1,0 +1,7 @@
+export const INTERNAL_CAPABILITIES_MCP_SERVER_NAME = 'internshannon';
+export const CAPABILITIES_RUNTIME_TOOL_NAME =
+    `mcp__${INTERNAL_CAPABILITIES_MCP_SERVER_NAME}__capabilities`;
+export const KNOWLEDGE_SEARCH_RUNTIME_TOOL_NAME =
+    `mcp__${INTERNAL_CAPABILITIES_MCP_SERVER_NAME}__knowledge_search`;
+export const KNOWLEDGE_READ_RUNTIME_TOOL_NAME =
+    `mcp__${INTERNAL_CAPABILITIES_MCP_SERVER_NAME}__knowledge_read`;

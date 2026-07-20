@@ -3,6 +3,7 @@ import { FileText } from "lucide-react";
 import {
   CommandType,
   DocumentDataModel,
+  ICommandService,
   type ICommandInfo,
   type IDocumentData,
   LogLevel,
@@ -10,7 +11,6 @@ import {
   Univer,
   UniverInstanceType,
 } from "@univerjs/core";
-import { FUniver } from "@univerjs/core/facade";
 import { UniverDocsCorePreset } from "@univerjs/preset-docs-core";
 import docsZhCN from "@univerjs/preset-docs-core/locales/zh-CN";
 import "@univerjs/preset-docs-core/lib/index.css";
@@ -28,6 +28,7 @@ import {
   univerDocumentSnapshotToDocxBytes,
 } from "@a3s-lab/ooxml";
 import { OfficePanelShell, type OfficePanelStatus } from "./office-panel-shell";
+import { disposeUniverAfterReactCommit } from "./univer-runtime-lifecycle";
 
 type SaveStatus = OfficePanelStatus;
 
@@ -44,12 +45,6 @@ interface UniverDocumentRuntime {
   document: DocumentDataModel;
   commandDisposable?: { dispose(): void };
 }
-
-type DocsUniverAPI = ReturnType<typeof FUniver.newAPI> & {
-  onCommandExecuted(listener: (command: ICommandInfo) => void): {
-    dispose(): void;
-  };
-};
 
 function createDocsUniver(container: HTMLElement) {
   const univer = new Univer({
@@ -73,7 +68,7 @@ function createDocsUniver(container: HTMLElement) {
 
   return {
     univer,
-    univerAPI: FUniver.newAPI(univer) as DocsUniverAPI,
+    commandService: univer.__getInjector().get(ICommandService),
   };
 }
 
@@ -97,11 +92,7 @@ function isDocumentMutation(command: ICommandInfo, documentId: string) {
     | undefined;
   if (params?.unitId !== documentId && params?.documentId !== documentId)
     return false;
-  return (
-    command.type === CommandType.MUTATION ||
-    command.id.startsWith("doc.") ||
-    command.id.startsWith("docs.")
-  );
+  return command.type === CommandType.MUTATION;
 }
 
 export function UniverDocumentPanel({
@@ -115,6 +106,8 @@ export function UniverDocumentPanel({
   const readOnly = params?.readOnly === true || !canSave;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const runtimeRef = useRef<UniverDocumentRuntime | null>(null);
+  const paramsRef = useRef(params);
+  paramsRef.current = params;
   const dirtyRef = useRef(false);
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -126,18 +119,17 @@ export function UniverDocumentPanel({
       dirtyRef.current = nextDirty;
       setStatus(nextDirty ? "dirty" : "ready");
       const nextTitle =
-        params?.workbenchVariant === "vscode" || !nextDirty
+        paramsRef.current?.workbenchVariant === "vscode" || !nextDirty
           ? fileName
           : `${fileName} *`;
       api.setTitle(nextTitle);
       api.updateParameters({
-        ...(params ?? {}),
         ...api.getParameters(),
         isDirty: nextDirty,
       });
-      params?.onDirtyChange?.(path, nextDirty);
+      paramsRef.current?.onDirtyChange?.(path, nextDirty);
     },
-    [api, fileName, params, path]
+    [api, fileName, path]
   );
 
   const handleSave = useCallback(async () => {
@@ -162,10 +154,11 @@ export function UniverDocumentPanel({
     let disposed = false;
 
     const cleanupRuntime = () => {
-      runtimeRef.current?.commandDisposable?.dispose();
-      runtimeRef.current?.univer.dispose();
+      const runtime = runtimeRef.current;
       runtimeRef.current = null;
-      container.replaceChildren();
+      if (!runtime) return;
+      runtime.commandDisposable?.dispose();
+      disposeUniverAfterReactCommit(runtime.univer);
     };
 
     cleanupRuntime();
@@ -178,7 +171,7 @@ export function UniverDocumentPanel({
       .then((data) => bytesToDocumentSnapshot(path, data))
       .then((snapshot) => {
         if (disposed) return;
-        const { univer, univerAPI } = createDocsUniver(container);
+        const { univer, commandService } = createDocsUniver(container);
         const document = univer.createUnit<IDocumentData, DocumentDataModel>(
           UniverInstanceType.UNIVER_DOC,
           snapshot
@@ -187,7 +180,7 @@ export function UniverDocumentPanel({
           document.setDisabled(true);
         }
         const documentId = document.getUnitId();
-        const commandDisposable = univerAPI.onCommandExecuted((command) => {
+        const commandDisposable = commandService.onCommandExecuted((command) => {
           if (
             !readOnly &&
             !dirtyRef.current &&
@@ -201,6 +194,7 @@ export function UniverDocumentPanel({
       })
       .catch((error) => {
         if (disposed) return;
+        console.warn("[office-editor] Failed to load document", error);
         setStatus("error");
         setError(error instanceof Error ? error.message : "文档加载失败");
       });

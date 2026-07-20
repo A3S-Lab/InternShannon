@@ -87,6 +87,8 @@ type RunnerInternals = {
     streamStallHeartbeatEventTypeForPhase(phase: 'model_stream' | 'tool_input_streaming' | 'tool_exec'): string;
     toolInputStreamStallContinuationPrompt(attempt: number, maxAttempts: number, discardedTools?: string[]): string;
     appendFallbackAssistantTextBlock(blocks: Array<Record<string, unknown>>, text: string): void;
+    personalKnowledgeGrounding(input: Record<string, unknown>): Promise<string | undefined>;
+    withPersonalKnowledgeGrounding(content: string, grounding: string): string;
 };
 
 function createRunner(): RunnerInternals {
@@ -1385,6 +1387,56 @@ describe('KernelMessageRunnerService run stop reasons', () => {
             ),
         ).toBe(true);
     }, 5_000);
+});
+
+describe('KernelMessageRunnerService personal knowledge grounding', () => {
+    it('searches and reads the first OKF hit before the model stream starts', async () => {
+        const runner = createRunner();
+        const tool = jest
+            .fn()
+            .mockResolvedValueOnce({
+                output: JSON.stringify({
+                    hits: [
+                        {
+                            path: 'raw/sources/customer-renewal-plan.txt',
+                            assetId: 'asset-1',
+                            snippet: '蓝鹊校验码 BQ-7429',
+                        },
+                    ],
+                }),
+            })
+            .mockResolvedValueOnce({ output: JSON.stringify({ content: '蓝鹊校验码 BQ-7429' }) });
+
+        const grounding = await runner.personalKnowledgeGrounding({
+            sessionId: 'session-knowledge',
+            content: '请搜索我的个人知识库：蓝鹊校验码是什么？',
+            activeSession: {
+                runtimeOverrides: { allowCapabilities: true },
+                session: {
+                    toolNames: () => [
+                        'mcp__internshannon__knowledge_search',
+                        'mcp__internshannon__knowledge_read',
+                    ],
+                    tool,
+                },
+            },
+        });
+
+        expect(tool).toHaveBeenNthCalledWith(1, 'mcp__internshannon__knowledge_search', {
+            scope: 'personal',
+            query: '蓝鹊校验码',
+            limit: 8,
+        });
+        expect(tool).toHaveBeenNthCalledWith(2, 'mcp__internshannon__knowledge_read', {
+            scope: 'personal',
+            path: 'raw/sources/customer-renewal-plan.txt',
+            assetId: 'asset-1',
+        });
+        expect(grounding).toContain('BQ-7429');
+        expect(runner.withPersonalKnowledgeGrounding('用户问题', grounding ?? '')).toContain(
+            'do not ask the user for authorization',
+        );
+    });
 });
 
 function isStreamEvent(message: unknown, eventType: string): boolean {

@@ -3,6 +3,8 @@ export type FileTreeEditorCommand =
   | "save-all"
   | "open-root"
   | "open-file"
+  | "open-file-preserve-sidebar"
+  | "reload-file"
   | "focus-explorer"
   | "search"
   | "new-file"
