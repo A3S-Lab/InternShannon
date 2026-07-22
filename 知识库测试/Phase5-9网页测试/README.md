@@ -9,7 +9,7 @@
 - `generate-queued-fixtures.mjs`：生成两份约 2 MiB 的本地摄取排队夹具，用于同一资产下制造 `running + queued`；生成文件不会提交到仓库。
 - `office/knowledge-smoke.docx`：测试 Univer 文档打开、编辑和保存。
 - `office/knowledge-smoke.xlsx`：测试 Univer 表格、数值、公式和保存。
-- `office/knowledge-smoke.pptx`：测试 Univer PPTX 文本打开、编辑和保存；这是最小 OOXML 页面夹具，不用于验证复杂 PowerPoint 排版保真。
+- `office/knowledge-smoke.pptx`：由 Microsoft PowerPoint 16.110.3 原生生成的两页 PPTX，包含标题、文本框和蓝色矩形；用于测试 Univer 打开、文本编辑、主题色与图形预览、保存及 PowerPoint 重新打开。夹具带有完整的 slide master、slide layout、theme、Content Types 和 relationship 链，不再是只能被宽松解析器读取的极简 ZIP。
 
 ## 固定检索断言
 
@@ -28,7 +28,7 @@
    - 要稳定观察 `queued`，先在本目录运行 `node generate-queued-fixtures.mjs`，再单独导入生成的 `sources/queued-ingest-a.txt`，随后立即单独导入 `sources/queued-ingest-b.txt`。
    - 同一知识库的写索引任务串行：第一个应为 `running`，第二个应短暂为 `queued`。只取消 `queued/running`；`succeeded` 已经完成，不提供“撤销”。
    - 选择文件后应立即自动打开“任务与审计”并显示读取/上传卡片；此时“导入资料”仍可点击。
-7. 在文件树的 `raw/sources/` 依次打开 DOCX、XLSX、PPTX：修改内容后状态应变成“未保存”，点击“保存”，关闭并重新打开后内容仍存在。
+7. 在文件树的 `raw/sources/` 依次打开 DOCX、XLSX、PPTX：修改内容后状态应变成“未保存”，点击“保存”，关闭并重新打开后内容仍存在。PPTX 第二页应同时显示文本 `111` 和由 Office 主题 `accent1` 提供颜色的蓝色矩形；保存后将二进制文件提取并用 Microsoft PowerPoint 重新打开，不应出现“发现内容有问题”或“修复”提示，蓝色矩形的位置、大小和颜色应保持。
 8. 点击“刷新索引”，再搜索来源中的 `客户沟通检查点`。命中项应带 `asset://.../raw/sources/customer-renewal-plan.txt` citation。
 9. 打开“策展建议”并刷新。至少应出现摘要 proposal 和来源页面 proposal；接受前不得创建或改写页面。接受后检查文件内容，再点击撤销，内容应精确恢复。
 10. 再接受一条建议，随后手工编辑对应页面并保存，再点击撤销。预期显示 SHA 冲突错误，手工内容不得被覆盖。
