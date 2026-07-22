@@ -14,6 +14,7 @@ export interface KnowledgeEmbeddingConfig {
     keywordWeight: number;
     vectorWeight: number;
     mmrLambda: number;
+    timeoutMs: number;
 }
 
 export interface KnowledgeEmbeddingBatch {
@@ -37,6 +38,7 @@ export class KnowledgeEmbeddingService {
             keywordWeight: this.boundedNumber(embedding.keywordWeight, 1, 0, 10),
             vectorWeight: this.boundedNumber(embedding.vectorWeight, 6, 0, 10),
             mmrLambda: this.boundedNumber(embedding.mmrLambda, 0.78, 0, 1),
+            timeoutMs: this.boundedNumber(embedding.timeoutMs, 120_000, 1, 600_000),
         };
     }
 
@@ -79,6 +81,7 @@ export class KnowledgeEmbeddingService {
                         ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
                     },
                     signal,
+                    selected.timeoutMs,
                 )),
             );
         }
@@ -96,21 +99,33 @@ export class KnowledgeEmbeddingService {
         dimensions: number | undefined,
         headers: Record<string, string>,
         signal?: AbortSignal,
+        timeoutMs = 120_000,
     ): Promise<number[][]> {
         let lastError: Error | undefined;
         for (let attempt = 0; attempt < 3; attempt += 1) {
             if (signal?.aborted) throw new DOMException('Embedding cancelled', 'AbortError');
+            const timeoutController = new AbortController();
+            const timeout = setTimeout(
+                () => timeoutController.abort(new DOMException('Embedding request timed out', 'TimeoutError')),
+                timeoutMs,
+            );
+            const requestSignal = signal
+                ? AbortSignal.any([signal, timeoutController.signal])
+                : timeoutController.signal;
             try {
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'content-type': 'application/json', ...headers },
                     body: JSON.stringify({ model, input, ...(dimensions ? { dimensions } : {}) }),
-                    signal,
+                    signal: requestSignal,
                 });
                 if (!response.ok) {
-                    const message = (await response.text()).slice(0, 500);
-                    const error = new Error(`Embedding request failed (${response.status}): ${message}`);
-                    if (response.status !== 429 && response.status < 500) throw error;
+                    // Do not copy provider response bodies into errors: some
+                    // gateways echo request headers or credentials.
+                    const error = new Error(`Embedding request failed (${response.status})`);
+                    if (response.status !== 429 && response.status < 500) {
+                        throw new NonRetryableEmbeddingError(error.message);
+                    }
                     lastError = error;
                     continue;
                 }
@@ -127,7 +142,14 @@ export class KnowledgeEmbeddingService {
                     });
             } catch (error) {
                 if (signal?.aborted) throw error;
-                lastError = error instanceof Error ? error : new Error(String(error));
+                if (error instanceof NonRetryableEmbeddingError) throw error;
+                lastError = timeoutController.signal.aborted
+                    ? new Error(`Embedding request timed out after ${timeoutMs}ms`)
+                    : error instanceof Error
+                      ? error
+                      : new Error(String(error));
+            } finally {
+                clearTimeout(timeout);
             }
         }
         throw lastError ?? new Error('Embedding request failed');
@@ -149,3 +171,5 @@ export class KnowledgeEmbeddingService {
         return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
     }
 }
+
+class NonRetryableEmbeddingError extends Error {}

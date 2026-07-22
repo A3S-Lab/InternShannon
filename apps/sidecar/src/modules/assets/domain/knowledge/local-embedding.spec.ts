@@ -2,6 +2,7 @@ import {
     LOCAL_EMBEDDING_DIMENSIONS,
     LOCAL_EMBEDDING_MODEL,
     cosineSimilarity,
+    hasLocalSemanticTokenOverlap,
     localEmbedding,
 } from './local-embedding';
 
@@ -16,5 +17,11 @@ describe('local embedding adapter', () => {
         expect(localEmbedding('Monthly revenue increased after renewal changes.')).toEqual(revenue);
         expect(cosineSimilarity(revenue, income)).toBeGreaterThan(cosineSimilarity(revenue, unrelated));
         expect(cosineSimilarity(revenue, income)).toBeGreaterThan(0.3);
+    });
+
+    it('distinguishes normalized synonym overlap from hash-only collisions', () => {
+        expect(hasLocalSemanticTokenOverlap('subscription extension', 'The renewal workflow starts tomorrow.')).toBe(true);
+        expect(hasLocalSemanticTokenOverlap('monthly income', 'Revenue is tracked every month.')).toBe(true);
+        expect(hasLocalSemanticTokenOverlap('ZXQUNSEENRS274901', 'A large unrelated research corpus.')).toBe(false);
     });
 });

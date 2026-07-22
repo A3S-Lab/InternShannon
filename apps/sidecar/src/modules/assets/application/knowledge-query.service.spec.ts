@@ -5,8 +5,9 @@ import type { IKernelService } from "../../kernel/domain/services/kernel-service
 import { AssetServiceImpl } from "./asset.service";
 import { KnowledgeQueryService } from "./knowledge-query.service";
 import { KnowledgeIngestionService } from "./knowledge-ingestion.service";
+import type { KnowledgeEmbeddingService } from "./knowledge-embedding.service";
 
-function createKnowledgeHarness() {
+function createKnowledgeHarness(embeddings?: KnowledgeEmbeddingService) {
 	const asset = Asset.create({
 		name: "personal-knowledge",
 		ownerId: "user-1",
@@ -49,7 +50,7 @@ function createKnowledgeHarness() {
 	} as unknown as IAssetRepository;
 	const assets = new AssetServiceImpl(repository);
 	const ingestion = new KnowledgeIngestionService(assets);
-	const knowledge = new KnowledgeQueryService(assets, ingestion);
+	const knowledge = new KnowledgeQueryService(assets, ingestion, embeddings);
 	return { asset, assets, ingestion, knowledge };
 }
 
@@ -238,6 +239,106 @@ describe("KnowledgeQueryService", () => {
 		expect(result.hits).toEqual([]);
 	});
 
+	it("does not turn local-hash collisions from a large source into semantic-only hits", async () => {
+		const { asset, assets, ingestion, knowledge } = createKnowledgeHarness();
+		const largeUnrelatedSource = Array.from(
+			{ length: 12_000 },
+			(_, index) => `research-token-${index} object localization evidence`,
+		).join("\n");
+		await assets.updateBlob(
+			asset.id,
+			"raw/sources/large-research-corpus.txt",
+			largeUnrelatedSource,
+			"Add large source",
+			"main",
+		);
+		await ingestion.reindex(asset.id);
+
+		const result = await knowledge.searchAsset(asset.id, "ZXQUNSEENRS274901");
+
+		expect(result.hits).toEqual([]);
+	});
+
+	it("requires a lexical match for identifiers that share natural-language prefixes", async () => {
+		const { asset, assets, ingestion, knowledge } = createKnowledgeHarness();
+		await assets.updateBlob(
+			asset.id,
+			"raw/sources/concurrency-notes.txt",
+			"Concurrency soak results are reviewed after every release.",
+			"Add concurrency notes",
+			"main",
+		);
+		await ingestion.reindex(asset.id);
+
+		const absent = await knowledge.searchAsset(asset.id, "CONCURRENCY-SOAK-RUN-7429");
+		expect(absent.hits).toEqual([]);
+
+		await assets.updateBlob(
+			asset.id,
+			"raw/sources/concurrency-notes.txt",
+			"The exact release marker is CONCURRENCY-SOAK-RUN-7429.",
+			"Add exact marker",
+			"main",
+		);
+		await ingestion.reindex(asset.id);
+
+		const present = await knowledge.searchAsset(asset.id, "CONCURRENCY-SOAK-RUN-7429");
+		expect(present.hits).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ path: "raw/sources/concurrency-notes.txt" }),
+			]),
+		);
+	});
+
+	it("rejects external semantic-only matches for unknown identifier queries", async () => {
+		const embeddings = {
+			getAssetConfig: () => ({
+				provider: "external",
+				model: "external-embedding",
+				dimensions: 2,
+				keywordWeight: 1,
+				vectorWeight: 6,
+				mmrLambda: 0.78,
+			}),
+			embed: async (_asset: Asset, texts: string[]) => ({
+				provider: "external",
+				model: "external-embedding",
+				dimensions: 2,
+				vectors: texts.map(() => [1, 0]),
+			}),
+		} as unknown as KnowledgeEmbeddingService;
+		const { asset, knowledge } = createKnowledgeHarness(embeddings);
+
+		const result = await knowledge.searchAsset(asset.id, "ZXQUNSEENRN983104");
+
+		expect(result.hits).toEqual([]);
+	});
+
+	it("keeps high-confidence natural-language matches from external embeddings", async () => {
+		const embeddings = {
+			getAssetConfig: () => ({
+				provider: "external",
+				model: "external-embedding",
+				dimensions: 2,
+				keywordWeight: 1,
+				vectorWeight: 6,
+				mmrLambda: 0.78,
+			}),
+			embed: async (_asset: Asset, texts: string[]) => ({
+				provider: "external",
+				model: "external-embedding",
+				dimensions: 2,
+				vectors: texts.map(() => [1, 0]),
+			}),
+		} as unknown as KnowledgeEmbeddingService;
+		const { asset, knowledge } = createKnowledgeHarness(embeddings);
+
+		const result = await knowledge.searchAsset(asset.id, "customer retention objective");
+
+		expect(result.hits.length).toBeGreaterThan(0);
+		expect(result.hits[0].semanticScore).toBe(1);
+	});
+
 	it("reports recall and reciprocal rank through the hybrid MMR evaluation contract", async () => {
 		const { asset, knowledge } = createKnowledgeHarness();
 
@@ -254,5 +355,65 @@ describe("KnowledgeQueryService", () => {
 			emptyResultRate: 0,
 			ranking: "hybrid-mmr-v1",
 		});
+	});
+
+	it("bounds the MMR reranking pool for broad queries", () => {
+		const { asset, knowledge } = createKnowledgeHarness();
+		const hits = Array.from({ length: 2_000 }, (_, index) => ({
+			kind: "source" as const,
+			assetId: asset.id,
+			bundle: "personal-knowledge",
+			conceptId: `source:${index}`,
+			path: `raw/sources/${String(index).padStart(4, "0")}.txt`,
+			title: `Candidate ${index}`,
+			type: "Source",
+			tags: [],
+			snippet: index < 512 ? "common broad-query result" : `unique tail ${index}`,
+			score: 2_000 - index,
+			citations: [`asset://${asset.id}/raw/sources/${index}.txt`],
+		}));
+		const diversify = (knowledge as unknown as {
+			diversify: (input: typeof hits, limit: number, lambda: number) => typeof hits;
+		}).diversify.bind(knowledge);
+
+		const selected = diversify(hits, 8, 0.78);
+
+		expect(selected).toHaveLength(8);
+		expect(selected.every(hit => Number(hit.conceptId.slice("source:".length)) < 512)).toBe(true);
+	});
+
+	it("bounds source candidates before concurrent requests reach the MMR stage", () => {
+		const { asset, knowledge } = createKnowledgeHarness();
+		const hits = Array.from({ length: 2_000 }, (_, index) => ({
+			kind: "source" as const,
+			assetId: asset.id,
+			bundle: "personal-knowledge",
+			conceptId: `source:${index}`,
+			path: `raw/sources/${String(index).padStart(4, "0")}.txt`,
+			title: `Candidate ${index}`,
+			type: "Source",
+			tags: [],
+			snippet: "broad source candidate",
+			score: index,
+			citations: [`asset://${asset.id}/raw/sources/${index}.txt`],
+		}));
+		const retainTopHits = (knowledge as unknown as {
+			retainTopHits: (input: typeof hits, limit: number) => void;
+		}).retainTopHits.bind(knowledge);
+
+		retainTopHits(hits, 512);
+
+		expect(hits).toHaveLength(512);
+		expect(Math.min(...hits.map(hit => hit.score))).toBe(1_488);
+	});
+
+	it("uses a small per-source candidate budget for identifier queries", () => {
+		const { knowledge } = createKnowledgeHarness();
+		const sourceCandidateLimit = (knowledge as unknown as {
+			sourceCandidateLimit: (query: string) => number;
+		}).sourceCandidateLimit.bind(knowledge);
+
+		expect(sourceCandidateLimit("CONCURRENCY-SOAK-RUN-7429")).toBe(32);
+		expect(sourceCandidateLimit("customer renewal objectives")).toBe(512);
 	});
 });

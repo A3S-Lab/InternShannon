@@ -2,7 +2,11 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { BadRequestException, NotFoundException } from '@/shared/common/errors';
 import type { Asset } from '../domain/entities/asset.entity';
 import { isReservedOkfPath, normalizeOkfPath, parseOkfDocument } from '../domain/knowledge/open-knowledge-format';
-import { cosineSimilarity, localEmbedding } from '../domain/knowledge/local-embedding';
+import {
+    cosineSimilarity,
+    hasLocalSemanticTokenOverlap,
+    localEmbedding,
+} from '../domain/knowledge/local-embedding';
 import { ASSET_SERVICE, type IAssetService } from '../domain/services/asset.service.interface';
 import { KnowledgeIngestionService } from './knowledge-ingestion.service';
 import { KnowledgeEmbeddingService } from './knowledge-embedding.service';
@@ -34,6 +38,9 @@ export interface KnowledgeSearchResult {
     hits: KnowledgeSearchHit[];
     ranking?: 'hybrid-mmr-v1';
 }
+
+const LOCAL_SEMANTIC_MIN_SIMILARITY = 0.12;
+const EXTERNAL_SEMANTIC_MIN_SIMILARITY = 0.3;
 
 @Injectable()
 export class KnowledgeQueryService {
@@ -326,7 +333,15 @@ export class KnowledgeQueryService {
             for (const [index, concept] of concepts.entries()) {
                 const semanticScore = cosineSimilarity(queryEmbedding, batch.vectors[index + 1]);
                 const { path, bundlePath, title, type, description, resource, tags, body, keywordScore } = concept;
-                if (keywordScore <= 0 && semanticScore < 0.12) continue;
+                if (
+                    keywordScore <= 0 &&
+                    !this.acceptSemanticOnlyHit(
+                        normalizedQuery,
+                        concept.semanticText,
+                        semanticScore,
+                        batch.provider,
+                    )
+                ) continue;
                 const explicitCitations = this.extractCitations(body);
                 hits.push({
                     kind: 'concept',
@@ -355,6 +370,7 @@ export class KnowledgeQueryService {
                     queryEmbedding,
                     weights.keywordWeight,
                     weights.vectorWeight,
+                    batch.provider,
                 )),
             );
         }
@@ -370,23 +386,34 @@ export class KnowledgeQueryService {
         queryEmbedding: number[],
         keywordWeight: number,
         vectorWeight: number,
+        embeddingProvider: string,
     ): Promise<KnowledgeSearchHit[]> {
         const manifest = await this.ingestion.getManifest(asset.id);
         const vectorIndex = await this.ingestion.readVectorIndex(asset.id, manifest);
         const vectors = new Map(vectorIndex?.records.map(record => [record.id, record.embedding]) ?? []);
         const hits: KnowledgeSearchHit[] = [];
+        const sourceCandidateLimit = this.sourceCandidateLimit(fullQuery);
         for (const source of manifest.sources) {
             if (source.status !== 'indexed') continue;
             const title = this.titleFromSourcePath(source.path);
             const citation = `asset://${asset.id}/${source.path}`;
+            const sourceHits: KnowledgeSearchHit[] = [];
             for (const chunk of await this.ingestion.readChunks(asset.id, source)) {
                 const keywordScore = this.scoreDocument(terms, fullQuery, title, '', [], source.path, chunk.text);
                 const semanticScore = cosineSimilarity(
                     queryEmbedding,
                     vectors.get(chunk.id) ?? localEmbedding(chunk.text),
                 );
-                if (keywordScore <= 0 && semanticScore < 0.12) continue;
-                hits.push({
+                if (
+                    keywordScore <= 0 &&
+                    !this.acceptSemanticOnlyHit(
+                        fullQuery,
+                        `${title}\n${source.path}\n${chunk.text}`,
+                        semanticScore,
+                        embeddingProvider,
+                    )
+                ) continue;
+                sourceHits.push({
                     kind: 'source',
                     assetId: asset.id,
                     bundle: this.bundleName(asset),
@@ -402,9 +429,50 @@ export class KnowledgeQueryService {
                     citations: [citation],
                     chunkIndex: chunk.index,
                 });
+                // An identifier can appear in every chunk of a generated log or
+                // repeated export. Only a small per-source pool can contribute
+                // to the final top eight, and bounding it before MMR prevents a
+                // single source from monopolizing CPU under concurrent search.
+                if (sourceHits.length >= sourceCandidateLimit * 2) {
+                    this.retainTopHits(sourceHits, sourceCandidateLimit);
+                }
             }
+            this.retainTopHits(sourceHits, sourceCandidateLimit);
+            hits.push(...sourceHits);
+            if (hits.length >= 1_024) this.retainTopHits(hits, 512);
         }
+        this.retainTopHits(hits, 512);
         return hits;
+    }
+
+    private retainTopHits(hits: KnowledgeSearchHit[], limit: number): void {
+        if (hits.length <= limit) return;
+        hits.sort((left, right) => right.score - left.score || left.path.localeCompare(right.path));
+        hits.length = limit;
+    }
+
+    private sourceCandidateLimit(query: string): number {
+        return this.isIdentifierQuery(query) ? 32 : 512;
+    }
+
+    private acceptSemanticOnlyHit(query: string, candidate: string, similarity: number, provider: string): boolean {
+        // Identifiers are lexical keys, not natural-language concepts. Expanding
+        // them semantically turns shared prefixes (for example incident IDs or
+        // soak-test markers) into large false-positive candidate sets and makes
+        // concurrent searches spend most of their time reranking unrelated
+        // chunks. Exact/partial lexical matches have already received a positive
+        // keyword score before this method is called.
+        if (this.isIdentifierQuery(query)) return false;
+        if (provider === 'local') {
+            return similarity >= LOCAL_SEMANTIC_MIN_SIMILARITY && hasLocalSemanticTokenOverlap(query, candidate);
+        }
+        if (similarity < EXTERNAL_SEMANTIC_MIN_SIMILARITY) return false;
+        return true;
+    }
+
+    private isIdentifierQuery(query: string): boolean {
+        const compact = query.replace(/\s+/g, '');
+        return compact.length >= 8 && /[a-z]/i.test(compact) && /\d/.test(compact);
     }
 
     private async readSource(assetId: string, sourceId: string) {
@@ -459,7 +527,14 @@ export class KnowledgeQueryService {
 
     private diversify(hits: KnowledgeSearchHit[], limit: number, lambda: number): KnowledgeSearchHit[] {
         if (hits.length <= 1 || lambda >= 1) return hits.slice(0, limit);
-        const candidates = hits.map(hit => ({ hit, embedding: localEmbedding(`${hit.title}\n${hit.snippet}`) }));
+        // MMR is a reranker, not the initial retriever. Running its pairwise
+        // comparisons over every matching chunk makes broad queries scale
+        // quadratically and can block all concurrent searches. The input is
+        // already sorted by hybrid relevance, so rerank a bounded top pool.
+        const candidateLimit = Math.max(limit, Math.min(512, limit * 32));
+        const candidates = hits
+            .slice(0, candidateLimit)
+            .map(hit => ({ hit, embedding: localEmbedding(`${hit.title}\n${hit.snippet}`) }));
         const selected: typeof candidates = [];
         const maxScore = Math.max(...hits.map(hit => hit.score), 1);
         while (candidates.length > 0 && selected.length < limit) {

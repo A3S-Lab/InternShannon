@@ -11,7 +11,12 @@ export {
     docxBytesToUniverDocumentSnapshot,
     plainTextToUniverDocumentSnapshot,
     univerDocumentSnapshotToDocxBytes,
+    univerDocumentSnapshotToPreservedDocxBytes,
     univerDocumentSnapshotToPlainText,
 } from "../docx";
 export { pptxBytesToUniverSlideSnapshot, univerSlideSnapshotToPptxBytes } from "../pptx";
-export { workbookBytesToUniverSnapshot, univerWorkbookSnapshotToBytes } from "../xlsx";
+export {
+    workbookBytesToUniverSnapshot,
+    univerWorkbookSnapshotToBytes,
+    univerWorkbookSnapshotToPreservedXlsxBytes,
+} from "../xlsx";

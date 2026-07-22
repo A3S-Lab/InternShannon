@@ -51,7 +51,9 @@ export async function fetchJson(
         throw new OcrBackendError(`OCR backend "${config.name}" returned HTTP ${response.status}`, {
             backend: config.name,
             status: response.status,
-            response: body ?? text,
+            // Provider error bodies can echo authorization headers or request
+            // payloads. Keep status/backend diagnostics without retaining
+            // potentially sensitive remote content.
         });
     }
     return body ?? text;

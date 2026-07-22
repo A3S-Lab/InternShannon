@@ -58,7 +58,9 @@ export function OverviewPane(props: {
 }) {
   const filteredPages = useMemo(() => {
     const normalized = props.query.trim().toLowerCase();
-    if (normalized) return props.searchHits.slice(0, 24);
+    if (normalized) {
+      return Array.from(new Map(props.searchHits.map((hit) => [hit.path, hit])).values()).slice(0, 24);
+    }
     return props.pages.slice(0, 24);
   }, [props.pages, props.query, props.searchHits]);
 

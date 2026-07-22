@@ -134,15 +134,18 @@ export function GraphPane(props: { graph: WikiGraph | null }) {
           <div className="truncate text-sm font-semibold text-foreground">关系图</div>
           <div className="truncate text-[11px] text-muted-foreground">
             {nodes.length} 节点 / {edges.length} 连接
+            {topNodes.length < filteredNodes.length ? ` · 显示前 ${topNodes.length} 个节点` : ""}
           </div>
         </div>
         <input
+          aria-label="搜索关系图节点"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="搜索节点"
           className="h-8 w-36 rounded-md border border-border bg-white px-2 text-xs"
         />
         <select
+          aria-label="按类型筛选关系图"
           value={type}
           onChange={(event) => setType(event.target.value)}
           className="h-8 max-w-40 rounded-md border border-border bg-white px-2 text-xs"
@@ -155,6 +158,7 @@ export function GraphPane(props: { graph: WikiGraph | null }) {
           ))}
         </select>
         <select
+          aria-label="按标签筛选关系图"
           value={tag}
           onChange={(event) => setTag(event.target.value)}
           className="h-8 max-w-40 rounded-md border border-border bg-white px-2 text-xs"

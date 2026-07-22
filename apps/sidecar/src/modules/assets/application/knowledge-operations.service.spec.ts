@@ -4,9 +4,12 @@ import type { IAssetRepository } from '../domain/repositories/asset.repository.i
 import { AssetServiceImpl } from './asset.service';
 import { KnowledgeAuditService } from './knowledge-audit.service';
 import { KnowledgeIngestJobService } from './knowledge-ingest-job.service';
-import { KnowledgeIngestionService } from './knowledge-ingestion.service';
+import { KNOWLEDGE_INDEX_ROOT, KnowledgeIngestionService } from './knowledge-ingestion.service';
 
-function createHarness(config?: ConfigService) {
+function createHarness(
+    config?: ConfigService,
+    options: { transformRead?: (path: string, content: Buffer | null) => Buffer | null } = {},
+) {
     const asset = Asset.create({
         name: 'knowledge',
         ownerId: 'user-1',
@@ -18,7 +21,10 @@ function createHarness(config?: ConfigService) {
     const repository = {
         findById: jest.fn(async (id: string) => (id === asset.id ? asset : null)),
         save: jest.fn(async () => undefined),
-        readBlobData: jest.fn(async (assetId: string, path: string) => externalBlobs.get(`${assetId}:${path}`) ?? null),
+        readBlobData: jest.fn(async (assetId: string, path: string) => {
+            const content = externalBlobs.get(`${assetId}:${path}`) ?? null;
+            return options.transformRead?.(path, content) ?? content;
+        }),
         writeBlobData: jest.fn(async (assetId: string, path: string, content: Buffer) => {
             externalBlobs.set(`${assetId}:${path}`, Buffer.from(content));
         }),
@@ -57,6 +63,22 @@ async function waitForJobState(
 }
 
 describe('Knowledge operations services', () => {
+    it('keeps externally stored knowledge content out of commit-diff metadata', async () => {
+        const { asset, assets } = createHarness();
+        const marker = 'DO-NOT-DUPLICATE-IN-METADATA';
+        const content = marker.repeat(20_000);
+
+        await assets.updateBlob(asset.id, 'raw/sources/large.txt', content, 'Add large source', 'main');
+
+        const diffs = Object.values((asset.metadata?.commitDiffs ?? {}) as Record<string, string>);
+        expect(diffs).toHaveLength(1);
+        expect(diffs[0]).toContain('External blob changed: raw/sources/large.txt');
+        expect(diffs[0]).not.toContain(marker);
+        expect(diffs[0].length).toBeLessThan(200);
+        expect(asset.metadata?.blobContents).toEqual({});
+        expect(await assets.getBlobContent(asset.id, 'raw/sources/large.txt')).toBe(content);
+    });
+
     it('persists asynchronous ingest progress and a unified audit entry', async () => {
         const { asset, assets, jobs, audit } = createHarness();
         await assets.updateBlob(asset.id, 'raw/sources/notes.txt', 'Asynchronous source text.', 'Add', 'main');
@@ -101,6 +123,51 @@ describe('Knowledge operations services', () => {
         expect((await waitForJob(jobs, asset.id, running.jobId)).status).toBe('cancelled');
         expect((await jobs.get(asset.id, queued.jobId)).status).toBe('cancelled');
     });
+
+    it.each(['queued', 'running'] as const)(
+        'recovers a persisted %s job as failed after restart and allows an explicit retry',
+        async interruptedStatus => {
+            const { asset, assets, ingestion, audit } = createHarness();
+            await assets.updateBlob(
+                asset.id,
+                'raw/sources/restart.txt',
+                'RESTART-RECOVERY source remains available after process interruption.',
+                'Add restart fixture',
+                'main',
+            );
+            const jobId = `interrupted-${interruptedStatus}`;
+            const now = new Date().toISOString();
+            await assets.updateBlob(
+                asset.id,
+                `${KNOWLEDGE_INDEX_ROOT}/jobs/${jobId}.json`,
+                `${JSON.stringify({
+                    jobId,
+                    assetId: asset.id,
+                    sourcePaths: ['raw/sources/restart.txt'],
+                    status: interruptedStatus,
+                    progress: { percent: interruptedStatus === 'running' ? 45 : 0, stage: interruptedStatus, message: 'interrupted', updatedAt: now },
+                    createdAt: now,
+                    startedAt: interruptedStatus === 'running' ? now : undefined,
+                    actorId: 'user-1',
+                })}\n`,
+                'Persist interrupted job fixture',
+                'main',
+            );
+
+            const restartedJobs = new KnowledgeIngestJobService(assets, ingestion, audit);
+            const recovered = (await restartedJobs.list(asset.id)).find(job => job.jobId === jobId);
+            expect(recovered).toMatchObject({
+                status: 'failed',
+                failedReason: 'Sidecar restarted before the ingest job completed',
+                progress: { stage: 'failed' },
+            });
+
+            const retried = await restartedJobs.retry(asset.id, jobId, 'user-1');
+            const completed = await waitForJob(restartedJobs, asset.id, retried.jobId);
+            expect(completed).toMatchObject({ status: 'succeeded', retryOf: jobId });
+            expect(await assets.getBlobContent(asset.id, 'raw/sources/restart.txt')).toContain('RESTART-RECOVERY');
+        },
+    );
 
     it('uses the configured OCR registry and keeps citations anchored to the original source', async () => {
         const originalFetch = global.fetch;
@@ -192,6 +259,38 @@ describe('Knowledge operations services', () => {
         expect(asset.metadata?.blobContents).toEqual({});
         expect(await assets.getBlobContent(asset.id, 'wiki/renamed.md')).toBe(content);
         await expect(assets.getBlobContent(asset.id, 'wiki/migrated.md')).rejects.toThrow();
+    });
+
+    it('keeps legacy metadata intact when storage migration SHA verification fails', async () => {
+        let corruptVerificationRead = false;
+        const { asset, assets } = createHarness(undefined, {
+            transformRead: (path, content) =>
+                corruptVerificationRead && path === 'wiki/recovery.md'
+                    ? Buffer.from('corrupted persisted bytes')
+                    : content,
+        });
+        const content = '---\ntype: Note\ntitle: Recovery\n---\n\nMigration source of truth.\n';
+        asset.updateMetadata({
+            blobContents: { 'wiki/recovery.md': content },
+            blobEncodings: { 'wiki/recovery.md': 'utf8' },
+            blobs: [
+                {
+                    id: 'recovery-page',
+                    assetId: asset.id,
+                    path: 'wiki/recovery.md',
+                    size: Buffer.byteLength(content),
+                    contentSha: 'legacy-recovery',
+                    isBinary: false,
+                },
+            ],
+        });
+        corruptVerificationRead = true;
+
+        await expect(assets.migrateKnowledgeStorage(asset.id)).rejects.toThrow(
+            'Knowledge storage migration SHA verification failed: wiki/recovery.md',
+        );
+        expect(asset.metadata?.blobContents).toMatchObject({ 'wiki/recovery.md': content });
+        expect(asset.metadata?.blobEncodings).toMatchObject({ 'wiki/recovery.md': 'utf8' });
     });
 
     it('keeps a 1000-page knowledge fixture out of metadata after migration', async () => {

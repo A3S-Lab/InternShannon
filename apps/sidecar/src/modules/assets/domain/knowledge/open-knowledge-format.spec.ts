@@ -1,4 +1,4 @@
-import { extractOkfLinks, parseOkfDocument, resolveOkfLink, validateOkfBundle } from './open-knowledge-format';
+import { extractOkfLinks, normalizeOkfPath, parseOkfDocument, resolveOkfLink, validateOkfBundle } from './open-knowledge-format';
 
 describe('Open Knowledge Format v0.1', () => {
     it('parses concepts while preserving unknown frontmatter fields', () => {
@@ -107,4 +107,51 @@ describe('Open Knowledge Format v0.1', () => {
         ]);
         expect(result.concepts[0].extensions).toEqual({ producer_extension: 'keep-me' });
     });
+
+    it('keeps 2000 deterministic path mutations inside the bundle root', () => {
+        const random = seededRandom(0x4f4b4601);
+        const atoms = ['concepts', 'tables', 'a b', '.', '..', '', '\\windows', 'nested', 'x\0y'];
+        for (let iteration = 0; iteration < 2000; iteration += 1) {
+            const count = 1 + Math.floor(random() * 8);
+            const input = Array.from({ length: count }, () => atoms[Math.floor(random() * atoms.length)]).join(
+                random() > 0.5 ? '/' : '\\',
+            );
+            const normalized = normalizeOkfPath(input);
+            if (normalized === null) continue;
+            expect(normalized).not.toContain('\\');
+            expect(normalized).not.toContain('\0');
+            expect(normalized.split('/')).not.toContain('..');
+            expect(normalizeOkfPath(normalized)).toBe(normalized);
+        }
+    });
+
+    it('handles deterministic frontmatter and link mutations without escaping or non-Error crashes', () => {
+        const random = seededRandom(0x4f4b4602);
+        const yamlValues = ['Note', '"Quoted"', '[a, b]', '{ owner: test }', '[broken', '*alias', 'null', '42'];
+        for (let iteration = 0; iteration < 500; iteration += 1) {
+            const type = yamlValues[Math.floor(random() * yamlValues.length)];
+            const target = random() > 0.5 ? `../${iteration}/target.md` : `./target-${iteration}.md`;
+            const raw = `---\ntype: ${type}\ntitle: Fuzz ${iteration}\n---\n\nSee [target](${target}).\n`;
+            try {
+                const document = parseOkfDocument(`fuzz/case-${iteration}.md`, raw);
+                expect(document.path).toBe(`fuzz/case-${iteration}.md`);
+                for (const link of extractOkfLinks(document.path, document.body)) {
+                    if (link.resolvedPath !== null) {
+                        expect(link.resolvedPath).not.toContain('..');
+                        expect(link.resolvedPath).not.toContain('\\');
+                    }
+                }
+            } catch (error) {
+                expect(error).toBeInstanceOf(Error);
+            }
+        }
+    });
 });
+
+function seededRandom(seed: number): () => number {
+    let state = seed >>> 0;
+    return () => {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        return state / 0x1_0000_0000;
+    };
+}
