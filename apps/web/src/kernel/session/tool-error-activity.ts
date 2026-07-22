@@ -11,6 +11,7 @@ export function normalizeToolErrorActivity(
     normalizeNonEmptyString(event.message) ??
     normalizeNonEmptyString(event.detail) ??
     "工具执行失败";
+  const localizedReason = localizeToolErrorReason(reason, toolName);
   const durationMs = normalizeFirstFiniteNumber(event.durationMs, event.duration_ms);
   const consecutive = normalizeFirstFiniteNumber(event.consecutiveFailures, event.consecutive_failures);
   const labelTool = toolName ?? "工具";
@@ -23,13 +24,40 @@ export function normalizeToolErrorActivity(
     status: "failed",
     phase: "tool_error",
     label: `工具失败：${labelTool}${labelSuffix}`,
-    detail: consecutive !== undefined && consecutive > 1 ? `${reason}（同工具连续失败 ${consecutive} 次）` : reason,
+    detail:
+      consecutive !== undefined && consecutive > 1
+        ? `${localizedReason.detail}（同工具连续失败 ${consecutive} 次）`
+        : localizedReason.detail,
+    diagnosticDetail: localizedReason.diagnosticDetail,
     source: "工具运行器",
     toolUseId,
     toolName,
     elapsedMs: durationMs,
     timestamp: options.timestamp,
   };
+}
+
+function localizeToolErrorReason(reason: string, toolName?: string): { detail: string; diagnosticDetail?: string } {
+  if (/[^\x00-\x7F]/.test(reason)) return { detail: reason };
+  const normalized = reason.toLowerCase();
+  let detail: string;
+  if (/permission denied|not permitted|access denied/.test(normalized)) {
+    detail = "操作被拒绝：权限不足";
+  } else if (/no (?:search )?results?|web search returned no results/.test(normalized)) {
+    detail = "未找到搜索结果，请调整关键词或稍后重试";
+  } else if (/timed? out|timeout/.test(normalized)) {
+    detail = toolName === "web_search" ? "搜索服务响应超时，请检查网络或搜索引擎设置" : "工具响应超时，请稍后重试";
+  } else if (/econnrefused|connection refused|failed to fetch|network error/.test(normalized)) {
+    detail = "连接失败，请检查网络或服务配置";
+  } else if (/browser binary|lightpanda|chrome executable/.test(normalized)) {
+    detail = "搜索浏览器不可用，请先在搜索设置中安装或配置浏览器";
+  } else if (/exited with (?:code|status)/.test(normalized)) {
+    const code = reason.match(/(?:code|status)\s+([^\s]+)/i)?.[1];
+    detail = `命令执行失败${code ? `（退出码 ${code}）` : ""}`;
+  } else {
+    detail = "工具执行失败，请展开查看诊断详情";
+  }
+  return { detail, diagnosticDetail: reason };
 }
 
 function normalizeFiniteNumber(value: unknown): number | undefined {

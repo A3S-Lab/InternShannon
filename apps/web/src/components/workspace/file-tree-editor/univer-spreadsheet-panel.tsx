@@ -253,7 +253,7 @@ export function UniverSpreadsheetPanel({
         runtimeRef.current && dirtyRef.current ? "重试保存" : "重新加载"
       }
     >
-      <div ref={containerRef} className="h-full w-full" />
+      <div ref={containerRef} className="h-full w-full" role="application" aria-label="电子表格编辑器工具栏与工作表" />
     </OfficePanelShell>
   );
 }

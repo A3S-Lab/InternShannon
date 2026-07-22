@@ -54,6 +54,7 @@ import {
   resolveSessionSidebarEmptyState,
   resolveSessionSidebarRenameError,
   resolveSessionSidebarStatus,
+  isSessionSidebarActive,
   type SessionSidebarDeleteErrorState,
   type SessionSidebarRenameErrorState,
   sessionDisplayName,
@@ -170,9 +171,15 @@ export function AgentSessionSidebar({
   const sessionSummary = useMemo(
     () => ({
       total: sessions.length,
-      active: sessions.filter((session) => session.state !== "exited").length,
+      active: sessions.filter((session) =>
+        isSessionSidebarActive({
+          sessionState: session.state,
+          sessionStatus: agentSnap.sessionStatus[session.sessionId],
+          connectionStatus: agentSnap.connectionStatus[session.sessionId],
+        }),
+      ).length,
     }),
-    [sessions],
+    [agentSnap.connectionStatus, agentSnap.sessionStatus, sessions],
   );
   const createErrorPresentation = useMemo(() => resolveSessionSidebarCreateError(createError), [createError]);
   const renameErrorPresentation = useMemo(() => resolveSessionSidebarRenameError(renameError), [renameError]);
@@ -338,6 +345,7 @@ export function AgentSessionSidebar({
     if (tone === "running") return "text-primary";
     if (tone === "connecting") return "text-amber-500";
     if (tone === "disconnected") return "text-red-500";
+    if (tone === "idle") return "text-slate-400";
     return "text-emerald-500";
   };
 

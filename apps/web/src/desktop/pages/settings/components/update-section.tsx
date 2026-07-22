@@ -30,7 +30,7 @@ function formatBytes(value?: number | null) {
 }
 
 function UpdateInfoRows({ info }: { info: AppUpdateInfo | null }) {
-	if (!info) return null;
+	if (!info?.currentVersion?.trim() || !info.latestVersion?.trim()) return null;
 	return (
 		<div className="rounded-lg bg-slate-50 divide-y divide-slate-200">
 			<div className="flex justify-between items-center px-4 py-2.5">
@@ -184,12 +184,12 @@ export function UpdateSection() {
 									)}
 									下载并更新
 								</button>
-							) : (
+							) : state.info?.currentVersion?.trim() && state.info.latestVersion?.trim() ? (
 								<div className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-500/10 px-4 text-sm font-medium text-emerald-600">
 									<CheckCircle2 className="size-4" />
 									{state.loading ? "检查中..." : "当前已是最新版本"}
 								</div>
-							)}
+							) : null}
 							{state.info?.releaseUrl && (
 								<a
 									href={state.info.releaseUrl}

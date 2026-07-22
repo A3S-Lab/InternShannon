@@ -7,6 +7,7 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type FsNode, fetchTree } from "./FileTreeEditor";
 import { FileIcon, FolderIcon } from "./file-icons";
+import { filterWorkspaceMentionNodes } from "@/components/tiptap-editor/workspace-mention-visibility";
 
 export interface ReadonlyFileTreeProps {
   rootPath: string;
@@ -39,7 +40,7 @@ function ReadonlyTreeNode({
     state.childError = null;
     fetchTree(node.path, 1)
       .then((t) => {
-        state.children = t.children ?? null;
+        state.children = filterWorkspaceMentionNodes(t.children);
       })
       .catch(() => {
         state.children = [];
@@ -180,7 +181,9 @@ export function ReadonlyFileTree({
     state.loading = true;
     state.error = null;
     fetchTree(rootPath, 1)
-      .then((t) => (state.tree = t))
+      .then((t) => {
+        state.tree = { ...t, children: filterWorkspaceMentionNodes(t.children) };
+      })
       .catch(() => {
         state.tree = null;
         state.error = "无法加载目录树";

@@ -817,6 +817,9 @@ export class KernelRuntimeConfigBuilder {
         const lines = ['# Runtime Search Defaults'];
         if (searchConfig.enabledEngines?.length) {
             lines.push(`- When using web_search, pass engines: ${searchConfig.enabledEngines.join(', ')}.`);
+            lines.push(
+                '- If web_search fails or returns no results, do not retry it more than once and do not substitute Bash, search_skills, or unrelated tools. Briefly explain the search failure and offer a concrete recovery step.',
+            );
         } else if (Array.isArray(searchConfig.enabledEngines)) {
             lines.push('- Web search is disabled by system configuration; do not call web_search.');
         }

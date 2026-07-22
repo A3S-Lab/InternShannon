@@ -1,4 +1,5 @@
 import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { defineConfig, logger as rsbuildLogger } from "@rsbuild/core";
 import { pluginLess } from "@rsbuild/plugin-less";
@@ -8,6 +9,9 @@ import { ignoreKnownEditorWorkerWarnings } from "./rsbuild.shared";
 import { isAgentationEnabled } from "./src/lib/agentation-flag";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const requireFromWeb = createRequire(import.meta.url);
+const univerCoreEsmPath = requireFromWeb.resolve("@univerjs/core/lib/es/index.js");
+const univerSlidesEsmPath = requireFromWeb.resolve("@univerjs/slides/lib/es/index.js");
 const browserTargets = ["Chrome >= 91", "Edge >= 91", "Firefox >= 90", "Safari >= 14", "iOS >= 14", "not dead"];
 const publicDesktopUrl = process.env.PUBLIC_DESKTOP_URL || "http://127.0.0.1:5000";
 const runtimeMode =
@@ -91,6 +95,8 @@ export default defineConfig(() => {
           : {}),
         "@": path.join(__dirname, "src"),
         "@a3s-lab/ocr/defaults": path.join(__dirname, "../../packages/ocr/src/defaults.ts"),
+        "@univerjs/core$": univerCoreEsmPath,
+        "@univerjs/slides$": univerSlidesEsmPath,
         lodash$: "lodash-es",
       },
     },
@@ -128,6 +134,63 @@ export default defineConfig(() => {
       },
     },
     plugins: [pluginReact(), pluginLess(), pluginSass()],
+    performance: {
+      chunkSplit: {
+        strategy: "custom",
+        splitChunks: {
+          chunks: "all",
+          maxAsyncRequests: 40,
+          maxInitialRequests: 20,
+          cacheGroups: {
+            "lib-office-univer": {
+              test: /node_modules[\\/](?:@univerjs|@wendellhu)[\\/]/,
+              chunks: "async",
+              priority: 30,
+              enforce: true,
+              maxSize: 3_000_000,
+              minSize: 400_000,
+              reuseExistingChunk: true,
+            },
+            "lib-office-codecs": {
+              test: /node_modules[\\/](?:xlsx|mammoth|jszip)[\\/]/,
+              chunks: "async",
+              priority: 25,
+              enforce: true,
+              maxSize: 3_000_000,
+              minSize: 400_000,
+              reuseExistingChunk: true,
+            },
+            "lib-editor-monaco": {
+              test: /node_modules[\\/](?:@monaco-editor|monaco-editor)[\\/]/,
+              chunks: "async",
+              priority: 30,
+              enforce: true,
+              maxSize: 3_000_000,
+              minSize: 400_000,
+              reuseExistingChunk: true,
+            },
+            "lib-editor-rich-text": {
+              test: /node_modules[\\/](?:@tiptap|prosemirror-)[\\/]/,
+              chunks: "async",
+              priority: 25,
+              enforce: true,
+              maxSize: 3_000_000,
+              minSize: 200_000,
+              reuseExistingChunk: true,
+            },
+            "lib-visualization": {
+              test: /node_modules[\\/](?:@ant-design[\\/]graphs|@antv|@visactor|@turf|three)[\\/]/,
+              chunks: "async",
+              priority: 20,
+              enforce: true,
+              maxSize: 3_000_000,
+              minSize: 400_000,
+              reuseExistingChunk: true,
+            },
+          },
+        },
+      },
+    },
     tools: {
       rspack(config) {
         config.ignoreWarnings = [...(config.ignoreWarnings ?? []), ignoreKnownEditorWorkerWarnings];

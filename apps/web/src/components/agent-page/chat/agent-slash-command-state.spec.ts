@@ -27,7 +27,7 @@ test("suggests local commands and runtime-backed commands without future-only co
       { name: "help", description: "查看可用命令列表" },
       { name: "compact", description: "整理并压缩对话上下文" },
       { name: "cost", description: "查看当前会话 Token 用量和费用" },
-      { name: "deploy", description: "运行时命令" },
+      { name: "deploy", description: "由当前内核提供的扩展命令" },
     ],
   );
 });

@@ -2,7 +2,7 @@
  * Render agent-generated React/JSX (not just plain HTML) in the sandbox.
  *
  * Instead of pulling a transpiler into the host bundle, we load React + Babel
- * from the CDN and transpile INSIDE the sandbox via Babel's <script type="text/babel">
+ * from an explicitly approved asset origin and transpile INSIDE the sandbox via Babel's <script type="text/babel">
  * path (it executes compiled code by appending an inline <script> — covered by the
  * CSP's 'unsafe-inline', so no 'unsafe-eval' needed). Pipe the result straight to
  * the existing component:
@@ -17,8 +17,8 @@
  * classic script, so use a top-level `const App = ...` — `export default` won't work.
  */
 export interface ReactDocumentOptions {
-	/** UMD CDN base. MUST be covered by the AgentUI `cdnAllowlist` (default
-	 *  allowlist already includes unpkg). */
+	/** UMD asset base. The caller MUST explicitly add this origin to the
+	 * AgentUI `cdnAllowlist`; production defaults allow no external origin. */
 	cdnBase?: string;
 	/** React major/exact version to load. */
 	reactVersion?: string;

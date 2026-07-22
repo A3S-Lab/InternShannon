@@ -1,4 +1,4 @@
-import { existsSync } from 'fs';
+import { accessSync, constants, statSync } from 'fs';
 
 /**
  * Result of probing the headless browser binary the SDK will spawn for
@@ -8,6 +8,7 @@ import { existsSync } from 'fs';
  */
 export interface BrowserBinaryStatus {
     available: boolean;
+    reasonCode: WebSearchReadinessReason;
     /**
      * Human-readable explanation when `available` is false. Surfaced through
      * `webSearchUnavailabilityReason` so the cloud-workspace-guard can block
@@ -31,34 +32,44 @@ let cached: BrowserBinaryStatus | null = null;
  *  - We cache the resulting status. Callers reading after boot get the same
  *    answer; the policy layer reads it on every hook invocation.
  *
- * When neither env var is set we return `available: true` because the SDK has
- * a legitimate fallback chain (PATH → well-known paths → cached download →
- * on-demand fetch). That fallback may still fail at call time — the hook
- * layer cannot know in advance — but we deliberately do NOT pre-block here,
- * since most operators rely on the SDK's auto-resolution.
+ * When neither env var is set we return `available: false`. Desktop and
+ * production deployments must pin a verified browser path at process start;
+ * allowing the SDK fallback here makes the first search non-deterministically
+ * scan the host or download an executable during a user request.
  */
 export function verifyBrowserBinary(
     env: NodeJS.ProcessEnv = process.env,
-    fsExists: (p: string) => boolean = existsSync,
+    isUsableBinary: (p: string) => boolean = isExecutableFile,
 ): BrowserBinaryStatus {
     const lightpanda = env.LIGHTPANDA?.trim();
     const chrome = env.CHROME?.trim();
 
     const broken: string[] = [];
-    if (lightpanda && !fsExists(lightpanda)) {
-        broken.push(`LIGHTPANDA='${lightpanda}'`);
-        delete env.LIGHTPANDA;
+    let usablePinFound = false;
+    for (const [envName, path] of [
+        ['LIGHTPANDA', lightpanda],
+        ['CHROME', chrome],
+    ] as const) {
+        if (!path) continue;
+        if (isUsableBinary(path)) {
+            usablePinFound = true;
+        } else {
+            broken.push(`${envName}='${path}'`);
+            delete env[envName];
+        }
     }
-    if (chrome && !fsExists(chrome)) {
-        broken.push(`CHROME='${chrome}'`);
-        delete env.CHROME;
+
+    if (usablePinFound) {
+        cached = { available: true, reasonCode: 'ok', reason: null };
+        return cached;
     }
 
     if (broken.length > 0) {
         const status: BrowserBinaryStatus = {
             available: false,
+            reasonCode: 'binary_missing',
             reason:
-                `web_search 浏览器二进制不可用：${broken.join(', ')} 指向的文件不存在。` +
+                `web_search 浏览器二进制不可用：${broken.join(', ')} 不是可执行文件。` +
                 ` 已从进程 env 移除避免 SDK 误选；请检查 install-lightpanda initContainer 日志，` +
                 ` 或本地运行 \`just install-browser\` 重新拉取。`,
         };
@@ -66,8 +77,24 @@ export function verifyBrowserBinary(
         return status;
     }
 
-    cached = { available: true, reason: null };
+    cached = {
+        available: false,
+        reasonCode: 'no_pin',
+        reason:
+            'web_search 当前不可用：启动时未固定 LIGHTPANDA 或 CHROME 浏览器路径。' +
+            ' 请在“设置 → 搜索引擎”安装或选择浏览器，然后重启书小安。',
+    };
     return cached;
+}
+
+function isExecutableFile(path: string): boolean {
+    try {
+        if (!statSync(path).isFile()) return false;
+        if (process.platform !== 'win32') accessSync(path, constants.X_OK);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -91,10 +118,8 @@ export function __resetBrowserBinaryStatusForTests(): void {
  *  - `binary_missing` a path was pinned via env but the file does not exist
  *                     (e.g. initContainer failed, mount got wiped, dev
  *                     deleted the cached binary)
- *  - `no_pin`         no `LIGHTPANDA` / `CHROME` env set; the SDK will lazily
- *                     auto-detect on first call. Not necessarily broken —
- *                     just non-deterministic, hence surfaced as its own state
- *                     so diagnostics can report sessions without a pin.
+ *  - `no_pin`         no `LIGHTPANDA` / `CHROME` env set; web_search is blocked
+ *                     until the desktop restarts with a verified path.
  */
 export type WebSearchReadinessReason = 'ok' | 'binary_missing' | 'no_pin';
 
@@ -108,7 +133,14 @@ export function classifyWebSearchReadiness(
     env: NodeJS.ProcessEnv,
     status: BrowserBinaryStatus,
 ): { ready: boolean; reason: WebSearchReadinessReason } {
-    if (!status.available) return { ready: false, reason: 'binary_missing' };
-    if (!env.LIGHTPANDA && !env.CHROME) return { ready: true, reason: 'no_pin' };
-    return { ready: true, reason: 'ok' };
+    return { ready: status.available, reason: status.reasonCode };
+}
+
+export function webSearchBrowserBlockReason(
+    event: Record<string, unknown>,
+    status: BrowserBinaryStatus | null = getBrowserBinaryStatus(),
+): string | null {
+    const toolName = typeof event.toolName === 'string' ? event.toolName.trim().toLowerCase() : '';
+    if (toolName !== 'web_search' || status?.available !== false) return null;
+    return status.reason || 'web_search 当前不可用：未检测到已固定的浏览器运行时。';
 }

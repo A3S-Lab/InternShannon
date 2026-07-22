@@ -50,6 +50,7 @@ export interface AgentRuntimeTimelineEvent {
   phase: string;
   label: string;
   detail?: string;
+  diagnosticDetail?: string;
   source?: string;
   toolUseId?: string;
   toolName?: string;

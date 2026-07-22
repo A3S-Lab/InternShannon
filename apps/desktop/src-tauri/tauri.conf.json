@@ -6,7 +6,7 @@
   "build": {
     "devUrl": "http://127.0.0.1:5000",
     "beforeDevCommand": "pnpm --filter @internshannon/web workspace:dev",
-    "beforeBuildCommand": "pnpm --filter @internshannon/sidecar run build && pnpm --filter @internshannon/web workspace:build && pnpm run stage:sidecar",
+    "beforeBuildCommand": "pnpm --filter @internshannon/sidecar run build && pnpm --filter @internshannon/web workspace:build && pnpm run stage:sidecar && pnpm run stage:search-browser",
     "frontendDist": "../../web/dist/workspace"
   },
   "app": {
@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' customprotocol: asset:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:29653 ws://127.0.0.1:29653 https: wss:; img-src 'self' asset: data: blob: https:; font-src 'self' data: blob:; media-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; frame-src 'self' data: blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'none'"
     },
     "withGlobalTauri": true
   },
@@ -40,7 +40,8 @@
     ],
     "resources": {
       "resources/sidecar/": "",
-      "resources/node/": "node/"
+      "resources/node/": "node/",
+      "resources/search-browser/": "search-browser/"
     }
   },
   "plugins": {

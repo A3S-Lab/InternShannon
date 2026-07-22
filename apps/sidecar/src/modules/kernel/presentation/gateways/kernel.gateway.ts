@@ -29,6 +29,7 @@ import { KernelSessionStatusService } from '../../application/kernel-session-sta
 import type { MessagePayload, SubscribePayload } from '../../application/session-runtime.types';
 import { IKernelService, KERNEL_SERVICE } from '../../domain/services/kernel-service.interface';
 import { type ToolConfirmationResponse, WebSocketConfirmationManager } from './websocket-confirmation-manager';
+import { desktopCorsOrigin, desktopSocketAllowRequest } from '@/shared/infrastructure/network/desktop-cors';
 
 /**
  * Kernel WebSocket Gateway
@@ -41,9 +42,10 @@ import { type ToolConfirmationResponse, WebSocketConfirmationManager } from './w
 @WebSocketGateway({
     namespace: '/ws/kernel',
     cors: {
-        origin: '*',
+        origin: desktopCorsOrigin,
         credentials: true,
     },
+    allowRequest: desktopSocketAllowRequest,
 })
 export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
     @WebSocketServer()

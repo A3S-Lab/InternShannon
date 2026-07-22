@@ -4,11 +4,13 @@ import { Folder, FolderOpen } from "lucide-react";
  * Rendered via TipTap's suggestion utility with tippy.js.
  */
 import { FileIcon, FolderIcon } from "@/components/workspace/file-tree-editor/file-icons";
+import { ErrorBoundary } from "@/components/custom/error-boundary";
 import { cn } from "@/lib/utils";
 import { Search } from "lucide-react";
 import {
 	forwardRef,
 	lazy,
+	Suspense,
 	useCallback,
 	useEffect,
 	useImperativeHandle,
@@ -16,6 +18,7 @@ import {
 	useRef,
 } from "react";
 import { useReactive } from "ahooks";
+import { isWorkspaceMentionVisibleName } from "./workspace-mention-visibility";
 
 // FsNode type for workspace file tree
 interface FsNode {
@@ -95,7 +98,7 @@ async function buildWorkspaceSearchIndex(
 
 	const walk = (nodes: FsNode[]) => {
 		for (const node of nodes) {
-			if (!node.name) continue;
+			if (!isWorkspaceMentionVisibleName(node.name)) continue;
 
 			flattened.push({
 				id: `file:${node.path}`,
@@ -402,13 +405,29 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(
 								))
 							)
 						) : (
-							<ReadonlyFileTree
-								rootPath={workspaceDir}
-								onSelect={(path) => {
-									const name = path.split("/").pop() || path;
-									command({ id: `file:${path}`, label: name, path });
-								}}
-							/>
+							<ErrorBoundary
+								fallback={
+									<p className="px-2 py-3 text-center text-xs text-destructive">
+										无法加载文件列表
+									</p>
+								}
+							>
+								<Suspense
+									fallback={
+										<p className="px-2 py-3 text-center text-xs text-muted-foreground">
+											正在加载文件列表...
+										</p>
+									}
+								>
+									<ReadonlyFileTree
+										rootPath={workspaceDir}
+										onSelect={(path) => {
+											const name = path.split("/").pop() || path;
+											command({ id: `file:${path}`, label: name, path });
+										}}
+									/>
+								</Suspense>
+							</ErrorBoundary>
 						)}
 					</div>
 				</div>

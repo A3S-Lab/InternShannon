@@ -22,6 +22,8 @@ export interface SearchSaveButtonState {
 export interface SearchBrowserStatusSnapshot {
   installed: boolean;
   supported?: boolean;
+  verified?: boolean;
+  snapshot?: string | null;
   path?: string | null;
   version?: string | null;
   message?: string | null;
@@ -94,10 +96,10 @@ export function resolveSearchBrowserStatusFeedback(input: {
   }
 
   const status = input.status;
-  if (status?.installed && status.supported !== false) {
+  if (status?.installed && status.supported !== false && status.verified !== false) {
     return {
       tone: "success",
-      title: "浏览器可用",
+      title: "Web 搜索可用",
       description: status.message || status.version || status.path || "已检测到可用浏览器。",
       role: "status",
       ariaLive: "polite",
@@ -116,7 +118,7 @@ export function resolveSearchBrowserStatusFeedback(input: {
 
   return {
     tone: "warning",
-    title: "浏览器未就绪",
+    title: "Web 搜索不可用",
     description: status?.message || status?.version || status?.path || "尚未检测到可用浏览器。",
     role: "status",
     ariaLive: "polite",

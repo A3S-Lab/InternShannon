@@ -26,6 +26,23 @@ pub struct ManagedSidecarProcess {
     stderr_log_path: PathBuf,
 }
 
+#[derive(Debug, Clone)]
+pub struct SearchBrowserRuntime {
+    env_name: &'static str,
+    path: PathBuf,
+    source: String,
+}
+
+impl SearchBrowserRuntime {
+    pub fn new(env_name: &'static str, path: PathBuf, source: impl Into<String>) -> Self {
+        Self {
+            env_name,
+            path,
+            source: source.into(),
+        }
+    }
+}
+
 impl ManagedSidecarProcess {
     pub fn id(&self) -> u32 {
         self.child.id()
@@ -688,6 +705,7 @@ where
 
 /// Start the InternShannon API sidecar process.
 pub async fn start_sidecar_with_progress<F>(
+    browser_runtime: Option<SearchBrowserRuntime>,
     mut on_progress: F,
 ) -> Result<Option<ManagedSidecarProcess>, SidecarStartupFailure>
 where
@@ -758,51 +776,49 @@ where
     let stderr_log = create_sidecar_log(&stderr_log_path)?;
     let mirror_logs = mirror_sidecar_logs_to_parent();
 
-    let mut child: Child = {
-        #[cfg(target_os = "windows")]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut command = Command::new(&node_exe_for_spawn);
+    command
+        .arg(&node_script_path)
+        .current_dir(&node_sidecar_cwd)
+        .env("APP_PORT", "29653")
+        .env("APP_HOST", "127.0.0.1")
+        .env("APP_MODE", "desktop")
+        .env("KERNEL_WORKSPACE_STORAGE_PROVIDER", "local")
+        .env("NODE_ENV", node_env)
+        .env("APP_VERSION", env!("CARGO_PKG_VERSION"))
+        .env("RUST_LOG", "info")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
-            Command::new(&node_exe_for_spawn)
-                .arg(&node_script_path)
-                .current_dir(&node_sidecar_cwd)
-                .env("APP_PORT", "29653")
-                .env("APP_HOST", "127.0.0.1")
-                .env("APP_MODE", "desktop")
-                .env("KERNEL_WORKSPACE_STORAGE_PROVIDER", "local")
-                .env("NODE_ENV", node_env)
-                .env("APP_VERSION", env!("CARGO_PKG_VERSION"))
-                .env("RUST_LOG", "info")
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .creation_flags(CREATE_NO_WINDOW)
-                .spawn()
-                .map_err(|e| {
-                    SidecarStartupFailure::new("spawn", "sidecar_spawn_failed", e.to_string())
-                })?
-        }
+    if let Some(runtime) = &browser_runtime {
+        command.env(runtime.env_name, &runtime.path);
+        on_progress(
+            "search_browser",
+            format!(
+                "Web search ready: {}={} ({})",
+                runtime.env_name,
+                runtime.path.display(),
+                runtime.source
+            ),
+        );
+    } else {
+        on_progress(
+            "search_browser",
+            "Web search unavailable: install Lightpanda or Chrome in Settings, then restart InternShannon"
+                .to_string(),
+        );
+    }
 
-        #[cfg(not(target_os = "windows"))]
-        {
-            Command::new(&node_exe_for_spawn)
-                .arg(&node_script_path)
-                .current_dir(&node_sidecar_cwd)
-                .env("APP_PORT", "29653")
-                .env("APP_HOST", "127.0.0.1")
-                .env("APP_MODE", "desktop")
-                .env("KERNEL_WORKSPACE_STORAGE_PROVIDER", "local")
-                .env("NODE_ENV", node_env)
-                .env("APP_VERSION", env!("CARGO_PKG_VERSION"))
-                .env("RUST_LOG", "info")
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
-                .map_err(|e| {
-                    SidecarStartupFailure::new("spawn", "sidecar_spawn_failed", e.to_string())
-                })?
-        }
-    };
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child: Child = command
+        .spawn()
+        .map_err(|e| SidecarStartupFailure::new("spawn", "sidecar_spawn_failed", e.to_string()))?;
 
     let stdout = child.stdout.take().ok_or_else(|| {
         SidecarStartupFailure::new(

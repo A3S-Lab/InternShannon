@@ -21,6 +21,8 @@
         "src/shared/infrastructure/config/load-env.ts",
         "src/shared/infrastructure/desktop/desktop-paths.ts",
         "src/shared/infrastructure/network/startup-network-info.ts",
+        "src/shared/infrastructure/network/desktop-cors.ts",
+        "src/shared/infrastructure/network/desktop-csp.ts",
         "src/shared/json-schema/**/*.ts",
         "src/shared/llm/**/*.ts",
         "src/shared/observability/health/health.controller.ts",

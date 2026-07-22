@@ -14,7 +14,11 @@ import { MetricsService } from '@/shared/observability/metrics';
 import { IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
 import { AgentRegistry } from './agents/agent-registry';
 import { INTERNAL_CAPABILITIES_MCP_SERVER_NAME } from './capabilities-runtime.constants';
-import { classifyWebSearchReadiness, verifyBrowserBinary } from './kernel-browser-binary-check';
+import {
+    classifyWebSearchReadiness,
+    verifyBrowserBinary,
+    webSearchBrowserBlockReason,
+} from './kernel-browser-binary-check';
 import {
     confirmationPolicyForMode,
     permissionPolicyForMode,
@@ -63,11 +67,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         if (readiness.reason === 'binary_missing' && browserStatus.reason) {
             this.logger.error(browserStatus.reason);
         } else if (readiness.reason === 'no_pin') {
-            this.logger.warn(
-                'No headless browser pinned via LIGHTPANDA/CHROME env. ' +
-                    'The kernel SDK will lazily auto-detect on first web_search call, ' +
-                    'which may stall while fetching the binary from github.',
-            );
+            this.logger.warn(browserStatus.reason || 'web_search disabled: no pinned browser runtime');
         }
         this.metrics?.setGauge('kernel_web_search_ready', readiness.ready ? 1 : 0, { reason: readiness.reason });
     }
@@ -229,6 +229,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         const mcpInitErrors = await this.applyMcpServers(session, allMcpServers);
 
         this.registerWorkers(session, resolvedAgentId);
+        this.registerWebSearchBrowserHook(session);
 
         if (finalOverrides.permissionMode === 'plan') {
             this.registerPlanReadonlyHooks(session);
@@ -437,6 +438,19 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
             { priority: 0, timeoutMs: 5_000 },
             this.safeHookHandler('plan-readonly-guard', event => {
                 const reason = planReadonlyToolBlockReason(event);
+                return reason ? { action: 'block', reason } : null;
+            }),
+        );
+    }
+
+    private registerWebSearchBrowserHook(session: Session): void {
+        session.registerHook(
+            'web-search-browser-readiness',
+            'pre_tool_use',
+            undefined,
+            { priority: 0, timeoutMs: 5_000 },
+            this.safeHookHandler('web-search-browser-readiness', event => {
+                const reason = webSearchBrowserBlockReason(event);
                 return reason ? { action: 'block', reason } : null;
             }),
         );

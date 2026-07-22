@@ -24,6 +24,7 @@ async function run() {
 	assert.doesNotMatch(fragDoc, /img-src[^;]* https: /, "img-src must not allow wildcard https origin");
 	assert.match(fragDoc, /object-src 'none'/, "plugins denied");
 	assert.match(fragDoc, /worker-src 'none'/, "workers denied");
+	assert.doesNotMatch(fragDoc, /unpkg|jsdelivr|esm\.sh|tailwindcss/, "default sandbox has no CDN allowlist");
 	// Hardening wired into the in-sandbox bootstrap.
 	assert.match(fragDoc, /timed out/, "host.call must enforce a timeout");
 	assert.match(fragDoc, /too many pending host calls/, "host.call must enforce a backpressure cap");
@@ -154,7 +155,7 @@ async function run() {
 	assert.doesNotMatch(realMount, /__C/, "an actual createRoot() call suppresses auto-mount");
 
 	// React doc still inherits the full sandbox lockdown (CSP + allowed CDN).
-	const reactSandbox = composeSandboxDocument(jsx);
+	const reactSandbox = composeSandboxDocument(jsx, ["https://unpkg.com"]);
 	assert.match(reactSandbox, /connect-src 'none'/, "react preview keeps egress lock");
 	assert.match(reactSandbox, /script-src 'unsafe-inline'.*unpkg\.com/, "unpkg permitted by CSP");
 

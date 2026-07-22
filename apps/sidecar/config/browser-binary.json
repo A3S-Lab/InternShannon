@@ -2,9 +2,9 @@
   "$comment": [
     "Single source of truth for the headless browser binary used by the kernel's web_search tool.",
     "Consumed by `just install-browser` for the desktop sidecar.",
-    "Lightpanda upstream only publishes under a moving `nightly` tag, so we pin to a specific",
-    "snapshot timestamp + sha256. A mismatched download is a hard error: it forces an explicit",
-    "version bump here instead of silently consuming a new upstream binary."
+    "Lightpanda upstream publishes these assets under a moving `nightly` tag. The snapshot label",
+    "documents the bytes pinned by sha256; a mismatch is a hard error and requires an explicit",
+    "manifest refresh. Production builds never download this moving URL implicitly."
   ],
   "name": "lightpanda",
   "snapshot": "nightly-2026-05-19",

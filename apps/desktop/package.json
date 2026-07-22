@@ -9,6 +9,8 @@
     "doctor": "node scripts/desktop-doctor.mjs",
     "doctor:test": "node --test scripts/desktop-doctor-state.spec.mjs",
     "stage:sidecar": "node scripts/stage-sidecar-resources.mjs",
+    "stage:search-browser": "node scripts/stage-search-browser-resource.mjs",
+    "download:search-browser": "node scripts/stage-search-browser-resource.mjs --download",
     "stage:sidecar:standalone": "node scripts/stage-sidecar-resources.mjs --standalone",
     "stage:node-runtime": "node scripts/stage-node-runtime.mjs",
     "clean:node-runtime": "node scripts/stage-node-runtime.mjs --clean",

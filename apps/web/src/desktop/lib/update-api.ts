@@ -22,11 +22,7 @@ export interface AppUpdateProgress {
 
 export async function checkAppUpdate(): Promise<AppUpdateInfo> {
 	if (!hasTauriCore()) {
-		return {
-			currentVersion: "",
-			latestVersion: "",
-			hasUpdate: false,
-		};
+		throw new Error(desktopOnlyMessage("检查更新"));
 	}
 	return invokeDesktop<AppUpdateInfo>("check_app_update");
 }

@@ -86,6 +86,14 @@ test("summarizes tool results as concise terminal receipts", () => {
 		summarizeToolResult("search", "one\n", false, false),
 		"1 条匹配",
 	);
+	assert.equal(
+		summarizeToolResult("search", "No results found for this query", false, false),
+		"未找到结果",
+	);
+	assert.equal(
+		summarizeToolResult("search", "未找到结果，请稍后重试", true, false),
+		"未找到结果",
+	);
 	assert.equal(summarizeToolResult("command", "ok\nextra", false, false), "ok");
 	assert.equal(summarizeToolResult("command", "failed", true, false), "出错");
 });

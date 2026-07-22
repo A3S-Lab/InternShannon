@@ -1,9 +1,3 @@
-/**
- * Monaco environment setup — must be first to ensure local workers are used
- * instead of CDN loading. Import before any Monaco component is rendered.
- */
-import "@/desktop/lib/monaco-env";
-
 import { AppUpdateBootstrap } from "./components/app-update-bootstrap";
 import { BackendStartupGuard } from "./components/backend-startup-guard";
 import { ErrorBoundary } from "@/components/custom/error-boundary";

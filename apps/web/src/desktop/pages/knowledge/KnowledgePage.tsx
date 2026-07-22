@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   BookOpenText,
@@ -30,11 +31,12 @@ import {
   type WikiSourceEntry,
 } from "@/lib/api/assets";
 import { buildAssetWorkspaceRoot } from "@/lib/asset-workspace-path";
+import { parseKnowledgeAssetCitation } from "@/lib/knowledge-citation";
 import { cn } from "@/lib/utils";
 import { CurationPane } from "./components/knowledge-curation-pane";
 import { BacklinksPane, ExplorerHeader, OverviewPane } from "./components/knowledge-explorer-pane";
 import { GraphPane } from "./components/knowledge-graph-pane";
-import { OperationsPane } from "./components/knowledge-operations-pane";
+import { ingestProgress, OperationsPane } from "./components/knowledge-operations-pane";
 import { KnowledgeSettingsPane } from "./components/knowledge-settings-pane";
 import {
   downloadBase64File,
@@ -47,6 +49,7 @@ import {
 type LoadState = "loading" | "ready" | "error";
 
 export default function KnowledgePage() {
+  const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const okfInputRef = useRef<HTMLInputElement | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
@@ -66,9 +69,11 @@ export default function KnowledgePage() {
   const [knowledgeConfig, setKnowledgeConfig] = useState<WikiConfig | null>(null);
   const [query, setQuery] = useState("");
   const [searchHits, setSearchHits] = useState<WikiSearchHit[]>([]);
+  const [searchState, setSearchState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editorState, setEditorState] = useState<AssetFileManagerStateSnapshot | null>(null);
+  const openedCitationRef = useRef<string | null>(null);
 
   const assetRoot = useMemo(() => {
     if (!asset) return null;
@@ -76,6 +81,27 @@ export default function KnowledgePage() {
   }, [asset]);
 
   const activeRelativeFile = useMemo(() => relativeActiveFile(editorState?.activeFile), [editorState?.activeFile]);
+  const activeIngestJob = useMemo(
+    () => ingestJobs.find((job) => job.status === "queued" || job.status === "running") ?? null,
+    [ingestJobs],
+  );
+  const activeIngestProgress = activeIngestJob ? ingestProgress(activeIngestJob) : null;
+
+  useEffect(() => {
+    const source = searchParams.get("source");
+    if (!assetRoot || !asset || !source || openedCitationRef.current === source) return;
+    const citation = parseKnowledgeAssetCitation(source);
+    if (!citation || citation.assetId !== asset.id) return;
+    openedCitationRef.current = source;
+    const timer = window.setTimeout(() => {
+      dispatchFileTreeEditorCommand(
+        "open-file-preserve-sidebar",
+        "desktop-knowledge",
+        `${assetRoot}/${citation.relativePath}`,
+      );
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [asset, assetRoot, searchParams]);
 
   const loadKnowledge = useCallback(async () => {
     setLoadState("loading");
@@ -120,17 +146,25 @@ export default function KnowledgePage() {
     const normalized = query.trim();
     if (!asset || !normalized) {
       setSearchHits([]);
+      setSearchState("idle");
       return;
     }
+    setSearchState("loading");
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void assetsApi
         .wikiSearch(asset.id, normalized, 24, { suppressErrorToast: true })
         .then((result) => {
-          if (!cancelled) setSearchHits(result.hits);
+          if (!cancelled) {
+            setSearchHits(result.hits);
+            setSearchState("ready");
+          }
         })
         .catch(() => {
-          if (!cancelled) setSearchHits([]);
+          if (!cancelled) {
+            setSearchHits([]);
+            setSearchState("error");
+          }
         });
     }, 250);
     return () => {
@@ -292,6 +326,24 @@ export default function KnowledgePage() {
     }
   }, [asset, refreshMetadata]);
 
+  const handleReingestSource = useCallback(
+    async (sourcePath: string) => {
+      if (!asset) return;
+      setBusy(true);
+      setSidebarPanelRequest({ panel: "custom:operations", nonce: Date.now() });
+      try {
+        const job = await assetsApi.wikiStartIngest(asset.id, [sourcePath]);
+        setIngestJobs((current) => [job, ...current.filter((item) => item.jobId !== job.jobId)]);
+        toast.success("来源重新抽取已启动", { description: sourcePath.split("/").pop() || sourcePath });
+      } catch (reindexError) {
+        toast.error(reindexError instanceof Error ? reindexError.message : "重新抽取来源失败");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [asset],
+  );
+
   const handleCancelIngest = useCallback(
     async (jobId: string) => {
       if (!asset) return;
@@ -343,6 +395,14 @@ export default function KnowledgePage() {
   const handleSaveKnowledgeConfig = useCallback(
     async (embedding: WikiConfig["embedding"]) => {
       if (!asset) return;
+      if (embedding.keywordWeight <= 0 && embedding.vectorWeight <= 0) {
+        toast.error("关键词权重和语义权重不能同时为 0");
+        return;
+      }
+      if (!embedding.provider.trim() || !embedding.model.trim()) {
+        toast.error("请填写向量服务和向量模型");
+        return;
+      }
       setBusy(true);
       try {
         const config = await assetsApi.wikiUpdateConfig(asset.id, { embedding });
@@ -502,11 +562,11 @@ export default function KnowledgePage() {
           <button
             type="button"
             onClick={() => void handleReindex()}
-            disabled={busy || !asset}
+            disabled={busy || !asset || Boolean(activeIngestJob)}
             className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <RefreshCw className={cn("size-3.5", busy ? "animate-spin" : "")} />
-            刷新索引
+            <RefreshCw className={cn("size-3.5", busy || activeIngestJob ? "animate-spin" : "")} />
+            {activeIngestProgress ? `索引中 ${Math.round(activeIngestProgress.percent)}%` : "刷新索引"}
           </button>
         </div>
       </div>
@@ -536,7 +596,10 @@ export default function KnowledgePage() {
                   health={health}
                   query={query}
                   searchHits={searchHits}
+                  searchState={searchState}
+                  busy={busy}
                   onQueryChange={setQuery}
+                  onReingestSource={(path) => void handleReingestSource(path)}
                   onOpenPath={(path) => {
                     dispatchFileTreeEditorCommand(
                       "open-file-preserve-sidebar",

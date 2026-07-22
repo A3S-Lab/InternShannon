@@ -5,9 +5,19 @@ import { fileURLToPath } from "node:url";
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url));
 
+const [nodeMajor, nodeMinor] = process.versions.node.split(".").map(Number);
+if (nodeMajor < 22 || (nodeMajor === 22 && nodeMinor < 18)) {
+  console.error(
+    `[desktop-state-test] Node >=22.18 is required to execute TypeScript specs directly; current=${process.versions.node}. Run \`nvm use\` or use the bundled desktop Node runtime.`,
+  );
+  process.exit(1);
+}
+
 const desktopStateSpecs = [
+  "src/completed-fixes-verification.spec.mjs",
   "../../scripts/predeploy-check.spec.mjs",
   "../desktop/scripts/desktop-doctor-state.spec.mjs",
+  "../desktop/scripts/search-browser-resource-state.spec.mjs",
   "scripts/desktop-local-banner.spec.mjs",
   "scripts/desktop-local-ready.spec.mjs",
   "scripts/desktop-smoke.spec.mjs",
@@ -42,6 +52,7 @@ const desktopStateSpecs = [
   "src/components/chat/components/ai-provider-settings-state.spec.ts",
   "src/components/custom/tool-confirmation-dialog-state.spec.ts",
   "src/components/tiptap-editor/submit-state.spec.ts",
+  "src/components/tiptap-editor/workspace-mention-visibility.spec.ts",
   "src/components/ui/dialog-title-detection.spec.ts",
   "src/components/ui/resizable-handle-state.spec.ts",
   "src/components/ui/scroll-area-style-cleanup.spec.ts",
@@ -63,6 +74,7 @@ const desktopStateSpecs = [
   "src/desktop/layouts/sidebar-layout-state.spec.ts",
   "src/desktop/pages/agent/agent-page-session-state.spec.ts",
   "src/desktop/pages/agent/skills-page-state.spec.ts",
+  "src/desktop/pages/knowledge/knowledge-retrieval-state.spec.ts",
   "src/desktop/pages/settings/components/ai-section-state.spec.ts",
   "src/desktop/pages/settings/components/mcp-section-state.spec.ts",
   "src/desktop/pages/settings/components/search-section-state.spec.ts",
@@ -90,6 +102,7 @@ const desktopStateSpecs = [
   "src/lib/chart.spec.ts",
   "src/lib/desktop-gateway-url.spec.ts",
   "src/lib/key-combo.spec.ts",
+  "src/lib/knowledge-citation.spec.ts",
   "src/lib/runtime-environment.spec.ts",
   "src/lib/session-bootstrap-state.spec.ts",
   "src/lib/session-workspace-path.spec.ts",

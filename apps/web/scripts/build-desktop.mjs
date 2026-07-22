@@ -11,6 +11,9 @@ const result = spawnSync(rsbuildCommand, ["build", "--config", "rsbuild.desktop.
   env: {
     ...process.env,
     PUBLIC_DESKTOP_ASSET_BASE_URL: "/workspace",
+    // Production desktop assets must never contain the interaction-blocking
+    // Agentation developer overlay, even if a developer shell exports the flag.
+    PUBLIC_ENABLE_AGENTATION: "false",
   },
   shell: process.platform === "win32",
   stdio: "inherit",
@@ -21,4 +24,18 @@ if (result.error) {
   process.exit(1);
 }
 
-process.exit(result.status ?? 1);
+if (result.status !== 0) {
+  process.exit(result.status ?? 1);
+}
+
+const budgetResult = spawnSync(process.execPath, ["scripts/check-desktop-bundle-size.mjs"], {
+  env: process.env,
+  stdio: "inherit",
+});
+
+if (budgetResult.error) {
+  console.error(`desktop bundle budget failed to execute: ${budgetResult.error.message}`);
+  process.exit(1);
+}
+
+process.exit(budgetResult.status ?? 1);
