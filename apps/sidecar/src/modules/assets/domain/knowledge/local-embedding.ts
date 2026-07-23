@@ -49,3 +49,21 @@ export function normalizeSemanticText(text: string): string {
     for (const [pattern, replacement] of SYNONYMS) normalized = normalized.replace(pattern, replacement);
     return normalized.replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
+
+const LOCAL_SEMANTIC_STOP_WORDS = new Set([
+    'the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'are', 'was', 'were', 'has', 'have', 'had',
+]);
+
+/**
+ * local-hash-v1 is a compact lexical hash, not a neural embedding. Requiring a
+ * real normalized token overlap prevents hash collisions in large corpora from
+ * becoming semantic-only search hits while retaining the built-in synonyms.
+ */
+export function hasLocalSemanticTokenOverlap(left: string, right: string): boolean {
+    const tokens = (value: string) =>
+        (normalizeSemanticText(value).match(/[a-z0-9]+/g) ?? []).filter(
+            token => token.length >= 3 && !LOCAL_SEMANTIC_STOP_WORDS.has(token),
+        );
+    const leftTokens = new Set(tokens(left));
+    return leftTokens.size > 0 && tokens(right).some(token => leftTokens.has(token));
+}

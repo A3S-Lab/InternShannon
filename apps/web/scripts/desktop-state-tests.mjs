@@ -51,6 +51,7 @@ const desktopStateSpecs = [
   "src/components/workspace/file-tree-editor/image-viewer-state.spec.ts",
   "src/components/workspace/file-tree-editor/keyboard-shortcuts.spec.ts",
   "src/components/workspace/file-tree-editor/knowledge-editor-safety.spec.mjs",
+  "src/components/workspace/file-tree-editor/univer-slides-runtime.spec.ts",
   "src/components/workspace/file-tree-editor/markdown-mode-selection.spec.ts",
   "src/components/workspace/file-tree-editor/native-reveal-state.spec.ts",
   "src/desktop/components/app-update-bootstrap-state.spec.ts",

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { desktopDataDir, desktopJsonFilePath } from '@/shared/infrastructure/desktop/desktop-paths';
 import {
     matchesAssetCatalogProfile,
@@ -61,7 +61,7 @@ export class DesktopAssetRepository implements IAssetRepository {
     private async saveAssets(): Promise<void> {
         try {
             const data = Array.from(this.assetsCache.values()).map(asset => asset.toProps());
-            fs.writeFileSync(this.assetsPath, JSON.stringify(data, null, 2), 'utf-8');
+            this.writeFileAtomic(this.assetsPath, JSON.stringify(data, null, 2), 'utf-8');
             this.logger.debug(`Saved ${data.length} assets to file`);
         } catch (e) {
             this.logger.error(`Failed to save assets: ${e}`);
@@ -160,8 +160,7 @@ export class DesktopAssetRepository implements IAssetRepository {
 
     async writeBlobData(assetId: string, blobPath: string, content: Buffer): Promise<void> {
         const target = this.blobFilePath(assetId, blobPath);
-        fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.writeFileSync(target, content);
+        this.writeFileAtomic(target, content);
     }
 
     async deleteBlobData(assetId: string, blobPath: string): Promise<void> {
@@ -175,6 +174,20 @@ export class DesktopAssetRepository implements IAssetRepository {
     private blobFilePath(assetId: string, blobPath: string): string {
         const digest = createHash('sha256').update(blobPath).digest('hex');
         return path.join(this.assetBlobDir(assetId), digest.slice(0, 2), digest);
+    }
+
+    private writeFileAtomic(target: string, content: string | Buffer, encoding?: BufferEncoding): void {
+        const directory = path.dirname(target);
+        fs.mkdirSync(directory, { recursive: true });
+        const temporary = path.join(directory, `.${path.basename(target)}.${process.pid}.${randomUUID()}.tmp`);
+        try {
+            if (typeof content === 'string') fs.writeFileSync(temporary, content, encoding ?? 'utf8');
+            else fs.writeFileSync(temporary, content);
+            fs.renameSync(temporary, target);
+        } catch (error) {
+            fs.rmSync(temporary, { force: true });
+            throw error;
+        }
     }
 
     async findByOwnerId(ownerId: string, _ownerType: 'user' | 'organization'): Promise<Asset[]> {

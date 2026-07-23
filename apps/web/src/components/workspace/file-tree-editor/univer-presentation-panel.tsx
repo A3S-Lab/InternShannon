@@ -10,6 +10,7 @@ import {
   UniverInstanceType,
 } from "@univerjs/core";
 import {
+  IRenderManagerService,
   UniverDocsCorePreset,
 } from "@univerjs/preset-docs-core";
 import docsZhCN from "@univerjs/preset-docs-core/locales/zh-CN";
@@ -38,6 +39,7 @@ import {
 } from "@a3s-lab/ooxml";
 import { OfficePanelShell, type OfficePanelStatus } from "./office-panel-shell";
 import { disposeUniverAfterReactCommit } from "./univer-runtime-lifecycle";
+import { installSlidesRenderViewportFallback } from "./univer-slides-runtime";
 
 type SaveStatus = OfficePanelStatus;
 
@@ -55,6 +57,7 @@ interface UniverPresentationRuntime {
   canvasView: CanvasView;
   originalBytes: Uint8Array;
   commandDisposable?: { dispose(): void };
+  wheelViewportDisposable?: { dispose(): void };
 }
 
 interface SlideTextEntry {
@@ -195,6 +198,10 @@ export function UniverPresentationPanel({
   }, [markDirty, path, readOnly]);
 
   const selectTextEntry = useCallback((entry: SlideTextEntry) => {
+    const runtime = runtimeRef.current;
+    if (runtime) {
+      runtime.canvasView.activePage(entry.pageId, runtime.slide.getUnitId());
+    }
     setSelectedTextKey(entry.key);
     setTextDraft(entry.text);
   }, []);
@@ -234,6 +241,7 @@ export function UniverPresentationPanel({
       runtimeRef.current = null;
       if (!runtime) return;
       runtime.commandDisposable?.dispose();
+      runtime.wheelViewportDisposable?.dispose();
       disposeUniverAfterReactCommit(runtime.univer);
     };
 
@@ -259,6 +267,13 @@ export function UniverPresentationPanel({
           snapshot
         );
         const slideId = slide.getUnitId();
+        const renderManager = univer
+          .__getInjector()
+          .get(IRenderManagerService);
+        const wheelViewportDisposable = installSlidesRenderViewportFallback(
+          renderManager,
+          slideId
+        );
         const canvasView = univer.__getInjector().get(CanvasView);
         const commandDisposable = commandService.onCommandExecuted((command) => {
           if (
@@ -275,10 +290,18 @@ export function UniverPresentationPanel({
           canvasView,
           originalBytes: data,
           commandDisposable,
+          wheelViewportDisposable,
         };
         const entries = slideTextEntries(snapshot);
         setTextEntries(entries);
-        if (entries[0]) selectTextEntry(entries[0]);
+        // The Slides render controller finishes wiring its scenes after the
+        // unit is created. Initialize the text sidebar state without asking
+        // CanvasView to activate the already-active first page during that
+        // short registration window.
+        if (entries[0]) {
+          setSelectedTextKey(entries[0].key);
+          setTextDraft(entries[0].text);
+        }
         setStatus("ready");
       })
       .catch((error) => {
@@ -291,7 +314,7 @@ export function UniverPresentationPanel({
       disposed = true;
       cleanupRuntime();
     };
-  }, [markDirty, path, readOnly, retryCount, selectTextEntry]);
+  }, [markDirty, path, readOnly, retryCount]);
 
   useEffect(() => {
     const handleSaveAll = (event: Event) => {
@@ -332,7 +355,11 @@ export function UniverPresentationPanel({
       }
     >
       <div className="flex h-full min-h-0 w-full">
-        <div ref={containerRef} className="min-w-0 flex-1" />
+        <div
+          key={`${path}:${retryCount}`}
+          ref={containerRef}
+          className="min-w-0 flex-1"
+        />
         <aside className="flex w-64 shrink-0 flex-col border-l border-border-light bg-[#f7f7f5]">
           <div className="border-b border-border-light bg-white px-3 py-2 text-xs font-semibold text-foreground">幻灯片文字</div>
           <div className="max-h-36 space-y-1 overflow-y-auto p-2">

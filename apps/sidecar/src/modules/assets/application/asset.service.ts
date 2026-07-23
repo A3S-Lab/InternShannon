@@ -1835,10 +1835,6 @@ export class AssetServiceImpl implements IAssetService {
         const previousEncoding = existingEncodings[path] ?? 'utf8';
         const useExternalBlobStore = this.isExternalKnowledgeBlobPath(path) && Boolean(this.assetRepository.writeBlobData);
         if (useExternalBlobStore) {
-            if (previousContent === undefined && this.assetRepository.readBlobData) {
-                const previousBytes = await this.assetRepository.readBlobData(assetId, path);
-                previousContent = previousBytes?.toString(previousEncoding === 'base64' ? 'base64' : 'utf8');
-            }
             await this.assetRepository.writeBlobData?.(assetId, path, contentBytes);
             delete existingContents[path];
             delete existingEncodings[path];
@@ -1877,9 +1873,11 @@ export class AssetServiceImpl implements IAssetService {
         const branches = upsertBranchCommit(asset, currentBranch, commitSha);
         const commitDiffs = {
             ...((asset.metadata?.commitDiffs ?? {}) as Record<string, string>),
-            [commitSha]: isBinary || previousEncoding === 'base64'
-                ? `Binary file changed: ${path}\n`
-                : singleFileDiff(path, previousContent, content),
+            [commitSha]: useExternalBlobStore
+                ? `External blob changed: ${path} (${contentBytes.byteLength} bytes, sha1 ${blobSha})\n`
+                : isBinary || previousEncoding === 'base64'
+                  ? `Binary file changed: ${path}\n`
+                  : singleFileDiff(path, previousContent, content),
         };
         asset.updateMetadata({
             blobContents: existingContents,

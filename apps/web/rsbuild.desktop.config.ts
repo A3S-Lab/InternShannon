@@ -1,4 +1,5 @@
 import path from "node:path";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { defineConfig, logger as rsbuildLogger } from "@rsbuild/core";
 import { pluginLess } from "@rsbuild/plugin-less";
@@ -8,6 +9,9 @@ import { ignoreKnownEditorWorkerWarnings } from "./rsbuild.shared";
 import { isAgentationEnabled } from "./src/lib/agentation-flag";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const requireFromWeb = createRequire(import.meta.url);
+const univerCoreEsmPath = requireFromWeb.resolve("@univerjs/core/lib/es/index.js");
+const univerSlidesEsmPath = requireFromWeb.resolve("@univerjs/slides/lib/es/index.js");
 const browserTargets = ["Chrome >= 91", "Edge >= 91", "Firefox >= 90", "Safari >= 14", "iOS >= 14", "not dead"];
 const publicDesktopUrl = process.env.PUBLIC_DESKTOP_URL || "http://127.0.0.1:5000";
 const runtimeMode =
@@ -91,6 +95,8 @@ export default defineConfig(() => {
           : {}),
         "@": path.join(__dirname, "src"),
         "@a3s-lab/ocr/defaults": path.join(__dirname, "../../packages/ocr/src/defaults.ts"),
+        "@univerjs/core$": univerCoreEsmPath,
+        "@univerjs/slides$": univerSlidesEsmPath,
         lodash$: "lodash-es",
       },
     },

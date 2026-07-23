@@ -161,4 +161,64 @@ describe('@a3s-lab/ocr', () => {
 
         expect(() => registry.getDefault()).toThrow(OcrBackendError);
     });
+
+    it.each([429, 500])('returns a typed, retryable HTTP %i error without remote response secrets', async status => {
+        const secret = 'do-not-expose-this-api-key';
+        const backend = createOcrBackend(
+            {
+                ...(DEFAULT_OCR_SETTINGS.backends[1] as OcrBackendConfig),
+                enabled: true,
+                apiKey: secret,
+                baseUrl: 'http://paddle.local',
+            },
+            jsonFetch({ error: `echoed ${secret}` }, status),
+        );
+
+        const error = await backend
+            .recognize({ data: Buffer.from('png'), filename: 'scan.png' })
+            .then(() => undefined, caught => caught as OcrBackendError);
+        expect(error).toMatchObject({ name: 'OcrBackendError', status, backend: 'paddleocr' });
+        expect(error?.message).not.toContain(secret);
+        expect(error?.response).toBeUndefined();
+    });
+
+    it('aborts a stalled backend at its configured timeout', async () => {
+        const fetchImpl = jest.fn(
+            (_input: RequestInfo | URL, init?: RequestInit) =>
+                new Promise<Response>((_resolve, reject) => {
+                    init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
+                }),
+        ) as jest.MockedFunction<OcrFetch>;
+        const backend = createOcrBackend(
+            {
+                ...(DEFAULT_OCR_SETTINGS.backends[1] as OcrBackendConfig),
+                enabled: true,
+                baseUrl: 'http://paddle.local',
+                timeoutMs: 5,
+            },
+            fetchImpl,
+        );
+
+        await expect(backend.recognize({ data: Buffer.from('png'), filename: 'scan.png' })).rejects.toMatchObject({
+            name: 'TimeoutError',
+        });
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('normalizes an empty successful response without inventing OCR text', async () => {
+        const backend = createOcrBackend(
+            {
+                ...(DEFAULT_OCR_SETTINGS.backends[1] as OcrBackendConfig),
+                enabled: true,
+                baseUrl: 'http://paddle.local',
+            },
+            jsonFetch({ pages: [] }),
+        );
+
+        await expect(backend.recognize({ data: Buffer.from('png'), filename: 'scan.png' })).resolves.toMatchObject({
+            text: '',
+            pages: [],
+            blocks: [],
+        });
+    });
 });

@@ -280,6 +280,28 @@ describe("DesktopAssetsController knowledge safety", () => {
 		expect(exported.filename).toBe("personal-knowledge.okf.zip");
 	});
 
+	it("rejects ZIP entries that attempt to escape the OKF bundle root", async () => {
+		const { asset, controller, service } = createHarness();
+		const archive = new JSZip();
+		archive.file(
+			"concepts/valid.md",
+			"---\ntype: Note\ntitle: Valid\n---\n\n# Valid\n",
+		);
+		archive.file(
+			"../../../outside.md",
+			"---\ntype: Note\ntitle: Outside\n---\n\n# Outside\n",
+		);
+
+		await expect(
+			controller.importOkf(asset.id, {
+				archiveBase64: await archive.generateAsync({ type: "base64" }),
+			}),
+		).rejects.toThrow(/非法 OKF ZIP 路径|invalid relative path/);
+		await expect(
+			service.getBlobContent(asset.id, "wiki/concepts/valid.md"),
+		).rejects.toThrow();
+	});
+
 	it("includes standard OKF Markdown links in the graph", async () => {
 		const { asset, controller } = createHarness({
 			blobContents: {
@@ -389,6 +411,73 @@ describe("DesktopAssetsController knowledge safety", () => {
 
 		expect(reverted.status).toBe("reverted");
 		expect(await service.getBlobContent(asset.id, "wiki/a.md")).toBe(original);
+	});
+
+	it("resumes an interrupted append accept without duplicating content", async () => {
+		const { asset, controller, service } = createHarness({
+			blobContents: {
+				"wiki/a.md": "---\ntype: Note\ntitle: Revenue plan\n---\n\nMonthly revenue renewal plan.\n",
+				"wiki/b.md": "---\ntype: Note\ntitle: Income forecast\n---\n\nMonthly income subscription extension forecast.\n",
+			},
+		});
+		const refreshed = await controller.refreshCurationSuggestions(asset.id);
+		const suggestion = refreshed.suggestions.find((item) => item.kind === "link" && item.sourcePath === "wiki/a.md");
+		expect(suggestion).toBeDefined();
+		const originalUpdateBlob = service.updateBlob.bind(service);
+		const updateBlob = jest
+			.spyOn(service, "updateBlob")
+			.mockRejectedValueOnce(new Error("simulated disk write failure"))
+			.mockImplementation(originalUpdateBlob);
+
+		await expect(
+			controller.reviewCurationSuggestion(asset.id, suggestion?.id ?? "", "user-1", { decision: "accept" }),
+		).rejects.toThrow("simulated disk write failure");
+		expect((asset.metadata?.knowledgeCurationSuggestions as Array<Record<string, unknown>>).find(item => item.id === suggestion?.id)).toMatchObject({
+			status: "pending",
+			applicationState: "applying",
+		});
+
+		const accepted = await controller.reviewCurationSuggestion(asset.id, suggestion?.id ?? "", "user-1", { decision: "accept" });
+		const content = await service.getBlobContent(asset.id, accepted.sourcePath);
+		expect(accepted).toMatchObject({ status: "accepted", appliedMode: "append" });
+		expect(accepted.appliedText).toBeTruthy();
+		expect(content.split(accepted.appliedText ?? "missing-applied-text").length - 1).toBe(1);
+		expect(
+			updateBlob.mock.calls.filter(([, path]) => path === suggestion?.sourcePath),
+		).toHaveLength(2);
+	});
+
+	it("resumes an interrupted append revert without deleting user content twice", async () => {
+		const { asset, controller, service } = createHarness({
+			blobContents: {
+				"wiki/a.md": "---\ntype: Note\ntitle: Revenue plan\n---\n\nMonthly revenue renewal plan.\n",
+				"wiki/b.md": "---\ntype: Note\ntitle: Income forecast\n---\n\nMonthly income subscription extension forecast.\n",
+			},
+		});
+		const original = await service.getBlobContent(asset.id, "wiki/a.md");
+		const refreshed = await controller.refreshCurationSuggestions(asset.id);
+		const suggestion = refreshed.suggestions.find((item) => item.kind === "link" && item.sourcePath === "wiki/a.md");
+		const accepted = await controller.reviewCurationSuggestion(asset.id, suggestion?.id ?? "", "user-1", { decision: "accept" });
+		const originalUpdateBlob = service.updateBlob.bind(service);
+		const updateBlob = jest
+			.spyOn(service, "updateBlob")
+			.mockRejectedValueOnce(new Error("simulated revert write failure"))
+			.mockImplementation(originalUpdateBlob);
+
+		await expect(
+			controller.reviewCurationSuggestion(asset.id, accepted.id, "user-1", { decision: "revert" }),
+		).rejects.toThrow("simulated revert write failure");
+		expect((asset.metadata?.knowledgeCurationSuggestions as Array<Record<string, unknown>>).find(item => item.id === accepted.id)).toMatchObject({
+			status: "accepted",
+			applicationState: "reverting",
+		});
+
+		const reverted = await controller.reviewCurationSuggestion(asset.id, accepted.id, "user-1", { decision: "revert" });
+		expect(reverted.status).toBe("reverted");
+		expect(await service.getBlobContent(asset.id, accepted.sourcePath)).toBe(original);
+		expect(
+			updateBlob.mock.calls.filter(([, path]) => path === accepted.sourcePath),
+		).toHaveLength(2);
 	});
 
 	it("rejects append reverts after a later page edit and preserves user content", async () => {

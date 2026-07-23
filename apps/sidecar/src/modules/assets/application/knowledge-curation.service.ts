@@ -28,6 +28,9 @@ export interface KnowledgeCurationSuggestion {
     proposedContent?: string;
     citations?: string[];
     appliedMode?: 'append' | 'create';
+    applicationState?: 'applying' | 'reverting';
+    originalContentSha?: string;
+    revertedContentSha?: string;
 }
 
 @Injectable()
@@ -287,39 +290,60 @@ export class KnowledgeCurationService {
         if (decision === 'revert') {
             if (suggestion.status !== 'accepted') throw new BadRequestException('只能撤销已接受的策展建议');
             if (suggestion.appliedMode === 'create') {
-                const pageContent = await this.assets.getBlobContent(id, suggestion.targetPath);
-                const currentSha = createHash('sha1').update(pageContent).digest('hex');
-                if (suggestion.appliedContentSha !== currentSha) {
-                    throw new ConflictException('页面在接受建议后已发生变化，请先撤销依赖该页面的后续建议或检查差异');
+                if (suggestion.applicationState !== 'reverting') {
+                    suggestion.applicationState = 'reverting';
+                    await this.persistSuggestions(id, suggestions);
                 }
-                const reverted = await this.assets.deleteBlob(
-                    id,
-                    suggestion.targetPath,
-                    `Revert knowledge suggestion ${suggestion.id}`,
-                    'main',
-                );
-                suggestion.commitSha = reverted.commitSha;
+                const pageContent = await this.assets.getBlobContent(id, suggestion.targetPath).catch(() => null);
+                if (pageContent !== null) {
+                    const currentSha = createHash('sha1').update(pageContent).digest('hex');
+                    if (suggestion.appliedContentSha !== currentSha) {
+                        throw new ConflictException('页面在接受建议后已发生变化，请先撤销依赖该页面的后续建议或检查差异');
+                    }
+                    const reverted = await this.assets.deleteBlob(
+                        id,
+                        suggestion.targetPath,
+                        `Revert knowledge suggestion ${suggestion.id}`,
+                        'main',
+                    );
+                    suggestion.commitSha = reverted.commitSha;
+                }
             } else if (suggestion.appliedText) {
                 const pageContent = await this.assets.getBlobContent(id, suggestion.sourcePath);
                 const currentSha = createHash('sha1').update(pageContent).digest('hex');
-                if (suggestion.appliedContentSha && suggestion.appliedContentSha !== currentSha) {
-                    throw new ConflictException('页面在接受建议后已发生变化，撤销会覆盖后续编辑，请先检查页面差异');
+                if (suggestion.applicationState !== 'reverting') {
+                    if (suggestion.appliedContentSha && suggestion.appliedContentSha !== currentSha) {
+                        throw new ConflictException('页面在接受建议后已发生变化，撤销会覆盖后续编辑，请先检查页面差异');
+                    }
+                    const firstMatch = pageContent.indexOf(suggestion.appliedText);
+                    const secondMatch = firstMatch < 0
+                        ? -1
+                        : pageContent.indexOf(suggestion.appliedText, firstMatch + suggestion.appliedText.length);
+                    if (firstMatch < 0 || secondMatch >= 0) {
+                        throw new ConflictException('无法唯一定位该建议添加的内容，请检查页面差异后再撤销');
+                    }
+                    suggestion.revertedContentSha = createHash('sha1')
+                        .update(`${pageContent.slice(0, firstMatch)}${pageContent.slice(firstMatch + suggestion.appliedText.length)}`)
+                        .digest('hex');
+                    suggestion.applicationState = 'reverting';
+                    await this.persistSuggestions(id, suggestions);
                 }
-                const firstMatch = pageContent.indexOf(suggestion.appliedText);
-                const secondMatch =
-                    firstMatch < 0 ? -1 : pageContent.indexOf(suggestion.appliedText, firstMatch + suggestion.appliedText.length);
-                if (firstMatch < 0 || secondMatch >= 0) {
-                    throw new ConflictException('无法唯一定位该建议添加的内容，请检查页面差异后再撤销');
+                if (currentSha === suggestion.appliedContentSha) {
+                    const firstMatch = pageContent.indexOf(suggestion.appliedText);
+                    const reverted = await this.assets.updateBlob(
+                        id,
+                        suggestion.sourcePath,
+                        `${pageContent.slice(0, firstMatch)}${pageContent.slice(firstMatch + suggestion.appliedText.length)}`,
+                        `Revert knowledge suggestion ${suggestion.id}`,
+                        'main',
+                    );
+                    suggestion.commitSha = reverted.commitSha;
+                } else if (currentSha !== suggestion.revertedContentSha) {
+                    throw new ConflictException('页面在撤销策展建议时已发生变化，请检查差异后重试');
                 }
-                const reverted = await this.assets.updateBlob(
-                    id,
-                    suggestion.sourcePath,
-                    `${pageContent.slice(0, firstMatch)}${pageContent.slice(firstMatch + suggestion.appliedText.length)}`,
-                    `Revert knowledge suggestion ${suggestion.id}`,
-                    'main',
-                );
-                suggestion.commitSha = reverted.commitSha;
             }
+            delete suggestion.applicationState;
+            delete suggestion.revertedContentSha;
             suggestion.status = 'reverted';
             suggestion.reviewedAt = new Date().toISOString();
             suggestion.reviewedBy = actorId;
@@ -341,41 +365,63 @@ export class KnowledgeCurationService {
             if (suggestion.kind === 'link' || suggestion.kind === 'summary') {
                 const pageContent = await this.assets.getBlobContent(id, suggestion.sourcePath);
                 const target = `/${suggestion.targetPath.replace(/^wiki\//, '')}`;
-                const appliedText =
-                    suggestion.kind === 'link'
+                if (suggestion.applicationState !== 'applying') {
+                    const appliedText = suggestion.kind === 'link'
                         ? pageContent.includes(`](${target})`)
                             ? ''
                             : `\n\n## Related\n\n- [${suggestion.targetTitle}](${target})\n`
                         : suggestion.proposedContent || '';
-                if (appliedText) {
-                    const nextContent = `${pageContent}${appliedText}`;
-                    const result = await this.assets.updateBlob(
-                        id,
-                        suggestion.sourcePath,
-                        nextContent,
-                        `Accept knowledge link suggestion ${suggestion.id}`,
-                        'main',
-                    );
-                    suggestion.appliedText = appliedText;
-                    suggestion.appliedMode = 'append';
-                    suggestion.appliedContentSha = createHash('sha1').update(nextContent).digest('hex');
-                    suggestion.commitSha = result.commitSha;
+                    if (appliedText) {
+                        suggestion.appliedText = appliedText;
+                        suggestion.appliedMode = 'append';
+                        suggestion.originalContentSha = createHash('sha1').update(pageContent).digest('hex');
+                        suggestion.appliedContentSha = createHash('sha1').update(`${pageContent}${appliedText}`).digest('hex');
+                        suggestion.applicationState = 'applying';
+                        await this.persistSuggestions(id, suggestions);
+                    }
+                }
+                if (suggestion.applicationState === 'applying' && suggestion.appliedText) {
+                    const currentContent = await this.assets.getBlobContent(id, suggestion.sourcePath);
+                    const currentSha = createHash('sha1').update(currentContent).digest('hex');
+                    if (currentSha === suggestion.originalContentSha) {
+                        const result = await this.assets.updateBlob(
+                            id,
+                            suggestion.sourcePath,
+                            `${currentContent}${suggestion.appliedText}`,
+                            `Accept knowledge link suggestion ${suggestion.id}`,
+                            'main',
+                        );
+                        suggestion.commitSha = result.commitSha;
+                    } else if (currentSha !== suggestion.appliedContentSha) {
+                        throw new ConflictException('页面在应用策展建议时已发生变化，请检查差异后重试');
+                    }
                 }
             } else {
                 if (!suggestion.proposedContent) throw new BadRequestException('策展建议没有可应用的内容');
+                if (suggestion.applicationState !== 'applying') {
+                    const existingContent = await this.assets.getBlobContent(id, suggestion.targetPath).catch(() => null);
+                    if (existingContent !== null) throw new ConflictException('策展建议的目标页面已存在');
+                    suggestion.appliedMode = 'create';
+                    suggestion.appliedContentSha = createHash('sha1').update(suggestion.proposedContent).digest('hex');
+                    suggestion.applicationState = 'applying';
+                    await this.persistSuggestions(id, suggestions);
+                }
                 const existingContent = await this.assets.getBlobContent(id, suggestion.targetPath).catch(() => null);
-                if (existingContent !== null) throw new ConflictException('策展建议的目标页面已存在');
-                const result = await this.assets.updateBlob(
-                    id,
-                    suggestion.targetPath,
-                    suggestion.proposedContent,
-                    `Accept knowledge ${suggestion.kind} proposal ${suggestion.id}`,
-                    'main',
-                );
-                suggestion.appliedMode = 'create';
-                suggestion.appliedContentSha = createHash('sha1').update(suggestion.proposedContent).digest('hex');
-                suggestion.commitSha = result.commitSha;
+                if (existingContent === null) {
+                    const result = await this.assets.updateBlob(
+                        id,
+                        suggestion.targetPath,
+                        suggestion.proposedContent,
+                        `Accept knowledge ${suggestion.kind} proposal ${suggestion.id}`,
+                        'main',
+                    );
+                    suggestion.commitSha = result.commitSha;
+                } else if (createHash('sha1').update(existingContent).digest('hex') !== suggestion.appliedContentSha) {
+                    throw new ConflictException('策展建议的目标页面已存在且内容不同');
+                }
             }
+            delete suggestion.applicationState;
+            delete suggestion.originalContentSha;
         }
         suggestion.status = decision === 'accept' ? 'accepted' : 'rejected';
         suggestion.reviewedAt = new Date().toISOString();
@@ -418,6 +464,10 @@ export class KnowledgeCurationService {
             : [];
     }
 
+    private persistSuggestions(id: string, suggestions: KnowledgeCurationSuggestion[]): Promise<unknown> {
+        return this.assets.updateAsset(id, { metadata: { knowledgeCurationSuggestions: suggestions } });
+    }
+
     private legacyAudit(
         asset: Awaited<ReturnType<KnowledgeContentService['requireAsset']>>,
     ): Array<Record<string, unknown>> {
@@ -433,6 +483,9 @@ export class KnowledgeCurationService {
             appliedText: _appliedText,
             appliedContentSha: _appliedContentSha,
             appliedMode: _appliedMode,
+            applicationState: _applicationState,
+            originalContentSha: _originalContentSha,
+            revertedContentSha: _revertedContentSha,
             commitSha: _commitSha,
             reviewedAt: _reviewedAt,
             reviewedBy: _reviewedBy,
