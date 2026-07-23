@@ -511,6 +511,16 @@ knowledge asset
 - 第二轮全量测试：Sidecar `51 suites / 296 passed / 1 skipped`，Web 标准状态测试 `657 passed`，OOXML `9 passed`；Sidecar 与 OOXML TypeScript、DDD boundary、Sidecar build（295 files）、Web production build、`git diff --check` 全部通过。
 - 仓库级测试基础设施边界：`origin/main` 的 Sidecar `sql:check` 已引用不存在的 `scripts/check-sql-style.*`，且没有适配 Nest 参数装饰器的 Sidecar Biome 配置；这两项不是本知识库分支引入的差异，本 PR 不用空实现掩盖，也不扩大为无关的全仓 lint/SQL 重构。
 
+### 合并后发布风险验证与修复收口（2026-07-15 至 2026-07-22）
+
+- PR #9 合并后，继续按 roadmap 的三条主线验证直接编辑、OKF 和对话 grounding。测试工程位于 `知识库测试/三场景真实项目测试/`、`知识库测试/发布风险验证/`、`知识库测试/外部依赖真实验收/` 与 `知识库测试/工程质量验证/`；机器报告和原始日志由 `.gitignore` 排除，避免把本机产物当成可复现测试本身。
+- 真实项目扩展为续费运营、五论文研究、Orion 发布复盘、InternShannon 文档交付、Aegis prompt-security、Atlas 合规生命周期六类隔离场景。它们覆盖 OKF 导入/导出、混合摄取、`running + queued` 与取消、检索/citation、策展冲突与精确撤销、Office 保存/重开、MCP 和真实 WebSocket，并使用唯一 marker 断言跨项目不泄漏。
+- Office 风险已收敛为 package-preserving 写回：DOCX/XLSX 支持的正文或单元格编辑保留原 ZIP 中页眉、媒体、chart、drawing、关系等未知 part；不能安全映射的结构或样式修改会阻止保存并提示，不再静默丢失。PPTX 保留 master、layout、theme、关系、图形几何和主题色，并修复 Univer Slides 滚轮 viewport 与销毁竞态。
+- 存储写入改为临时文件成功后原子替换，磁盘写满不会暴露部分 blob 或损坏 `assets.json`；索引发布使用不可变 vector revision 和 manifest 提交点，取消或失败不会把 manifest 指向半成品。策展接受/撤销保存 `applying/reverting` 阶段，可在写入中断后幂等续跑。
+- 16 worker 诊断曾暴露标识符查询把同一大来源的大量弱相关 chunk 送入 MMR，p95 超过门禁。修复后 30 分钟诊断完成 61,939 次请求和 19 次重建，0 错误、p95 798.57 ms；随后 4 小时完成 503,053 次请求和 153 次重建，0 错误、p95 789.39 ms、p99 839 ms；最终 P0/P1 13/13 通过。
+- 长稳期间另一个会话改动过 Kernel 模型运行时和 AI provider UI，因此该 4 小时报告只证明启动时 Sidecar 的检索/重建链路，不能单独证明后来工作区的所有源码。整理时已把无关变更排除到产品分支之外，并在固定产品提交上重跑 Sidecar 352 passed / 1 skipped、Web Node 22 为 663/663、OOXML 18/18、OCR 12/12、DDD、Sidecar/Web production build 和 `git diff --check`。后续若再修改检索、索引提交点或持久化格式，应重跑完整长稳链路。
+- 外部应用/Provider 证据按能力边界记录：Microsoft Word、Excel、PowerPoint 16.110.3 与 LibreOffice 已各有真实往返基线；Tesseract custom HTTP 和 `boyue/text-embedding-3-small` 已有本机真实基线。这些结果不能外推为所有 Office 复杂对象、所有 OCR/embedding provider 或所有操作系统均通过。
+
 ## 历史暂停快照
 
 - 暂停日期：2026-07-10，下班前主动暂停。
@@ -576,10 +586,10 @@ node scripts/build-desktop-sidecar.mjs
 
 ## 已知限制
 
-- `local-hash-v1` 是无配置时的离线默认，不等同于神经网络 embedding；OpenAI-compatible provider 已可配置，但本次没有真实凭据，只完成 mock adapter 合约验证。
-- OCR 后端未配置时，图片和扫描 PDF 会保持 `waiting_for_ocr`，不会伪装成已索引。
-- Office 复杂排版、批注、修订、嵌入对象和图表仍受现有 Univer/OOXML adapter 保真范围限制；Microsoft Word/Excel 基础外部打开已通过，PowerPoint 自动化超时，LibreOffice 未安装，因此完整外部保真矩阵仍未完成。
+- `local-hash-v1` 是无配置时的离线默认，不等同于神经网络 embedding；`boyue/text-embedding-3-small` 已有真实质量基线，但切换任何 provider/model 后仍需重建索引并用业务评测集重新建立阈值。
+- 未配置 OCR 时，图片和扫描 PDF 会保持 `waiting_for_ocr`，不会伪装成已索引。Tesseract custom HTTP 已通过本机基线；MinerU、PaddleOCR、Unlimited-OCR 以及生产限流/计费仍需在实际部署环境验收。
+- Office 的限制现在是“部分复杂对象不可编辑”，不是“保存会静默破坏文件”。DOCX/XLSX 对无法安全映射的复杂结构或格式修改会阻止保存；PPTX 当前重点支持文本和基础图形。宏、修订、嵌入对象、复杂图表/组合图形、动画等仍需按目标文件建立黄金样例，不能宣称全格式全保真。
 - 自动摘要、来源页面和合并草稿已经实现为手动刷新产生的 proposal，默认不主动运行；只有用户接受后才写入，且任何后续实现仍不得绕过审阅覆盖 `wiki/`。
-- 1000 页面迁移夹具已通过，但尚未完成 1000 真实关系节点的浏览器交互性能录制；当前前端以过滤和最多 120 个可见节点控制渲染规模。
+- 1001 节点/2000 边的本机浏览器交互已经验证；前端仍限制最多 120 个可见节点。该结果不代表低配设备、数万节点或 Windows/Linux 浏览器性能。
 - 全量 Sidecar `tsconfig.build.json --noEmit` 已通过；仓库级 SQL/Biome 测试基础设施缺口按上文单独记录，不与知识库 TypeScript 结果混淆。
 - 原全局默认模型 `zhipu111/glm-5.2` 在真实调用中返回空响应；已切换为通过真实正反例的 `boyue/gpt-5`。若用户之后切回 zhipu provider，需先单独验证该 provider/model 的非空 stream 兼容性。
