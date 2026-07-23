@@ -13,6 +13,8 @@ import { APP_MODE } from './shared/constants';
 import { QuietBootLogger } from './shared/infrastructure/boot/quiet-boot-logger';
 import { validateEnvironmentConfig, validateRequiredEnvVars } from './shared/infrastructure/config/env-validation';
 import { formatStartupNetworkInfoLines } from './shared/infrastructure/network/startup-network-info';
+import { desktopCorsOrigin } from './shared/infrastructure/network/desktop-cors';
+import { SIDECAR_API_CSP_DIRECTIVES } from './shared/infrastructure/network/desktop-csp';
 
 process.env.APP_MODE = 'desktop';
 process.env.KERNEL_WORKSPACE_STORAGE_PROVIDER ||= 'local';
@@ -36,7 +38,7 @@ async function bootstrap() {
 
     app.enableShutdownHooks();
     app.enableCors({
-        origin: '*',
+        origin: desktopCorsOrigin,
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowedHeaders: [
@@ -97,27 +99,18 @@ async function bootstrap() {
     app.setGlobalPrefix('api/v1', {
         exclude: [
             { path: 'git', method: RequestMethod.ALL },
-            { path: 'git/(.*)', method: RequestMethod.ALL },
+            { path: 'git/*path', method: RequestMethod.ALL },
             { path: 'v1', method: RequestMethod.ALL },
-            { path: 'v1/(.*)', method: RequestMethod.ALL },
+            { path: 'v1/*path', method: RequestMethod.ALL },
             { path: 'v2', method: RequestMethod.ALL },
-            { path: 'v2/(.*)', method: RequestMethod.ALL },
+            { path: 'v2/*path', method: RequestMethod.ALL },
         ],
     });
     app.use(
         helmet({
             contentSecurityPolicy: {
                 useDefaults: false,
-                directives: {
-                    'default-src': ["'self'"],
-                    'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-                    'style-src': ["'self'", "'unsafe-inline'"],
-                    'img-src': ["'self'", 'data:', 'https:'],
-                    'font-src': ["'self'", 'data:', 'https:', 'blob:'],
-                    'connect-src': ["'self'", 'https:', 'wss:'],
-                    'frame-src': ["'self'"],
-                    'worker-src': ["'self'", 'blob:'],
-                },
+                directives: SIDECAR_API_CSP_DIRECTIVES,
             },
         }),
     );

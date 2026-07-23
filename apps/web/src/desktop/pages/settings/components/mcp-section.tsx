@@ -398,6 +398,7 @@ export function McpSection() {
                             if (!config) return;
                             handleToggleEnabled(config, !(config.enabled ?? true));
                           }}
+                          aria-label={`编辑 MCP 服务 ${serverName}`}
                         >
                           {isToggling ? "更新中" : config?.enabled === false ? "启用" : "禁用"}
                         </Button>
@@ -460,7 +461,7 @@ export function McpSection() {
             <div className="space-y-1.5 rounded-md border border-emerald-100 bg-emerald-50/40 p-3">
               <Label className="text-xs font-medium text-emerald-700">从官方库导入</Label>
               <Select value="" onValueChange={(v) => importFromLibrary(v)}>
-                <SelectTrigger className="h-10 text-sm">
+                <SelectTrigger className="h-10 text-sm" aria-label="从官方库选择 MCP 服务">
                   <SelectValue placeholder="选一个官方 MCP 自动预填命令/参数/环境变量…" />
                 </SelectTrigger>
                 <SelectContent>
@@ -481,6 +482,7 @@ export function McpSection() {
             <div className="space-y-1.5">
               <Label className="text-xs text-slate-600">服务名</Label>
               <Input
+                aria-label="MCP 服务名"
                 className="h-10 text-sm font-mono"
                 placeholder="filesystem"
                 value={state.name}
@@ -499,7 +501,7 @@ export function McpSection() {
                   state.actionError = "";
                 }}
               >
-                <SelectTrigger className="h-10 text-sm">
+                <SelectTrigger className="h-10 text-sm" aria-label="MCP 传输方式">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -519,6 +521,7 @@ export function McpSection() {
               <div className="space-y-1.5">
                 <Label className="text-xs text-slate-600">Command</Label>
                 <Input
+                  aria-label="MCP 启动命令"
                   className="h-10 text-sm font-mono"
                   placeholder="npx"
                   value={state.command}
@@ -531,6 +534,7 @@ export function McpSection() {
               <div className="space-y-1.5">
                 <Label className="text-xs text-slate-600">Args（空格分隔）</Label>
                 <Input
+                  aria-label="MCP 启动参数"
                   className="h-10 text-sm font-mono"
                   placeholder="-y @modelcontextprotocol/server-filesystem /path"
                   value={state.args}
@@ -545,6 +549,7 @@ export function McpSection() {
             <div className="space-y-1.5">
               <Label className="text-xs text-slate-600">URL</Label>
               <Input
+                aria-label="MCP HTTP 地址"
                 className="h-10 text-sm font-mono"
                 placeholder="http://127.0.0.1:8787/mcp"
                 value={state.url}
@@ -560,6 +565,7 @@ export function McpSection() {
             <div className="space-y-1.5">
               <Label className="text-xs text-slate-600">Headers（KEY=VALUE，每行一个）</Label>
               <textarea
+                aria-label="MCP 请求头，每行一个 KEY=VALUE"
                 className="w-full min-h-[72px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono"
                 placeholder="Authorization=Bearer ..."
                 value={state.headersInput}
@@ -572,6 +578,7 @@ export function McpSection() {
             <div className="space-y-1.5">
               <Label className="text-xs text-slate-600">Env（KEY=VALUE，每行一个）</Label>
               <textarea
+                aria-label="MCP 环境变量，每行一个 KEY=VALUE"
                 className="w-full min-h-[72px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-mono"
                 placeholder="API_TOKEN=..."
                 value={state.envInput}
@@ -587,6 +594,7 @@ export function McpSection() {
             <div className="space-y-1.5 w-32">
               <Label className="text-xs text-slate-600">超时（秒）</Label>
               <Input
+                aria-label="MCP 超时秒数"
                 type="number"
                 min={1}
                 className="h-10 text-sm"

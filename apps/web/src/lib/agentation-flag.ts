@@ -1,6 +1,6 @@
-const DISABLED_AGENTATION_VALUES = new Set(["0", "false", "off", "no"]);
+const ENABLED_AGENTATION_VALUES = new Set(["1", "true", "on", "yes", "enabled"]);
 
 export function isAgentationEnabled(value?: string | null): boolean {
-	if (value == null) return true;
-	return !DISABLED_AGENTATION_VALUES.has(value.trim().toLowerCase());
+	if (value == null) return false;
+	return ENABLED_AGENTATION_VALUES.has(value.trim().toLowerCase());
 }

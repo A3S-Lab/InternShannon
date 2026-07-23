@@ -84,7 +84,7 @@ test("describes ready and unsupported browser states distinctly", () => {
   });
 
   assert.equal(ready.tone, "success");
-  assert.equal(ready.title, "浏览器可用");
+  assert.equal(ready.title, "Web 搜索可用");
   assert.equal(ready.description, "Lightpanda 0.1.2");
 
   const unsupported = resolveSearchBrowserStatusFeedback({
@@ -113,7 +113,7 @@ test("describes missing browser states without treating them as detection errors
 
   assert.equal(feedback.tone, "warning");
   assert.equal(feedback.role, "status");
-  assert.equal(feedback.title, "浏览器未就绪");
+  assert.equal(feedback.title, "Web 搜索不可用");
   assert.equal(feedback.description, "未找到 Chrome");
 });
 

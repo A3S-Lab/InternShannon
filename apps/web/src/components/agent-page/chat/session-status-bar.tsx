@@ -606,6 +606,14 @@ export function SessionStatusBar({
                           {event.detail ? (
                             <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-foreground/80">{event.detail}</p>
                           ) : null}
+                          {event.diagnosticDetail ? (
+                            <details className="mt-1 text-[10px] text-muted-foreground">
+                              <summary className="cursor-pointer">诊断详情</summary>
+                              <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-all rounded bg-background/70 p-1.5 font-mono">
+                                {event.diagnosticDetail}
+                              </pre>
+                            </details>
+                          ) : null}
                         </div>
                       ))}
                     </div>

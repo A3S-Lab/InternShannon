@@ -33,6 +33,8 @@ type SearchBrowserStatus = {
   path?: string | null;
   version?: string | null;
   supported: boolean;
+  verified?: boolean;
+  snapshot?: string | null;
   message?: string | null;
 };
 
@@ -211,7 +213,7 @@ export function SearchSection() {
           ui.saveStatus = { kind: "error", message: normalized.message };
         }
       }
-      toast.success("Lightpanda 已下载");
+      toast.success("Lightpanda 已下载并校验；重启书小安后启用 Web 搜索");
     } catch (error) {
       notifyClientError(error, {
         title: "浏览器下载失败",

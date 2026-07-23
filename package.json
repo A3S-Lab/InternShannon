@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Desktop and sidecar workspace",
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "scripts": {
     "build": "pnpm --filter @internshannon/sidecar build",
     "desktop:doctor": "pnpm --filter @internshannon/desktop doctor",

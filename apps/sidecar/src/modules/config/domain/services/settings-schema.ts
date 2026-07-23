@@ -504,17 +504,14 @@ export const DEFAULT_UPLOAD_MAX_EXCEL_MB = 50;
 export const DEFAULT_UPLOAD_MAX_WORKSPACE_FILE_MB = 512;
 
 /**
- * 内置示例插件的页面内容:一个运行在 AgentUI 沙箱里的 React 页面——从 CDN 引入 React(UMD,
- * 无需 Babel,用 React.createElement),经 `host.call("apiGet", { path })` 桥读平台数据并渲染。
- * 演示「插件页 = AgentUI 沙箱 + 任意框架 + 受控 host 能力」。
+ * 内置示例插件的页面内容:自包含 HTML/CSS/JavaScript，不加载公网 CDN；仅经
+ * `host.call("apiGet", { path })` 受控桥读取平台健康状态。
  */
 const EXAMPLE_PLUGIN_HTML = `<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; color: #1f2937; background: #fff; }
     .card { max-width: 600px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 22px; }
@@ -527,27 +524,21 @@ const EXAMPLE_PLUGIN_HTML = `<!doctype html>
 <body>
   <div id="root"></div>
   <script>
-    var h = React.createElement;
-    function App() {
-      var s = React.useState(null), me = s[0], setMe = s[1];
-      var e = React.useState(null), err = e[0], setErr = e[1];
-      React.useEffect(function () {
-        host.call("apiGet", { path: "/api/v1/health" })
-          .then(function (res) { setMe(res && res.data ? res.data : res); })
-          .catch(function (ex) { setErr(String(ex && ex.message ? ex.message : ex)); });
-      }, []);
-      return h("div", { className: "card" },
-        h("h1", null, "🧩 AgentUI 示例插件(React)"),
-        h("p", { className: "muted" },
-          "这是运行在 AgentUI 沙箱里的 React 页面:从 CDN 引入 React,经 ",
-          h("code", null, 'host.call("apiGet")'),
-          " 读取本地 sidecar 状态。在「插件管理 / 我的菜单」里复制这段 HTML 即可改成你自己的页面。"),
-        err ? h("p", { className: "err" }, "apiGet 失败:" + err)
-          : me ? h("p", null, "sidecar 状态:", h("code", null, me.status || me.version || "ok"))
-          : h("p", { className: "muted" }, "加载中…")
-      );
-    }
-    ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+    var root = document.getElementById("root");
+    root.innerHTML = '<div class="card"><h1>🧩 AgentUI 示例插件</h1>' +
+      '<p class="muted">这是不依赖公网 CDN 的自包含页面，经 <code>host.call("apiGet")</code> 读取本地 sidecar 状态。</p>' +
+      '<p id="status" class="muted">正在读取本地状态…</p></div>';
+    var status = document.getElementById("status");
+    host.call("apiGet", { path: "/api/v1/health" })
+      .then(function (res) {
+        var data = res && res.data ? res.data : res;
+        status.className = "";
+        status.textContent = "sidecar 状态: " + (data && (data.status || data.version) || "ok");
+      })
+      .catch(function (ex) {
+        status.className = "err";
+        status.textContent = "apiGet 失败: " + String(ex && ex.message ? ex.message : ex);
+      });
   </script>
 </body>
 </html>`;
@@ -566,7 +557,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
         supportEmail: '',
         uploadMaxExcelMb: DEFAULT_UPLOAD_MAX_EXCEL_MB,
         uploadMaxWorkspaceFileMb: DEFAULT_UPLOAD_MAX_WORKSPACE_FILE_MB,
-        // 内置示例插件:一个 AgentUI 沙箱 React 页面(html 型),开箱演示「插件页 = 任意框架 + host.call 取数据」。
+        // 内置示例插件:自包含 AgentUI 沙箱页面，不依赖公网 CDN，仅通过 host.call 取数据。
         // 默认启用;在「系统 → 插件管理 / 我的菜单」可改内容/名称/位置或新增。
         menuPlugins: [
             {

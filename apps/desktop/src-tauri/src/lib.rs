@@ -5,6 +5,7 @@ mod server;
 use chrono::Local;
 use notify::RecommendedWatcher; // Required for Debouncer type inference
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -170,6 +171,8 @@ struct SearchBrowserStatus {
     path: Option<String>,
     version: Option<String>,
     supported: bool,
+    verified: bool,
+    snapshot: Option<String>,
     message: Option<String>,
 }
 
@@ -191,15 +194,18 @@ struct WorkspaceSearchMatch {
 }
 
 #[derive(Debug, Deserialize)]
-struct GithubRelease {
-    assets: Vec<GithubAsset>,
+struct BrowserBinaryManifest {
+    snapshot: String,
+    platforms: HashMap<String, BrowserBinaryPlatform>,
 }
 
 #[derive(Debug, Deserialize)]
-struct GithubAsset {
-    name: String,
-    browser_download_url: String,
+struct BrowserBinaryPlatform {
+    url: String,
+    sha256: String,
 }
+
+const BROWSER_BINARY_MANIFEST: &str = include_str!("../../../sidecar/config/browser-binary.json");
 
 fn current_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
@@ -609,6 +615,20 @@ fn default_lightpanda_path() -> Result<PathBuf, String> {
     Ok(search_browser_dir()?.join(file_name))
 }
 
+fn bundled_lightpanda_path() -> Option<PathBuf> {
+    let resource_dir = std::env::var("TAURI_RESOURCE_PATH").ok()?;
+    let file_name = if cfg!(target_os = "windows") {
+        "lightpanda.exe"
+    } else {
+        "lightpanda"
+    };
+    Some(
+        PathBuf::from(resource_dir)
+            .join("search-browser")
+            .join(file_name),
+    )
+}
+
 fn executable_exists(path: &Path) -> bool {
     path.metadata()
         .map(|metadata| metadata.is_file())
@@ -631,6 +651,42 @@ fn browser_version(path: &Path) -> Option<String> {
     }
 }
 
+fn browser_manifest() -> Result<BrowserBinaryManifest, String> {
+    serde_json::from_str(BROWSER_BINARY_MANIFEST)
+        .map_err(|error| format!("Invalid bundled browser manifest: {error}"))
+}
+
+fn browser_platform_key() -> Result<&'static str, String> {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("macos", "aarch64") => Ok("darwin-arm64"),
+        ("macos", "x86_64") => Ok("darwin-x64"),
+        ("linux", "aarch64") => Ok("linux-arm64"),
+        ("linux", "x86_64") => Ok("linux-x64"),
+        (os, arch) => Err(format!("Unsupported Lightpanda platform: {os}/{arch}")),
+    }
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
+}
+
+fn verify_lightpanda_file(path: &Path, expected_sha256: &str) -> Result<(), String> {
+    let bytes = fs::read(path).map_err(|error| {
+        format!(
+            "Failed to read Lightpanda binary {}: {error}",
+            path.display()
+        )
+    })?;
+    let actual = sha256_hex(&bytes);
+    if actual.eq_ignore_ascii_case(expected_sha256) {
+        Ok(())
+    } else {
+        Err(format!(
+            "Lightpanda checksum mismatch: expected {expected_sha256}, got {actual}"
+        ))
+    }
+}
+
 fn find_chrome_path(configured_path: Option<&str>) -> Option<PathBuf> {
     if let Some(path) = configured_path
         .map(str::trim)
@@ -643,22 +699,23 @@ fn find_chrome_path(configured_path: Option<&str>) -> Option<PathBuf> {
     }
 
     let candidates: Vec<PathBuf> = if cfg!(target_os = "macos") {
-        vec![
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome".into(),
-            "/Applications/Chromium.app/Contents/MacOS/Chromium".into(),
-        ]
+        macos_chromium_browser_candidates()
     } else if cfg!(target_os = "windows") {
         let mut paths = Vec::new();
         if let Ok(program_files) = std::env::var("ProgramFiles") {
-            paths.push(PathBuf::from(program_files).join("Google/Chrome/Application/chrome.exe"));
+            let root = PathBuf::from(program_files);
+            paths.push(root.join("Google/Chrome/Application/chrome.exe"));
+            paths.push(root.join("Microsoft/Edge/Application/msedge.exe"));
         }
         if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
-            paths.push(
-                PathBuf::from(program_files_x86).join("Google/Chrome/Application/chrome.exe"),
-            );
+            let root = PathBuf::from(program_files_x86);
+            paths.push(root.join("Google/Chrome/Application/chrome.exe"));
+            paths.push(root.join("Microsoft/Edge/Application/msedge.exe"));
         }
         if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
-            paths.push(PathBuf::from(local_app_data).join("Google/Chrome/Application/chrome.exe"));
+            let root = PathBuf::from(local_app_data);
+            paths.push(root.join("Google/Chrome/Application/chrome.exe"));
+            paths.push(root.join("Microsoft/Edge/Application/msedge.exe"));
         }
         paths
     } else {
@@ -667,10 +724,22 @@ fn find_chrome_path(configured_path: Option<&str>) -> Option<PathBuf> {
             "/usr/bin/google-chrome-stable".into(),
             "/usr/bin/chromium".into(),
             "/usr/bin/chromium-browser".into(),
+            "/usr/bin/microsoft-edge".into(),
+            "/usr/bin/microsoft-edge-stable".into(),
+            "/usr/bin/brave-browser".into(),
         ]
     };
 
     candidates.into_iter().find(|path| executable_exists(path))
+}
+
+fn macos_chromium_browser_candidates() -> Vec<PathBuf> {
+    vec![
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome".into(),
+        "/Applications/Chromium.app/Contents/MacOS/Chromium".into(),
+        "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge".into(),
+        "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser".into(),
+    ]
 }
 
 fn lightpanda_asset_name() -> Result<&'static str, String> {
@@ -687,34 +756,15 @@ fn lightpanda_asset_name() -> Result<&'static str, String> {
     }
 }
 
-async fn resolve_lightpanda_download_url(asset_name: &str) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|error| format!("Failed to build download client: {error}"))?;
-    let release = client
-        .get("https://api.github.com/repos/lightpanda-io/browser/releases/latest")
-        .header(reqwest::header::USER_AGENT, "InternShannon")
-        .send()
-        .await
-        .map_err(|error| format!("Failed to fetch Lightpanda release metadata: {error}"))?
-        .error_for_status()
-        .map_err(|error| format!("Lightpanda release metadata request failed: {error}"))?
-        .json::<GithubRelease>()
-        .await
-        .map_err(|error| format!("Failed to parse Lightpanda release metadata: {error}"))?;
-
-    if let Some(asset) = release
-        .assets
+fn pinned_lightpanda_platform() -> Result<(String, BrowserBinaryPlatform), String> {
+    let manifest = browser_manifest()?;
+    let platform_key = browser_platform_key()?;
+    let platform = manifest
+        .platforms
         .into_iter()
-        .find(|asset| asset.name == asset_name)
-    {
-        return Ok(asset.browser_download_url);
-    }
-
-    Ok(format!(
-        "https://github.com/lightpanda-io/browser/releases/download/nightly/{asset_name}"
-    ))
+        .find_map(|(key, value)| (key == platform_key).then_some(value))
+        .ok_or_else(|| format!("Browser manifest has no entry for {platform_key}"))?;
+    Ok((manifest.snapshot, platform))
 }
 
 #[tauri::command]
@@ -729,26 +779,56 @@ fn get_search_browser_status(
                 .map(str::trim)
                 .filter(|path| !path.is_empty())
                 .map(PathBuf::from)
+                .or_else(|| bundled_lightpanda_path().filter(|path| executable_exists(path)))
                 .unwrap_or(default_lightpanda_path()?);
             let installed = executable_exists(&path);
+            let (snapshot, pinned) = match pinned_lightpanda_platform() {
+                Ok(value) => value,
+                Err(message) => {
+                    return Ok(SearchBrowserStatus {
+                        backend,
+                        installed: false,
+                        path: Some(path.display().to_string()),
+                        version: None,
+                        supported: false,
+                        verified: false,
+                        snapshot: None,
+                        message: Some(message),
+                    });
+                }
+            };
+            let verification = installed.then(|| verify_lightpanda_file(&path, &pinned.sha256));
+            let verified = matches!(verification, Some(Ok(())));
+            let message = verification.and_then(Result::err).or_else(|| {
+                verified.then(|| {
+                    format!(
+                        "已通过 {snapshot} SHA-256 校验；若刚完成安装，请重启书小安以启用 Web 搜索。"
+                    )
+                })
+            });
             Ok(SearchBrowserStatus {
                 backend,
-                installed,
+                installed: installed && verified,
                 path: Some(path.display().to_string()),
-                version: installed.then(|| browser_version(&path)).flatten(),
+                version: verified.then(|| browser_version(&path)).flatten(),
                 supported: lightpanda_asset_name().is_ok(),
-                message: lightpanda_asset_name().err(),
+                verified,
+                snapshot: Some(snapshot),
+                message,
             })
         }
         "chrome" => {
             let path = find_chrome_path(configured_path.as_deref());
             let version = path.as_deref().and_then(browser_version);
+            let installed = path.is_some();
             Ok(SearchBrowserStatus {
                 backend,
-                installed: path.is_some(),
+                installed,
                 path: path.map(|path| path.display().to_string()),
                 version,
                 supported: true,
+                verified: installed,
+                snapshot: None,
                 message: None,
             })
         }
@@ -762,9 +842,10 @@ async fn download_search_browser(backend: String) -> Result<SearchBrowserStatus,
         return Err("Only Lightpanda can be downloaded automatically. Chrome must be installed by the user.".to_string());
     }
 
-    let asset_name = lightpanda_asset_name()?;
-    let url = resolve_lightpanda_download_url(asset_name).await?;
+    lightpanda_asset_name()?;
+    let (_snapshot, pinned) = pinned_lightpanda_platform()?;
     let target_path = default_lightpanda_path()?;
+    let temporary_path = target_path.with_extension("download");
     if let Some(parent) = target_path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|error| format!("Failed to create browser directory: {error}"))?;
@@ -774,7 +855,7 @@ async fn download_search_browser(backend: String) -> Result<SearchBrowserStatus,
         .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|error| format!("Failed to build download client: {error}"))?
-        .get(&url)
+        .get(&pinned.url)
         .header(reqwest::header::USER_AGENT, "InternShannon")
         .send()
         .await
@@ -785,24 +866,67 @@ async fn download_search_browser(backend: String) -> Result<SearchBrowserStatus,
         .await
         .map_err(|error| format!("Failed to read Lightpanda download: {error}"))?;
 
-    std::fs::write(&target_path, &bytes)
+    if sha256_hex(&bytes) != pinned.sha256.to_ascii_lowercase() {
+        return Err("Downloaded Lightpanda failed the pinned SHA-256 check; the existing runtime was not replaced.".to_string());
+    }
+
+    std::fs::write(&temporary_path, &bytes)
         .map_err(|error| format!("Failed to write Lightpanda binary: {error}"))?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut permissions = std::fs::metadata(&target_path)
+        let mut permissions = std::fs::metadata(&temporary_path)
             .map_err(|error| format!("Failed to read Lightpanda metadata: {error}"))?
             .permissions();
         permissions.set_mode(0o755);
-        std::fs::set_permissions(&target_path, permissions)
+        std::fs::set_permissions(&temporary_path, permissions)
             .map_err(|error| format!("Failed to make Lightpanda executable: {error}"))?;
     }
+
+    std::fs::rename(&temporary_path, &target_path)
+        .map_err(|error| format!("Failed to install verified Lightpanda binary: {error}"))?;
 
     get_search_browser_status(
         "lightpanda".to_string(),
         Some(target_path.display().to_string()),
     )
+}
+
+fn resolve_sidecar_search_browser_runtime() -> Option<server::SearchBrowserRuntime> {
+    for (env_name, value) in [
+        ("LIGHTPANDA", std::env::var("LIGHTPANDA").ok()),
+        ("CHROME", std::env::var("CHROME").ok()),
+    ] {
+        let path = value
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from);
+        if let Some(path) = path.filter(|path| executable_exists(path)) {
+            return Some(server::SearchBrowserRuntime::new(
+                env_name,
+                path,
+                "explicit environment pin",
+            ));
+        }
+    }
+
+    if let Ok((snapshot, pinned)) = pinned_lightpanda_platform() {
+        let lightpanda_candidates = [bundled_lightpanda_path(), default_lightpanda_path().ok()];
+        for path in lightpanda_candidates.into_iter().flatten() {
+            if executable_exists(&path) && verify_lightpanda_file(&path, &pinned.sha256).is_ok() {
+                return Some(server::SearchBrowserRuntime::new(
+                    "LIGHTPANDA",
+                    path,
+                    snapshot.clone(),
+                ));
+            }
+        }
+    }
+
+    find_chrome_path(None)
+        .map(|path| server::SearchBrowserRuntime::new("CHROME", path, "system browser detection"))
 }
 
 fn is_loopback_host(host: &str) -> bool {
@@ -1821,7 +1945,8 @@ pub fn run() {
                     status.port_owner_name = port_owner_name;
                 }
                 let progress_app_handle = app_handle.clone();
-                let startup_result = server::start_sidecar_with_progress(move |stage, message| {
+                let browser_runtime = resolve_sidecar_search_browser_runtime();
+                let startup_result = server::start_sidecar_with_progress(browser_runtime, move |stage, message| {
                     let gateway_state = progress_app_handle.state::<EmbeddedGatewayState>();
                     let status_result = gateway_state.status.lock();
                     if let Ok(mut status) = status_result {
@@ -1928,7 +2053,10 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{startup_window_size, workspace_write_file};
+    use super::{
+        browser_manifest, browser_platform_key, macos_chromium_browser_candidates, sha256_hex,
+        startup_window_size, verify_lightpanda_file, workspace_write_file,
+    };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -2003,6 +2131,45 @@ mod tests {
 
         let written = fs::read_to_string(&target).expect("read written file");
         assert_eq!(written, "{\"ok\":\"internShannon\"}\n");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn bundled_browser_manifest_has_a_pinned_platform_checksum() {
+        let manifest = browser_manifest().expect("parse bundled browser manifest");
+        let platform = manifest
+            .platforms
+            .get(browser_platform_key().expect("supported test platform"))
+            .expect("manifest platform entry");
+
+        assert!(manifest.snapshot.starts_with("nightly-"));
+        assert_eq!(platform.sha256.len(), 64);
+        assert!(platform
+            .url
+            .starts_with("https://github.com/lightpanda-io/browser/releases/"));
+    }
+
+    #[test]
+    fn chromium_fallbacks_include_edge_and_brave_on_macos() {
+        let candidates = macos_chromium_browser_candidates();
+        assert!(candidates
+            .iter()
+            .any(|path| path.ends_with("Microsoft Edge")));
+        assert!(candidates
+            .iter()
+            .any(|path| path.ends_with("Brave Browser")));
+    }
+
+    #[test]
+    fn lightpanda_checksum_verification_rejects_modified_bytes() {
+        let dir = unique_test_dir("browser-checksum");
+        fs::create_dir_all(&dir).expect("create browser checksum dir");
+        let binary = dir.join("lightpanda");
+        fs::write(&binary, b"verified-browser").expect("write browser fixture");
+        let expected = sha256_hex(b"verified-browser");
+
+        verify_lightpanda_file(&binary, &expected).expect("accept matching checksum");
+        assert!(verify_lightpanda_file(&binary, &sha256_hex(b"different-browser")).is_err());
         let _ = fs::remove_dir_all(&dir);
     }
 }

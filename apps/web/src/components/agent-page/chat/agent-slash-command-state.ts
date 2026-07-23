@@ -28,6 +28,11 @@ const KNOWN_COMMAND_DESCRIPTIONS: Record<string, string> = {
   ...LOCAL_COMMAND_DESCRIPTIONS,
   compact: "整理并压缩对话上下文",
   cost: "查看当前会话 Token 用量和费用",
+  history: "查看当前会话的消息历史与最近操作",
+  mcp: "查看当前会话已连接的 MCP 工具服务",
+  tools: "查看当前会话可以调用的工具及状态",
+  skills: "查看当前会话已加载的技能",
+  status: "查看模型、连接和运行时状态",
 };
 
 const LOCAL_COMMANDS = Object.keys(LOCAL_COMMAND_DESCRIPTIONS);
@@ -50,7 +55,7 @@ export function resolveAgentSlashCommandSuggestions(
 
   return commands.map((name) => ({
     name,
-    description: KNOWN_COMMAND_DESCRIPTIONS[name] ?? "运行时命令",
+    description: KNOWN_COMMAND_DESCRIPTIONS[name] ?? "由当前内核提供的扩展命令",
   }));
 }
 

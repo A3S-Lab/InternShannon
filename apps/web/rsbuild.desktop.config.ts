@@ -134,6 +134,63 @@ export default defineConfig(() => {
       },
     },
     plugins: [pluginReact(), pluginLess(), pluginSass()],
+    performance: {
+      chunkSplit: {
+        strategy: "custom",
+        splitChunks: {
+          chunks: "all",
+          maxAsyncRequests: 40,
+          maxInitialRequests: 20,
+          cacheGroups: {
+            "lib-office-univer": {
+              test: /node_modules[\\/](?:@univerjs|@wendellhu)[\\/]/,
+              chunks: "async",
+              priority: 30,
+              enforce: true,
+              maxSize: 3_000_000,
+              minSize: 400_000,
+              reuseExistingChunk: true,
+            },
+            "lib-office-codecs": {
+              test: /node_modules[\\/](?:xlsx|mammoth|jszip)[\\/]/,
+              chunks: "async",
+              priority: 25,
+              enforce: true,
+              maxSize: 3_000_000,
+              minSize: 400_000,
+              reuseExistingChunk: true,
+            },
+            "lib-editor-monaco": {
+              test: /node_modules[\\/](?:@monaco-editor|monaco-editor)[\\/]/,
+              chunks: "async",
+              priority: 30,
+              enforce: true,
+              maxSize: 3_000_000,
+              minSize: 400_000,
+              reuseExistingChunk: true,
+            },
+            "lib-editor-rich-text": {
+              test: /node_modules[\\/](?:@tiptap|prosemirror-)[\\/]/,
+              chunks: "async",
+              priority: 25,
+              enforce: true,
+              maxSize: 3_000_000,
+              minSize: 200_000,
+              reuseExistingChunk: true,
+            },
+            "lib-visualization": {
+              test: /node_modules[\\/](?:@ant-design[\\/]graphs|@antv|@visactor|@turf|three)[\\/]/,
+              chunks: "async",
+              priority: 20,
+              enforce: true,
+              maxSize: 3_000_000,
+              minSize: 400_000,
+              reuseExistingChunk: true,
+            },
+          },
+        },
+      },
+    },
     tools: {
       rspack(config) {
         config.ignoreWarnings = [...(config.ignoreWarnings ?? []), ignoreKnownEditorWorkerWarnings];

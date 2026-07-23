@@ -2,18 +2,15 @@ import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nes
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { redactSecrets } from '@/shared/common/security/secret-redaction';
-import { isDesktopLoopback } from '@/shared/constants';
 
 /**
- * Single redaction seam for config reads. Cloud responses mask secret-named fields
- * (apiKey/password/clientSecret…) to a `[configured]` sentinel. Desktop loopback
- * returns local config as-is so the settings UI can show values the user entered.
- * Write paths still restore the sentinel from stored values (see restoreSecrets),
- * so cloud round-trips can't corrupt keys.
+ * Single redaction seam for every config read. Even loopback responses must not
+ * expose credentials to the WebView DOM. Write paths restore the `[configured]`
+ * sentinel from stored values (see restoreSecrets), so safe round-trips preserve
+ * an existing key without returning it to the frontend.
  */
-export function redactConfigResponseSecrets(body: unknown, options?: { desktopLoopback?: boolean }): unknown {
-    const desktopLoopback = options?.desktopLoopback ?? isDesktopLoopback();
-    return desktopLoopback ? body : redactSecrets(body);
+export function redactConfigResponseSecrets(body: unknown): unknown {
+    return redactSecrets(body);
 }
 
 @Injectable()

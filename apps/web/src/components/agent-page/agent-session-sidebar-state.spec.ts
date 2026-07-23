@@ -220,8 +220,12 @@ test("resolves sidebar status labels and tones from lifecycle and runtime state"
     tone: "disconnected",
   });
   assert.deepEqual(resolveSessionSidebarStatus({ connectionStatus: "connected" }), {
-    label: "在线",
+    label: "已连接",
     tone: "active",
+  });
+  assert.deepEqual(resolveSessionSidebarStatus({}), {
+    label: "空闲",
+    tone: "idle",
   });
 });
 

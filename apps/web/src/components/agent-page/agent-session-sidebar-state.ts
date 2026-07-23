@@ -3,7 +3,7 @@ import type { AgentProcessInfo } from "../../lib/types.ts";
 import { stripLeakedInternalReasoning } from "./chat/chat-text-sanitize.ts";
 
 type SessionNameMap = Readonly<Record<string, string | undefined>>;
-export type SessionSidebarStatusTone = "active" | "running" | "creating" | "connecting" | "disconnected" | "ended";
+export type SessionSidebarStatusTone = "active" | "idle" | "running" | "creating" | "connecting" | "disconnected" | "ended";
 
 export interface SessionSidebarStatusInput {
   sessionState?: string | null;
@@ -328,7 +328,15 @@ export function resolveSessionSidebarStatus(input: SessionSidebarStatusInput): S
   if (input.connectionStatus && input.connectionStatus !== "connected") {
     return { label: "连接已断开", tone: "disconnected" };
   }
-  return { label: "在线", tone: "active" };
+  if (input.connectionStatus === "connected") {
+    return { label: "已连接", tone: "active" };
+  }
+  return { label: "空闲", tone: "idle" };
+}
+
+export function isSessionSidebarActive(input: SessionSidebarStatusInput): boolean {
+  const tone = resolveSessionSidebarStatus(input).tone;
+  return tone === "active" || tone === "running" || tone === "creating" || tone === "connecting";
 }
 
 export function sessionSearchHaystack(input: {

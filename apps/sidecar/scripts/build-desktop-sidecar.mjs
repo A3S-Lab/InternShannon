@@ -89,11 +89,6 @@ function matchesExcludePattern(relative, pattern) {
     return relative === pattern;
 }
 
-async function copyDirIfExists(from, to) {
-    if (!await exists(from)) return;
-    await fs.cp(from, to, { recursive: true });
-}
-
 async function exists(target) {
     try {
         await fs.access(target);

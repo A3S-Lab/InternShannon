@@ -11,12 +11,9 @@
  *   3. We own the document wrapper so the CSP <meta> is provably the first node the
  *      parser sees — agent markup can never execute ahead of the policy.
  *
- * Residual risk (documented, not eliminated here): the allowlisted CDN origins are
- * a low-bandwidth PASSIVE exfiltration sink (an agent can encode data into a
- * `<img src="https://cdn.../?=...">` path/query). The durable closure is to
- * self-host React/Babel/Tailwind and shrink the allowlist to a first-party origin
- * that does not echo arbitrary paths. Until then, do not feed the sandbox secrets
- * you are unwilling to expose at that bandwidth.
+ * External resource origins are denied by default. A caller can explicitly pass
+ * a narrow allowlist for a controlled preview, but production menu plugins use
+ * self-contained HTML so the default sandbox has no passive CDN egress sink.
  *
  * This module is pure (no React, no DOM calls) so the trust-boundary logic is
  * unit-testable in plain Node — see sandbox-bridge.selfcheck.ts.
@@ -24,12 +21,7 @@
 
 /** External origins the sandboxed document may load scripts/styles/fonts/images
  *  from — the single trust knob. Every entry is also a passive-exfil sink (above). */
-export const DEFAULT_CDN_ALLOWLIST = [
-	"https://cdn.jsdelivr.net",
-	"https://unpkg.com",
-	"https://esm.sh",
-	"https://cdn.tailwindcss.com",
-];
+export const DEFAULT_CDN_ALLOWLIST: string[] = [];
 
 /** Max concurrent in-flight host.call() requests per sandbox. Advisory inside the
  *  sandbox; AUTHORITATIVELY enforced host-side in AgentUI (the sandbox copy shares

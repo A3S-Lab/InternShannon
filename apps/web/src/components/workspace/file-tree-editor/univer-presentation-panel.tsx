@@ -359,6 +359,8 @@ export function UniverPresentationPanel({
           key={`${path}:${retryCount}`}
           ref={containerRef}
           className="min-w-0 flex-1"
+          role="application"
+          aria-label="演示文稿编辑器工具栏与画布"
         />
         <aside className="flex w-64 shrink-0 flex-col border-l border-border-light bg-[#f7f7f5]">
           <div className="border-b border-border-light bg-white px-3 py-2 text-xs font-semibold text-foreground">幻灯片文字</div>
@@ -369,6 +371,7 @@ export function UniverPresentationPanel({
                 type="button"
                 onClick={() => selectTextEntry(entry)}
                 className={`block w-full rounded-md px-2 py-1.5 text-left text-xs ${selectedTextKey === entry.key ? "bg-primary/10 text-primary" : "bg-white text-foreground hover:bg-muted"}`}
+                aria-label={`编辑第 ${index + 1} 个幻灯片文本：${entry.text || "空文本框"}`}
               >
                 <span className="block truncate">{index + 1}. {entry.text || "空文本框"}</span>
               </button>
@@ -387,6 +390,7 @@ export function UniverPresentationPanel({
                 onClick={applyTextEdit}
                 disabled={textEntries.find((entry) => entry.key === selectedTextKey)?.text === textDraft}
                 className="inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                aria-label="应用幻灯片文字修改"
               >
                 <Check className="size-3.5" />
                 应用文字

@@ -9,6 +9,7 @@ import { KernelSessionRuntimeAccessService } from './kernel-session-runtime-acce
 import { KernelSessionRuntimeStateService } from './kernel-session-runtime-state.service';
 import type { ActiveSession } from './session-runtime.types';
 import type { ToolConfirmationGate } from './tool-confirmation-gate';
+import { kernelContentLogValue } from './kernel-content-logging';
 
 export interface KernelMessageRunIntakeInput extends KernelMessageRunInput {
     confirmation?: ToolConfirmationGate | null;
@@ -30,7 +31,9 @@ export class KernelMessageRunIntakeService implements IKernelMessageRunService {
     async run(input: KernelMessageRunIntakeInput): Promise<void> {
         const startedAt = Date.now();
         const { input: effectiveInput, session } = await this.enforceLockedAgentRunPolicy(input);
-        this.logger.log(`User message for session ${input.sessionId}: ${input.content.substring(0, 100)}`);
+        this.logger.log(
+            `User message for session ${input.sessionId}: content=${kernelContentLogValue(input.content, 100)} images=${input.images?.length ?? 0}`,
+        );
         this.runtimeState.clearCancelled(input.sessionId);
 
         const userMessage = await this.conversationLog.recordUserMessage({

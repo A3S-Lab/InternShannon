@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { BookOpenText, FilePlus2, FileText, Hash, Tags } from "lucide-react";
+import { BookOpenText, FilePlus2, FileText, Hash, RefreshCw, Tags } from "lucide-react";
 import type { WikiGraph, WikiHealth, WikiPageEntry, WikiSearchHit, WikiSourceEntry } from "@/lib/api/assets";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime, pageTitle } from "../knowledge-page-utils";
@@ -53,8 +53,11 @@ export function OverviewPane(props: {
   health: WikiHealth | null;
   query: string;
   searchHits: WikiSearchHit[];
+  searchState: "idle" | "loading" | "ready" | "error";
+  busy: boolean;
   onQueryChange: (value: string) => void;
   onOpenPath: (path: string) => void;
+  onReingestSource: (path: string) => void;
 }) {
   const filteredPages = useMemo(() => {
     const normalized = props.query.trim().toLowerCase();
@@ -119,7 +122,13 @@ export function OverviewPane(props: {
               ))
             ) : (
               <div className="rounded-md border border-dashed border-border px-3 py-5 text-center text-xs text-muted-foreground">
-                暂无页面
+                {props.query.trim()
+                  ? props.searchState === "loading"
+                    ? "搜索中..."
+                    : props.searchState === "error"
+                      ? "搜索失败，请稍后重试"
+                      : "未找到结果"
+                  : "暂无页面"}
               </div>
             )}
           </div>
@@ -179,6 +188,22 @@ export function OverviewPane(props: {
                 <div className="mt-0.5 truncate text-[10px] text-muted-foreground" title={source.error || source.path}>
                   {source.error || source.path}
                 </div>
+                {source.status !== "indexed" ? (
+                  <button
+                    type="button"
+                    onClick={() => props.onReingestSource(source.path)}
+                    disabled={props.busy}
+                    className="mt-1.5 inline-flex h-6 items-center gap-1 rounded border border-border bg-white px-2 text-[10px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                    title={
+                      source.status === "waiting_for_ocr"
+                        ? "请先在搜索引擎设置中安装浏览器/OCR 依赖，再重新抽取"
+                        : "重新抽取此来源"
+                    }
+                  >
+                    <RefreshCw className="size-2.5" />
+                    {source.status === "waiting_for_ocr" ? "配置后重试" : "重新抽取"}
+                  </button>
+                ) : null}
               </div>
             ))}
             {props.sources.length === 0 ? (

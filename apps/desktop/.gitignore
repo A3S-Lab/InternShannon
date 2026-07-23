@@ -39,6 +39,8 @@ src-tauri/.a3s
 src-tauri/resources/sidecar/
 src-tauri/resources/node/*
 !src-tauri/resources/node/.gitkeep
+src-tauri/resources/search-browser/*
+!src-tauri/resources/search-browser/.gitkeep
 
 # Config
 config.hcl

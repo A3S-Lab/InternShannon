@@ -8,6 +8,7 @@
     "dev": "pnpm run workspace:dev",
     "desktop:dev": "rsbuild dev --config rsbuild.desktop.config.ts",
     "desktop:build": "node scripts/build-desktop.mjs",
+    "desktop:bundle-check": "node scripts/check-desktop-bundle-size.mjs",
     "desktop:smoke": "node scripts/desktop-smoke.mjs",
     "desktop:skill-smoke": "node scripts/skill-loading-smoke.mjs",
     "desktop:state-test": "node scripts/desktop-state-tests.mjs",

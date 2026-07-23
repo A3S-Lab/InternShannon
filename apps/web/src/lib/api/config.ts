@@ -45,7 +45,7 @@ export interface MenuPlugin {
   html?: string;
   /** Markdown 页面内容;填了则该菜单项打开站内宿主页、渲染 Markdown(url/html 之外的第三种,三者互斥)。 */
   markdown?: string;
-  /** AgentUI 额外 CDN 白名单(默认 jsdelivr/unpkg/esm.sh/tailwind 之外追加)。 */
+  /** AgentUI 外部资源白名单；默认为空，只有显式配置的来源才可加载。 */
   cdnAllowlist?: string[];
   /** 外部地址是否新开标签页。 */
   openInNewTab?: boolean;

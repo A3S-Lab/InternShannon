@@ -1,0 +1,16 @@
+export const SIDECAR_API_CSP_DIRECTIVES = Object.freeze({
+    'default-src': ["'none'"],
+    'base-uri': ["'none'"],
+    'connect-src': ["'none'"],
+    'font-src': ["'none'"],
+    'form-action': ["'none'"],
+    'frame-ancestors': ["'none'"],
+    'frame-src': ["'none'"],
+    'img-src': ["'none'"],
+    'manifest-src': ["'none'"],
+    'media-src': ["'none'"],
+    'object-src': ["'none'"],
+    'script-src': ["'none'"],
+    'style-src': ["'none'"],
+    'worker-src': ["'none'"],
+});

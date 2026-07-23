@@ -1,13 +1,15 @@
 import { useReactive } from "ahooks";
 import dayjs from "dayjs";
-import { Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
+import { BookOpenText, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useSnapshot } from "valtio";
 import { MemoizedMarkdown } from "@/components/memoized-markdown/MemoizedMarkdown";
 import { writeClipboardText } from "@/lib/clipboard";
 import { workspaceAssetPath } from "@/lib/constants";
 import { hasTauriCore } from "@/lib/runtime-environment";
+import { parseKnowledgeAssetCitation } from "@/lib/knowledge-citation";
 import { cn } from "@/lib/utils";
 import agentRegistryModel from "@/models/agent-registry.model";
 import globalModel from "@/models/global.model";
@@ -166,11 +168,11 @@ function InlineImages({ images }: { images?: { mediaType: string; data: string }
 // =============================================================================
 
 /** Split text content into alternating plain-text and file-path segments */
-function splitFileMentions(text: string): Array<{ type: "text" | "file"; value: string; key: string }> {
+function splitFileMentions(text: string): Array<{ type: "text" | "file" | "citation"; value: string; key: string }> {
   if (!text) return [];
-  const segments: Array<{ type: "text" | "file"; value: string; key: string }> = [];
-  // Match @/absolute/path (no whitespace)
-  const re = /@(\/[^\s@]+)/g;
+  const segments: Array<{ type: "text" | "file" | "citation"; value: string; key: string }> = [];
+  // Match @/absolute/path and traceable asset:// knowledge citations.
+  const re = /@(\/[^\s@]+)|(asset:\/\/[^\s)\]}>"']+)/g;
   let last = 0;
   let match = re.exec(text);
   while (match !== null) {
@@ -181,7 +183,9 @@ function splitFileMentions(text: string): Array<{ type: "text" | "file"; value: 
         key: `text:${last}:${match.index}`,
       });
     }
-    segments.push({ type: "file", value: match[1], key: `file:${match.index}:${match[1]}` });
+    const value = match[1] || match[2];
+    const type = match[1] ? "file" : "citation";
+    segments.push({ type, value, key: `${type}:${match.index}:${value}` });
     last = match.index + match[0].length;
     match = re.exec(text);
   }
@@ -556,11 +560,34 @@ function FileMentionCard({ path, isUser = false }: { path: string; isUser?: bool
   );
 }
 
-/** Render text that may contain @/path file mentions as inline cards */
+function KnowledgeCitationCard({ citation }: { citation: string }) {
+  const navigate = useNavigate();
+  const parsed = parseKnowledgeAssetCitation(citation);
+  if (!parsed) return <MemoizedMarkdown id={citation} content={citation} />;
+  const name = parsed.relativePath.split("/").pop() || parsed.relativePath;
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/knowledge?source=${encodeURIComponent(citation)}`)}
+      className="my-1 flex max-w-[24rem] items-center gap-2 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.07]"
+      title={`打开知识来源：${parsed.relativePath}`}
+      aria-label={`打开知识来源 ${name}`}
+    >
+      <BookOpenText className="size-4 shrink-0 text-primary" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium text-foreground">{name}</span>
+        <span className="block truncate text-[10px] text-muted-foreground">{parsed.relativePath}</span>
+      </span>
+      <span className="shrink-0 text-[10px] font-medium text-primary">打开来源</span>
+    </button>
+  );
+}
+
+/** Render text that may contain @/path file mentions and knowledge citations as inline cards. */
 function TextWithFileMentions({ content, isUser = false }: { content: string; isUser?: boolean }) {
   const safeContent = content ?? "";
   const segments = useMemo(() => splitFileMentions(safeContent), [safeContent]);
-  const hasFileMentions = segments.some((s) => s.type === "file");
+  const hasFileMentions = segments.some((s) => s.type !== "text");
 
   if (!hasFileMentions) {
     return <MemoizedMarkdown id={safeContent.slice(0, 32)} content={safeContent} />;
@@ -571,6 +598,8 @@ function TextWithFileMentions({ content, isUser = false }: { content: string; is
       {segments.map((seg) =>
         seg.type === "file" ? (
           <FileMentionCard key={seg.key} path={seg.value} isUser={isUser} />
+        ) : seg.type === "citation" ? (
+          <KnowledgeCitationCard key={seg.key} citation={seg.value} />
         ) : seg.value.trim() ? (
           <MemoizedMarkdown key={seg.key} id={seg.key} content={seg.value} />
         ) : null,

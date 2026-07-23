@@ -26,6 +26,8 @@ import { extractAssistantTextFromHistory, mapAgentEvent } from './kernel-agent-e
 import { KernelConversationLogService, type KernelRuntimeHistoryMessage } from './kernel-conversation-log.service';
 import type { KernelMessageRunLifecycleInput } from './kernel-lifecycle-feedback.service';
 import { KernelLifecycleFeedbackService } from './kernel-lifecycle-feedback.service';
+import { kernelContentLogValue } from './kernel-content-logging';
+import { isWebSearchEmptyResult, toolFailureCircuitDecision } from './kernel-tool-failure-policy';
 import { isPlanningProgressEvent, KernelPlanningProgressTracker } from './kernel-planning-progress-tracker';
 import { KernelSessionRuntimeStateService } from './kernel-session-runtime-state.service';
 import { isKnownEventType, normalizeStreamEvent, parseAgentEventData } from './kernel-stream-event-normalizer';
@@ -853,6 +855,7 @@ export class KernelMessageRunnerService {
             // is stuck retrying the same broken tool. A stall retry rebinds
             // this so the previous attempt's tool history doesn't bleed in.
             let consecutiveErrorsByTool = new Map<string, number>();
+            let totalToolErrors = 0;
 
             // Retry loop for blank model-stream failures: when the watchdog
             // trips before the first visible token/tool event, or the SDK
@@ -1001,7 +1004,7 @@ export class KernelMessageRunnerService {
 
                             if (!outputStarted) {
                                 this.logger.log(
-                                    `[stream:${sessionId}] event type="${event.type}" text="${event.text?.substring(0, 50) || ''}" toolName="${event.toolName || ''}" data="${event.data?.substring(0, 100) || ''}"`,
+                                    `[stream:${sessionId}] event type="${event.type}" text="${kernelContentLogValue(event.text, 50)}" toolName="${event.toolName || ''}" data="${kernelContentLogValue(event.data, 100)}"`,
                                 );
                             }
 
@@ -1130,7 +1133,7 @@ export class KernelMessageRunnerService {
                             this.tapMemoryEvent(normalizedEvent, { userId: activeSession.userId, sessionId });
                             if (!normalizedEvent && !isKnownEventType(event.type)) {
                                 this.logger.warn(
-                                    `[stream:${sessionId}] unhandled event type="${event.type}" text="${event.text?.substring(0, 80) || ''}" data="${event.data?.substring(0, 200) || ''}"`,
+                                    `[stream:${sessionId}] unhandled event type="${event.type}" text="${kernelContentLogValue(event.text, 80)}" data="${kernelContentLogValue(event.data, 200)}"`,
                                 );
                             }
                             if (isPlanningProgressEvent(normalizedEvent)) {
@@ -1251,8 +1254,13 @@ export class KernelMessageRunnerService {
                                 markToolExecutionStarted(toolId);
                                 ensureToolUseBlock(toolId, normalizedEvent.toolName);
                                 flushTextBlock();
-                                const isError =
+                                const explicitError =
                                     typeof normalizedEvent.exitCode === 'number' ? normalizedEvent.exitCode !== 0 : false;
+                                const emptyWebSearch = isWebSearchEmptyResult(
+                                    normalizedEvent.toolName,
+                                    normalizedEvent.output,
+                                );
+                                const isError = explicitError || emptyWebSearch;
                                 assistantBlocks.push({
                                     type: 'tool_result',
                                     toolUseId: toolId,
@@ -1272,6 +1280,7 @@ export class KernelMessageRunnerService {
                                 // can't burn maxToolRounds re-trying a broken tool in a
                                 // tight loop while the user stares at a frozen UI.
                                 if (isError) {
+                                    totalToolErrors += 1;
                                     for (const toolName of consecutiveErrorsByTool.keys()) {
                                         if (toolName !== normalizedEvent.toolName) {
                                             consecutiveErrorsByTool.delete(toolName);
@@ -1279,8 +1288,9 @@ export class KernelMessageRunnerService {
                                     }
                                     const consecutive = (consecutiveErrorsByTool.get(normalizedEvent.toolName) ?? 0) + 1;
                                     consecutiveErrorsByTool.set(normalizedEvent.toolName, consecutive);
-                                    const toolErrorReason =
-                                        typeof normalizedEvent.error === 'string'
+                                    const toolErrorReason = emptyWebSearch
+                                        ? 'Web search returned no results'
+                                        : typeof normalizedEvent.error === 'string'
                                             ? normalizedEvent.error
                                             : typeof normalizedEvent.output === 'string'
                                               ? normalizedEvent.output.slice(0, 1_000)
@@ -1335,12 +1345,18 @@ export class KernelMessageRunnerService {
                                             timestamp: Date.now(),
                                         },
                                     });
-                                    if (consecutive >= maxConsecutiveToolErrors) {
+                                    const circuit = toolFailureCircuitDecision({
+                                        toolName: normalizedEvent.toolName,
+                                        consecutiveFailures: consecutive,
+                                        totalFailures: totalToolErrors,
+                                        sameToolThreshold: maxConsecutiveToolErrors,
+                                    });
+                                    if (circuit.open) {
                                         // Existing warn was free-form; tag with the same
                                         // [kernel.*] structured prefix as the other lines
                                         // so all kernel-runtime events grep together.
                                         this.logger.warn(
-                                            `[kernel.tool.circuit_open] sessionId=${sessionId} toolName=${normalizedEvent.toolName} consecutive=${consecutive} threshold=${maxConsecutiveToolErrors}`,
+                                            `[kernel.tool.circuit_open] sessionId=${sessionId} toolName=${normalizedEvent.toolName} consecutive=${consecutive} total=${totalToolErrors} threshold=${circuit.threshold} scope=${circuit.scope}`,
                                         );
                                         this.metrics?.incCounter('kernel_tool_circuit_open_total', {
                                             tool: normalizedEvent.toolName,
@@ -1351,13 +1367,15 @@ export class KernelMessageRunnerService {
                                                 type: 'tool_circuit_open',
                                                 toolName: normalizedEvent.toolName,
                                                 consecutiveFailures: consecutive,
+                                                totalFailures: totalToolErrors,
+                                                scope: circuit.scope,
                                                 sessionId,
                                                 timestamp: Date.now(),
                                             },
                                         });
                                         cancelCurrentRun(`tool_circuit_open:${normalizedEvent.toolName}`);
                                         throw new Error(
-                                            `tool_circuit_open: '${normalizedEvent.toolName}' failed ${consecutive} times in this run`,
+                                            `tool_circuit_open: tool failures exceeded the ${circuit.scope} budget (last tool '${normalizedEvent.toolName}', consecutive=${consecutive}, total=${totalToolErrors})`,
                                         );
                                     }
                                 } else {
@@ -1688,7 +1706,7 @@ export class KernelMessageRunnerService {
                 this.appendFallbackAssistantTextBlock(assistantBlocks, historyAssistantText);
             }
             this.logger.log(
-                `[stream:${sessionId}] stream completed: assistantTextParts=${assistantText.length}, finalText="${finalAssistantText.substring(0, 100)}", blocks=${assistantBlocks.length}, history=${activeSession.session.history().length}`,
+                `[stream:${sessionId}] stream completed: assistantTextParts=${assistantText.length}, finalText=${kernelContentLogValue(finalAssistantText, 100)}, blocks=${assistantBlocks.length}, history=${activeSession.session.history().length}`,
             );
             emitMainActivity({
                 status: 'running',

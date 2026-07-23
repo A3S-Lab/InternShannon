@@ -216,7 +216,16 @@ export function summarizeToolResult(
 		return "生成工具参数...";
 	}
 	if (active && !output && !isError) return "运行中...";
-	if (isError) return "出错";
+	const normalizedOutput = output?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
+	if (
+		kind === "search" &&
+		(/\bno (?:search )?results?\b/.test(normalizedOutput) ||
+			normalizedOutput.includes("未找到结果") ||
+			normalizedOutput.includes("没有搜索结果"))
+	) {
+		return "未找到结果";
+	}
+	if (isError) return kind === "search" ? "搜索失败" : "出错";
 	if (!output?.trim()) return "已完成";
 
 	const lines = output.split("\n").filter((line) => line.trim().length > 0);
