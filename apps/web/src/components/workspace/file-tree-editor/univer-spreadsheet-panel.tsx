@@ -27,6 +27,7 @@ import {
   getOfficeExtension,
   getOfficeFileName,
   univerWorkbookSnapshotToBytes,
+  univerWorkbookSnapshotToPreservedXlsxBytes,
   workbookBytesToUniverSnapshot,
 } from "@a3s-lab/ooxml";
 import { OfficePanelShell, type OfficePanelStatus } from "./office-panel-shell";
@@ -49,6 +50,8 @@ interface UniverRuntime {
     save(): IWorkbookData;
     setEditable(value: boolean): unknown;
   };
+  originalBytes: Uint8Array;
+  baselineSnapshot: IWorkbookData;
   commandDisposable?: { dispose(): void };
 }
 
@@ -151,8 +154,16 @@ export function UniverSpreadsheetPanel({
     try {
       setStatus("saving");
       const snapshot = runtimeRef.current.workbook.save();
-      const bytes = univerWorkbookSnapshotToBytes(snapshot, ext);
+      const bytes =
+        ext === "xlsx"
+          ? await univerWorkbookSnapshotToPreservedXlsxBytes(snapshot, {
+              originalBytes: runtimeRef.current.originalBytes,
+              baselineSnapshot: runtimeRef.current.baselineSnapshot,
+            })
+          : univerWorkbookSnapshotToBytes(snapshot, ext);
       await workspaceApi.writeBinaryFile(path, Array.from(bytes));
+      runtimeRef.current.originalBytes = bytes;
+      runtimeRef.current.baselineSnapshot = structuredClone(snapshot);
       markDirty(false);
       toast.success("表格已保存");
     } catch (error) {
@@ -200,7 +211,13 @@ export function UniverSpreadsheetPanel({
             markDirty(true);
           }
         });
-        runtimeRef.current = { univer, workbook, commandDisposable };
+        runtimeRef.current = {
+          univer,
+          workbook,
+          originalBytes: data,
+          baselineSnapshot: structuredClone(workbook.save()),
+          commandDisposable,
+        };
         setStatus("ready");
       })
       .catch((error) => {

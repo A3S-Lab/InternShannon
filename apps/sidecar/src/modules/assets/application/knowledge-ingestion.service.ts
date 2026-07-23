@@ -134,6 +134,9 @@ const CHUNK_OVERLAP = 160;
 
 @Injectable()
 export class KnowledgeIngestionService {
+    private readonly chunkCache = new Map<string, Promise<KnowledgeSourceChunk[]>>();
+    private readonly vectorCache = new Map<string, Promise<KnowledgeVectorIndex | null>>();
+
     constructor(
         @Inject(ASSET_SERVICE) private readonly assets: IAssetService,
         @Optional() @Inject(CONFIG_SERVICE) private readonly config?: ConfigService,
@@ -245,14 +248,32 @@ export class KnowledgeIngestionService {
 
         this.assertNotAborted(options.signal);
         await this.reportProgress(options, 74, 'embedding', '正在构建向量索引');
+        this.assertNotAborted(options.signal);
         const vectorIndex = await this.buildVectorIndex(asset, sources, now, options.signal);
-        const vectorIndexPath = `${KNOWLEDGE_INDEX_ROOT}/vectors/${this.safeModelPath(vectorIndex.provider, vectorIndex.model)}.json`;
+        this.assertNotAborted(options.signal);
+        const vectorIndexContent = `${JSON.stringify(vectorIndex)}\n`;
+        const vectorRevision = createHash('sha1')
+            .update(
+                JSON.stringify({
+                    provider: vectorIndex.provider,
+                    model: vectorIndex.model,
+                    dimensions: vectorIndex.dimensions,
+                    records: vectorIndex.records,
+                }),
+            )
+            .digest('hex')
+            .slice(0, 16);
+        const vectorIndexPath = `${KNOWLEDGE_INDEX_ROOT}/vectors/${this.safeModelPath(vectorIndex.provider, vectorIndex.model)}-${vectorRevision}.json`;
         await this.writeTextIfChanged(
             assetId,
             vectorIndexPath,
-            `${JSON.stringify(vectorIndex)}\n`,
+            vectorIndexContent,
             `Build knowledge vector index (${vectorIndex.model})`,
         );
+        // Vector files are immutable and only become visible when the manifest
+        // below is published. An abort here leaves the previous manifest and
+        // its vector revision untouched.
+        this.assertNotAborted(options.signal);
         const manifest: KnowledgeSourceManifest = {
             version: 1,
             generatedAt: now,
@@ -262,6 +283,9 @@ export class KnowledgeIngestionService {
             vectorIndexPath,
             sources: sources.sort((left, right) => left.path.localeCompare(right.path)),
         };
+        // Publishing the manifest is the commit point. Once this write starts,
+        // callers treat the completed reindex as successful even if a cancel
+        // request races with the final write.
         await this.writeTextIfChanged(
             assetId,
             KNOWLEDGE_MANIFEST_PATH,
@@ -306,48 +330,62 @@ export class KnowledgeIngestionService {
 
     async readChunks(assetId: string, entry: KnowledgeSourceManifestEntry): Promise<KnowledgeSourceChunk[]> {
         if (!entry.chunksPath) return [];
-        const content = await this.assets.getBlobContent(assetId, entry.chunksPath).catch(() => null);
-        if (!content) return [];
-        try {
-            const parsed = JSON.parse(content) as Array<Partial<KnowledgeSourceChunk>>;
-            if (!Array.isArray(parsed)) return [];
-            return parsed.flatMap((chunk, index) => {
-                if (typeof chunk?.text !== 'string') return [];
-                const charStart = this.nonNegativeNumber(chunk.charStart, 0);
-                const charEnd = this.nonNegativeNumber(chunk.charEnd, charStart + chunk.text.length);
-                return [
-                    {
-                        id: typeof chunk.id === 'string' ? chunk.id : `${entry.sha}:${index}`,
-                        index: this.nonNegativeNumber(chunk.index, index),
-                        sourcePath: typeof chunk.sourcePath === 'string' ? chunk.sourcePath : entry.path,
-                        mime: typeof chunk.mime === 'string' ? chunk.mime : entry.mime,
-                        contentSha: typeof chunk.contentSha === 'string' ? chunk.contentSha : entry.sha,
-                        charStart,
-                        charEnd,
-                        lineStart: this.positiveNumber(chunk.lineStart, 1),
-                        lineEnd: this.positiveNumber(chunk.lineEnd, 1),
-                        pageStart: this.positiveNumber(chunk.pageStart, 1),
-                        pageEnd: this.positiveNumber(chunk.pageEnd, 1),
-                        text: chunk.text,
-                    },
-                ];
-            });
-        } catch {
-            return [];
-        }
+        const cacheKey = `${assetId}:${entry.chunksPath}:${entry.sha}`;
+        const cached = this.chunkCache.get(cacheKey);
+        if (cached) return cached;
+        const pending = (async () => {
+            const content = await this.assets.getBlobContent(assetId, entry.chunksPath as string).catch(() => null);
+            if (!content) return [];
+            try {
+                const parsed = JSON.parse(content) as Array<Partial<KnowledgeSourceChunk>>;
+                if (!Array.isArray(parsed)) return [];
+                return parsed.flatMap((chunk, index) => {
+                    if (typeof chunk?.text !== 'string') return [];
+                    const charStart = this.nonNegativeNumber(chunk.charStart, 0);
+                    const charEnd = this.nonNegativeNumber(chunk.charEnd, charStart + chunk.text.length);
+                    return [
+                        {
+                            id: typeof chunk.id === 'string' ? chunk.id : `${entry.sha}:${index}`,
+                            index: this.nonNegativeNumber(chunk.index, index),
+                            sourcePath: typeof chunk.sourcePath === 'string' ? chunk.sourcePath : entry.path,
+                            mime: typeof chunk.mime === 'string' ? chunk.mime : entry.mime,
+                            contentSha: typeof chunk.contentSha === 'string' ? chunk.contentSha : entry.sha,
+                            charStart,
+                            charEnd,
+                            lineStart: this.positiveNumber(chunk.lineStart, 1),
+                            lineEnd: this.positiveNumber(chunk.lineEnd, 1),
+                            pageStart: this.positiveNumber(chunk.pageStart, 1),
+                            pageEnd: this.positiveNumber(chunk.pageEnd, 1),
+                            text: chunk.text,
+                        },
+                    ];
+                });
+            } catch {
+                return [];
+            }
+        })();
+        this.remember(this.chunkCache, cacheKey, pending, 256);
+        return pending;
     }
 
     async readVectorIndex(assetId: string, manifest?: KnowledgeSourceManifest): Promise<KnowledgeVectorIndex | null> {
         const current = manifest ?? (await this.getManifest(assetId));
         if (!current.vectorIndexPath) return null;
-        const content = await this.assets.getBlobContent(assetId, current.vectorIndexPath).catch(() => null);
-        if (!content) return null;
-        try {
-            const parsed = JSON.parse(content) as KnowledgeVectorIndex;
-            return parsed.version === 1 && Array.isArray(parsed.records) ? parsed : null;
-        } catch {
-            return null;
-        }
+        const cacheKey = `${assetId}:${current.vectorIndexPath}`;
+        const cached = this.vectorCache.get(cacheKey);
+        if (cached) return cached;
+        const pending = (async () => {
+            const content = await this.assets.getBlobContent(assetId, current.vectorIndexPath as string).catch(() => null);
+            if (!content) return null;
+            try {
+                const parsed = JSON.parse(content) as KnowledgeVectorIndex;
+                return parsed.version === 1 && Array.isArray(parsed.records) ? parsed : null;
+            } catch {
+                return null;
+            }
+        })();
+        this.remember(this.vectorCache, cacheKey, pending, 8);
+        return pending;
     }
 
     private async extract(
@@ -597,6 +635,7 @@ export class KnowledgeIngestionService {
         const current = await this.assets.getBlobContent(assetId, path).catch(() => null);
         if (current === content) return;
         await this.assets.updateBlob(assetId, path, content, message, 'main');
+        this.invalidateParsedArtifact(assetId, path);
     }
 
     private async removeStaleArtifacts(
@@ -619,7 +658,19 @@ export class KnowledgeIngestionService {
         );
         for (const path of stale) {
             await this.assets.deleteBlob(assetId, path, `Remove stale knowledge index ${path}`, 'main').catch(() => undefined);
+            this.invalidateParsedArtifact(assetId, path);
         }
+    }
+
+    private remember<T>(cache: Map<string, Promise<T>>, key: string, value: Promise<T>, maxEntries: number): void {
+        cache.set(key, value);
+        while (cache.size > maxEntries) cache.delete(cache.keys().next().value as string);
+    }
+
+    private invalidateParsedArtifact(assetId: string, path: string): void {
+        const prefix = `${assetId}:${path}`;
+        for (const key of this.chunkCache.keys()) if (key.startsWith(prefix)) this.chunkCache.delete(key);
+        this.vectorCache.delete(prefix);
     }
 
     private sourcePaths(asset: Asset): string[] {

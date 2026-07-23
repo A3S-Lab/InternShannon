@@ -25,7 +25,7 @@ import {
   docxBytesToUniverDocumentSnapshot,
   getOfficeExtension,
   getOfficeFileName,
-  univerDocumentSnapshotToDocxBytes,
+  univerDocumentSnapshotToPreservedDocxBytes,
 } from "@a3s-lab/ooxml";
 import { OfficePanelShell, type OfficePanelStatus } from "./office-panel-shell";
 import { disposeUniverAfterReactCommit } from "./univer-runtime-lifecycle";
@@ -43,6 +43,8 @@ interface UniverDocumentPanelParams {
 interface UniverDocumentRuntime {
   univer: { dispose(): void };
   document: DocumentDataModel;
+  originalBytes: Uint8Array;
+  baselineSnapshot: IDocumentData;
   commandDisposable?: { dispose(): void };
 }
 
@@ -137,8 +139,13 @@ export function UniverDocumentPanel({
     try {
       setStatus("saving");
       const snapshot = runtimeRef.current.document.getSnapshot();
-      const bytes = await univerDocumentSnapshotToDocxBytes(snapshot);
+      const bytes = await univerDocumentSnapshotToPreservedDocxBytes(snapshot, {
+        originalBytes: runtimeRef.current.originalBytes,
+        baselineSnapshot: runtimeRef.current.baselineSnapshot,
+      });
       await workspaceApi.writeBinaryFile(path, Array.from(bytes));
+      runtimeRef.current.originalBytes = bytes;
+      runtimeRef.current.baselineSnapshot = structuredClone(snapshot);
       markDirty(false);
       toast.success("文档已保存");
     } catch (error) {
@@ -168,8 +175,11 @@ export function UniverDocumentPanel({
 
     workspaceApi
       .readBinaryFile(path)
-      .then((data) => bytesToDocumentSnapshot(path, data))
-      .then((snapshot) => {
+      .then(async (data) => ({
+        data,
+        snapshot: await bytesToDocumentSnapshot(path, data),
+      }))
+      .then(({ data, snapshot }) => {
         if (disposed) return;
         const { univer, commandService } = createDocsUniver(container);
         const document = univer.createUnit<IDocumentData, DocumentDataModel>(
@@ -189,7 +199,16 @@ export function UniverDocumentPanel({
             markDirty(true);
           }
         });
-        runtimeRef.current = { univer, document, commandDisposable };
+        runtimeRef.current = {
+          univer,
+          document,
+          originalBytes: data,
+          // Univer mutates nested snapshot structures in place. Keep an
+          // immutable baseline or later edits would also rewrite the value used
+          // by the package-preserving DOCX diff and appear unchanged.
+          baselineSnapshot: structuredClone(document.getSnapshot()),
+          commandDisposable,
+        };
         setStatus("ready");
       })
       .catch((error) => {

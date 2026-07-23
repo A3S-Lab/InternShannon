@@ -1,4 +1,7 @@
 import JSZip = require("jszip");
+import { readFileSync } from "node:fs";
+import * as path from "node:path";
+import { DOMParser } from "@xmldom/xmldom";
 import * as XLSX from "xlsx";
 
 jest.mock("@univerjs/core", () => ({
@@ -32,7 +35,8 @@ jest.mock("@univerjs/core", () => ({
 }));
 
 jest.mock("@univerjs/slides", () => ({
-    PageElementType: { TEXT: "TEXT" },
+    BasicShapes: { Rect: "rect", RoundRect: "roundRect", Ellipse: "ellipse" },
+    PageElementType: { SHAPE: 0, TEXT: 2 },
     PageType: { SLIDE: "SLIDE" },
 }));
 
@@ -45,9 +49,11 @@ import {
     pptxBytesToUniverSlideSnapshot,
     plainTextToUniverDocumentSnapshot,
     univerDocumentSnapshotToDocxBytes,
+    univerDocumentSnapshotToPreservedDocxBytes,
     univerDocumentSnapshotToPlainText,
     univerSlideSnapshotToPptxBytes,
     univerWorkbookSnapshotToBytes,
+    univerWorkbookSnapshotToPreservedXlsxBytes,
     workbookBytesToUniverSnapshot,
 } from "./index";
 
@@ -136,6 +142,29 @@ async function pptxBytes(text: string): Promise<Uint8Array> {
     return zip.generateAsync({ type: "uint8array" });
 }
 
+const POWERPOINT_NATIVE_FIXTURE = path.resolve(
+    __dirname,
+    "../../../知识库测试/Phase5-9网页测试/office/knowledge-smoke.pptx",
+);
+
+function xmlDocument(xml: string): Document {
+    return new DOMParser().parseFromString(xml, "application/xml");
+}
+
+function elements(document: Document | Element, localName: string): Element[] {
+    return Array.from(document.getElementsByTagNameNS("*", localName));
+}
+
+async function zipText(zip: JSZip, name: string): Promise<string> {
+    const value = await zip.file(name)?.async("text");
+    if (!value) throw new Error(`Missing fixture part: ${name}`);
+    return value;
+}
+
+function relationshipTypes(xml: string): string[] {
+    return elements(xmlDocument(xml), "Relationship").map((relationship) => relationship.getAttribute("Type") ?? "");
+}
+
 describe("office file helpers", () => {
     it("normalizes file names and extensions from paths or refs", () => {
         expect(getOfficeFileName("/tmp/reports/quarter.xlsx")).toBe("quarter.xlsx");
@@ -214,6 +243,74 @@ describe("workbookBytesToUniverSnapshot", () => {
         expect(sheet.cellData?.[0]?.[0]?.v).toBe("start");
         expect(sheet.cellData?.[1048575]?.[16383]?.v).toBe("end");
     });
+
+    it("edits cells in place while preserving advanced chart, drawing, media and relationship parts", async () => {
+        const original = workbookBytes([
+            ["Metric", "Value"],
+            ["Renewal", 42],
+        ]);
+        const zip = await JSZip.loadAsync(original);
+        const worksheetPath = "xl/worksheets/sheet1.xml";
+        const worksheet = await zipText(zip, worksheetPath);
+        const withRelationshipNamespace = worksheet.includes("xmlns:r=")
+            ? worksheet
+            : worksheet.replace(
+                  "<worksheet",
+                  '<worksheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"',
+              );
+        zip.file(worksheetPath, withRelationshipNamespace.replace("</worksheet>", '<drawing r:id="rId99"/></worksheet>'));
+        zip.file(
+            "xl/worksheets/_rels/sheet1.xml.rels",
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing99.xml"/></Relationships>',
+        );
+        zip.file(
+            "xl/drawings/drawing99.xml",
+            '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"><xdr:twoCellAnchor/></xdr:wsDr>',
+        );
+        zip.file(
+            "xl/charts/chart99.xml",
+            '<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart/></c:chartSpace>',
+        );
+        zip.file("xl/media/preserve.png", new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]));
+        const augmented = await zip.generateAsync({ type: "uint8array" });
+        const snapshot = workbookBytesToUniverSnapshot(augmented, { filename: "advanced.xlsx" });
+        const baseline = JSON.parse(JSON.stringify(snapshot));
+        snapshot.sheets[snapshot.sheetOrder[0]].cellData![1]![1]!.v = 84;
+
+        const output = await univerWorkbookSnapshotToPreservedXlsxBytes(snapshot, {
+            originalBytes: augmented,
+            baselineSnapshot: baseline,
+        });
+        const before = await JSZip.loadAsync(augmented);
+        const after = await JSZip.loadAsync(output);
+        for (const part of [
+            "xl/worksheets/_rels/sheet1.xml.rels",
+            "xl/drawings/drawing99.xml",
+            "xl/charts/chart99.xml",
+            "xl/media/preserve.png",
+        ]) {
+            expect(await after.file(part)?.async("uint8array")).toEqual(await before.file(part)?.async("uint8array"));
+        }
+        expect(await zipText(after, worksheetPath)).toContain('<drawing r:id="rId99"/>');
+        const reopened = XLSX.read(output, { type: "array" });
+        expect(reopened.Sheets.Scores.B2.v).toBe(84);
+    });
+
+    it("rejects unsafe style changes in advanced workbooks instead of silently rebuilding them", async () => {
+        const original = workbookBytes([["value"]]);
+        const zip = await JSZip.loadAsync(original);
+        zip.file("xl/charts/chart99.xml", "<chart/>");
+        const augmented = await zip.generateAsync({ type: "uint8array" });
+        const snapshot = workbookBytesToUniverSnapshot(augmented, { filename: "advanced.xlsx" });
+        const baseline = JSON.parse(JSON.stringify(snapshot));
+        snapshot.sheets[snapshot.sheetOrder[0]].cellData![0]![0]!.s = { bl: 1 };
+        await expect(
+            univerWorkbookSnapshotToPreservedXlsxBytes(snapshot, {
+                originalBytes: augmented,
+                baselineSnapshot: baseline,
+            }),
+        ).rejects.toThrow(/暂不支持.*单元格样式/);
+    });
 });
 
 describe("pptxBytesToUniverSlideSnapshot", () => {
@@ -235,6 +332,211 @@ describe("pptxBytesToUniverSlideSnapshot", () => {
 
         expect(xml).toContain(">Updated title<");
         expect(xml).not.toContain(">Original title<");
+    });
+
+    it("imports PowerPoint-native coordinates, theme fill and a non-text rectangle", async () => {
+        const original = new Uint8Array(readFileSync(POWERPOINT_NATIVE_FIXTURE));
+        const snapshot = await pptxBytesToUniverSlideSnapshot(original, { filename: "knowledge-smoke.pptx" });
+        const pageIds = snapshot.body?.pageOrder ?? [];
+        const secondPage = pageIds[1] ? snapshot.body?.pages[pageIds[1]] : undefined;
+        const pageElements = Object.values(secondPage?.pageElements ?? {});
+        const text = pageElements.find((element) => element.type === 2);
+        const rectangle = pageElements.find((element) => element.type === 0);
+
+        expect(pageIds).toHaveLength(2);
+        expect(snapshot.pageSize).toEqual({ width: 960, height: 540 });
+        expect(text).toMatchObject({
+            title: "文本框 3",
+            left: expect.closeTo(71.16, 1),
+            top: expect.closeTo(58.6, 1),
+            richText: { text: "111" },
+        });
+        expect(rectangle).toMatchObject({
+            title: "矩形 4",
+            left: expect.closeTo(92.93, 1),
+            top: expect.closeTo(140.65, 1),
+            width: expect.closeTo(293.86, 1),
+            height: expect.closeTo(157.4, 1),
+            shape: {
+                shapeType: "rect",
+                shapeProperties: { shapeBackgroundFill: { rgb: "#156082" } },
+            },
+        });
+    });
+
+    it("keeps master, layout, theme, relationship and shape geometry parts unchanged on text save", async () => {
+        const original = new Uint8Array(readFileSync(POWERPOINT_NATIVE_FIXTURE));
+        const snapshot = await pptxBytesToUniverSlideSnapshot(original, { filename: "knowledge-smoke.pptx" });
+        const firstPageId = snapshot.body?.pageOrder[0];
+        const firstPage = firstPageId ? snapshot.body?.pages[firstPageId] : undefined;
+        const firstText = Object.values(firstPage?.pageElements ?? {}).find((element) => element.type === 2);
+        if (firstText?.richText) firstText.richText.text = "PowerPoint native round-trip BQ-7429";
+
+        const output = await univerSlideSnapshotToPptxBytes(snapshot, original);
+        const before = await JSZip.loadAsync(original);
+        const after = await JSZip.loadAsync(output);
+        const invariantParts = [
+            "[Content_Types].xml",
+            "_rels/.rels",
+            "ppt/_rels/presentation.xml.rels",
+            "ppt/slideMasters/slideMaster1.xml",
+            "ppt/slideMasters/_rels/slideMaster1.xml.rels",
+            "ppt/slideLayouts/slideLayout1.xml",
+            "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
+            "ppt/theme/theme1.xml",
+            "ppt/slides/_rels/slide1.xml.rels",
+            "ppt/slides/_rels/slide2.xml.rels",
+        ];
+        for (const part of invariantParts) {
+            expect(await after.file(part)?.async("text")).toBe(await before.file(part)?.async("text"));
+        }
+        const firstSlide = await zipText(after, "ppt/slides/slide1.xml");
+        const secondSlide = xmlDocument(await zipText(after, "ppt/slides/slide2.xml"));
+        const rectangle = elements(secondSlide, "sp").find((shape) =>
+            elements(shape, "cNvPr").some((nonVisual) => nonVisual.getAttribute("name") === "矩形 4"),
+        );
+        const transform = rectangle ? elements(rectangle, "xfrm")[0] : undefined;
+
+        expect(firstSlide).toContain("PowerPoint native round-trip BQ-7429");
+        expect(rectangle).toBeDefined();
+        expect(elements(rectangle as Element, "prstGeom")[0]?.getAttribute("prst")).toBe("rect");
+        expect(elements(transform as Element, "off")[0]).toMatchObject({});
+        expect(elements(transform as Element, "off")[0]?.getAttribute("x")).toBe("1180214");
+        expect(elements(transform as Element, "off")[0]?.getAttribute("y")).toBe("1786270");
+        expect(elements(transform as Element, "ext")[0]?.getAttribute("cx")).toBe("3732028");
+        expect(elements(transform as Element, "ext")[0]?.getAttribute("cy")).toBe("1998921");
+    });
+});
+
+describe("PowerPoint-native PPTX package contract", () => {
+    it("contains content types, master, layouts, theme and complete relationship chains", async () => {
+        const zip = await JSZip.loadAsync(new Uint8Array(readFileSync(POWERPOINT_NATIVE_FIXTURE)));
+        const requiredParts = [
+            "[Content_Types].xml",
+            "_rels/.rels",
+            "ppt/presentation.xml",
+            "ppt/_rels/presentation.xml.rels",
+            "ppt/slideMasters/slideMaster1.xml",
+            "ppt/slideMasters/_rels/slideMaster1.xml.rels",
+            "ppt/slideLayouts/slideLayout1.xml",
+            "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
+            "ppt/theme/theme1.xml",
+            "ppt/slides/slide1.xml",
+            "ppt/slides/_rels/slide1.xml.rels",
+            "ppt/slides/slide2.xml",
+            "ppt/slides/_rels/slide2.xml.rels",
+        ];
+        for (const part of requiredParts) expect(zip.file(part)).not.toBeNull();
+
+        const contentTypes = await zipText(zip, "[Content_Types].xml");
+        expect(contentTypes).toContain("presentationml.presentation.main+xml");
+        expect(contentTypes).toContain("presentationml.slideMaster+xml");
+        expect(contentTypes).toContain("presentationml.slideLayout+xml");
+        expect(contentTypes).toContain("openxmlformats-officedocument.theme+xml");
+        expect(contentTypes.match(/presentationml\.slide\+xml/g)).toHaveLength(2);
+
+        const rootRelationships = relationshipTypes(await zipText(zip, "_rels/.rels"));
+        expect(rootRelationships).toContain("http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument");
+
+        const presentationRelationships = relationshipTypes(await zipText(zip, "ppt/_rels/presentation.xml.rels"));
+        expect(presentationRelationships).toEqual(
+            expect.arrayContaining([
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster",
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme",
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide",
+            ]),
+        );
+        expect(presentationRelationships.filter((type) => type.endsWith("/slide"))).toHaveLength(2);
+
+        const masterRelationships = relationshipTypes(await zipText(zip, "ppt/slideMasters/_rels/slideMaster1.xml.rels"));
+        expect(masterRelationships).toEqual(
+            expect.arrayContaining([
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout",
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme",
+            ]),
+        );
+        for (const slideNumber of [1, 2]) {
+            const types = relationshipTypes(await zipText(zip, `ppt/slides/_rels/slide${slideNumber}.xml.rels`));
+            expect(types).toEqual(["http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"]);
+        }
+        const layoutRelationships = relationshipTypes(await zipText(zip, "ppt/slideLayouts/_rels/slideLayout1.xml.rels"));
+        expect(layoutRelationships).toEqual(["http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"]);
+    });
+
+    it("provides non-visual shape properties, positive geometry and a theme-backed rectangle", async () => {
+        const zip = await JSZip.loadAsync(new Uint8Array(readFileSync(POWERPOINT_NATIVE_FIXTURE)));
+        const slide = xmlDocument(await zipText(zip, "ppt/slides/slide2.xml"));
+        const shapeTree = elements(slide, "spTree")[0];
+        expect(elements(shapeTree, "nvGrpSpPr")).toHaveLength(1);
+        expect(elements(shapeTree, "grpSpPr")).toHaveLength(1);
+
+        const rectangle = elements(shapeTree, "sp").find((shape) =>
+            elements(shape, "cNvPr").some((nonVisual) => nonVisual.getAttribute("name") === "矩形 4"),
+        );
+        expect(rectangle).toBeDefined();
+        const nonVisual = elements(rectangle as Element, "nvSpPr")[0];
+        expect(elements(nonVisual, "cNvPr")[0]?.getAttribute("id")).toBe("5");
+        expect(elements(nonVisual, "cNvSpPr")).toHaveLength(1);
+        expect(elements(nonVisual, "nvPr")).toHaveLength(1);
+
+        const properties = elements(rectangle as Element, "spPr")[0];
+        const transform = elements(properties, "xfrm")[0];
+        const offset = elements(transform, "off")[0];
+        const extent = elements(transform, "ext")[0];
+        expect(Number(offset.getAttribute("x"))).toBeGreaterThanOrEqual(0);
+        expect(Number(offset.getAttribute("y"))).toBeGreaterThanOrEqual(0);
+        expect(Number(extent.getAttribute("cx"))).toBeGreaterThan(0);
+        expect(Number(extent.getAttribute("cy"))).toBeGreaterThan(0);
+        expect(elements(properties, "prstGeom")[0]?.getAttribute("prst")).toBe("rect");
+        expect(elements(rectangle as Element, "fillRef")[0]?.getAttribute("idx")).toBe("1");
+        expect(elements(rectangle as Element, "fillRef")[0]?.textContent).toBe("");
+        expect(elements(elements(rectangle as Element, "fillRef")[0], "schemeClr")[0]?.getAttribute("val")).toBe("accent1");
+    });
+
+    it("terminates safely for deterministic truncated and byte-flipped PPTX inputs", async () => {
+        const original = new Uint8Array(readFileSync(POWERPOINT_NATIVE_FIXTURE));
+        const mutations: Uint8Array[] = [
+            original.slice(0, 0),
+            original.slice(0, 4),
+            original.slice(0, Math.floor(original.length / 2)),
+            original.slice(0, original.length - 22),
+        ];
+        let state = 0x50505458;
+        for (let iteration = 0; iteration < 32; iteration += 1) {
+            state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+            const mutated = original.slice();
+            const offset = state % mutated.length;
+            mutated[offset] ^= 0xff;
+            mutations.push(mutated);
+        }
+
+        let rejected = 0;
+        let parsed = 0;
+        for (const [index, input] of mutations.entries()) {
+            let timeout: ReturnType<typeof setTimeout> | undefined;
+            const timeoutResult = new Promise<{ status: "timeout" }>((resolve) => {
+                timeout = setTimeout(() => resolve({ status: "timeout" }), 2000);
+            });
+            const outcome = await Promise.race([
+                pptxBytesToUniverSlideSnapshot(input, { filename: `mutated-${index}.pptx` })
+                    .then((snapshot) => ({ status: "parsed" as const, snapshot }))
+                    .catch((error: unknown) => ({ status: "rejected" as const, error })),
+                timeoutResult,
+            ]).finally(() => {
+                if (timeout) clearTimeout(timeout);
+            });
+            expect(outcome.status).not.toBe("timeout");
+            if (outcome.status === "rejected") {
+                rejected += 1;
+                expect(outcome.error).toBeInstanceOf(Error);
+            } else if (outcome.status === "parsed") {
+                parsed += 1;
+                expect(outcome.snapshot.body?.pageOrder).toBeInstanceOf(Array);
+            }
+        }
+        expect(rejected + parsed).toBe(mutations.length);
+        expect(rejected).toBeGreaterThan(0);
+        expect(parsed).toBeGreaterThan(0);
     });
 });
 
@@ -368,5 +670,73 @@ describe("docx rich-text round-trip", () => {
         await expect(docxBytesToUniverDocumentSnapshot(new Uint8Array([1, 2, 3]), { filename: "legacy.doc" })).rejects.toThrow(
             /Only \.docx/,
         );
+    });
+
+    it("patches body text while preserving headers, comments, media, relationships and section references", async () => {
+        const original = await richDocxBytes();
+        const zip = await JSZip.loadAsync(original);
+        const documentXml = await zipText(zip, "word/document.xml");
+        zip.file(
+            "word/document.xml",
+            documentXml.replace(
+                /<w:sectPr([^>]*)>/,
+                '<w:sectPr$1><w:headerReference w:type="default" r:id="rId99"/>',
+            ),
+        );
+        const relationshipsPath = "word/_rels/document.xml.rels";
+        const relationships = await zipText(zip, relationshipsPath);
+        zip.file(
+            relationshipsPath,
+            relationships.replace(
+                "</Relationships>",
+                '<Relationship Id="rId99" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header99.xml"/><Relationship Id="rId100" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/></Relationships>',
+            ),
+        );
+        zip.file(
+            "word/header99.xml",
+            '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>preserve-header</w:t></w:r></w:p></w:hdr>',
+        );
+        zip.file(
+            "word/comments.xml",
+            '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:comment w:id="0"><w:p><w:r><w:t>preserve-comment</w:t></w:r></w:p></w:comment></w:comments>',
+        );
+        zip.file("word/media/preserve.png", new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]));
+        const augmented = await zip.generateAsync({ type: "uint8array" });
+        const snapshot = await docxBytesToUniverDocumentSnapshot(augmented, { filename: "advanced.docx" });
+        const baseline = JSON.parse(JSON.stringify(snapshot));
+        snapshot.body!.dataStream = snapshot.body!.dataStream.replace("Quarterly Report", "Quarterly Update");
+
+        const output = await univerDocumentSnapshotToPreservedDocxBytes(snapshot, {
+            originalBytes: augmented,
+            baselineSnapshot: baseline,
+        });
+        const before = await JSZip.loadAsync(augmented);
+        const after = await JSZip.loadAsync(output);
+        for (const part of ["word/header99.xml", "word/comments.xml", "word/media/preserve.png", relationshipsPath]) {
+            expect(await after.file(part)?.async("uint8array")).toEqual(await before.file(part)?.async("uint8array"));
+        }
+        const updatedDocument = await zipText(after, "word/document.xml");
+        expect(updatedDocument).toContain("Quarterly Update");
+        expect(updatedDocument).toContain('w:headerReference w:type="default" r:id="rId99"');
+    });
+
+    it("rejects unsafe formatting changes in advanced documents instead of losing package parts", async () => {
+        const original = await richDocxBytes();
+        const zip = await JSZip.loadAsync(original);
+        zip.file("word/header99.xml", "<w:hdr/>");
+        const augmented = await zip.generateAsync({ type: "uint8array" });
+        const snapshot = await docxBytesToUniverDocumentSnapshot(augmented, { filename: "advanced.docx" });
+        const baseline = JSON.parse(JSON.stringify(snapshot));
+        const originalBold = snapshot.body!.textRuns![0]!.ts?.bl;
+        snapshot.body!.textRuns![0]!.ts = {
+            ...(snapshot.body!.textRuns![0]!.ts ?? {}),
+            bl: originalBold === 1 ? 0 : 1,
+        };
+        await expect(
+            univerDocumentSnapshotToPreservedDocxBytes(snapshot, {
+                originalBytes: augmented,
+                baselineSnapshot: baseline,
+            }),
+        ).rejects.toThrow(/只能安全保存正文文字修改/);
     });
 });

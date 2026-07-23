@@ -42,6 +42,19 @@ coverage/
 playwright-report/
 test-results/
 blob-report/
+知识库测试/*.pdf
+知识库测试/三场景真实项目测试/latest-*.json
+知识库测试/工程质量验证/*-runs/
+知识库测试/工程质量验证/visual-artifacts/
+知识库测试/工程质量验证/mutation-evidence/
+知识库测试/工程质量验证/latest-*.json
+知识库测试/三场景真实项目测试/security-runs/
+知识库测试/三场景真实项目测试/quality-final-runs/
+知识库测试/发布风险验证/*-runs/
+知识库测试/发布风险验证/artifacts/
+知识库测试/发布风险验证/latest-*.json
+知识库测试/发布风险验证/manual-office/
+知识库测试/外部依赖真实验收/latest-*.json
 
 # Logs and local env
 logs/

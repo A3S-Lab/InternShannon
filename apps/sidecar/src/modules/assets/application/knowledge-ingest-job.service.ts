@@ -146,7 +146,9 @@ export class KnowledgeIngestJobService {
                 signal: controller.signal,
                 onProgress: progress => this.updateProgress(job, progress.percent, progress.stage, progress.message),
             });
-            if (controller.signal.aborted) throw new DOMException('Ingest cancelled', 'AbortError');
+            // A returned reindex has crossed the manifest commit point. A
+            // cancellation racing after that point is too late and must not
+            // report "cancelled" for an index that was already published.
             job.status = 'succeeded';
             job.completedAt = new Date().toISOString();
             job.progress = { percent: 100, stage: 'complete', message: '摄取完成', updatedAt: job.completedAt };
