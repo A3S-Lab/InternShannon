@@ -16,7 +16,9 @@
     "clean:node-runtime": "node scripts/stage-node-runtime.mjs --clean",
     "check:sidecar-resources": "node scripts/verify-sidecar-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources",
     "check:standalone-sidecar": "node scripts/verify-sidecar-resources.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources --require-standalone",
+    "check:sdk-runtime": "node scripts/verify-sdk-runtime.mjs --dir src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources",
     "smoke:standalone-sidecar": "node scripts/smoke-standalone-sidecar.mjs",
+    "smoke:unicode-provider-websocket": "node scripts/smoke-unicode-provider-websocket.mjs",
     "tauri": "tauri",
     "tauri:dev": "node scripts/tauri-dev.mjs",
     "tauri:build": "tauri build --config src-tauri/tauri.test.conf.json --no-sign",
@@ -26,13 +28,14 @@
     "format": "pnpm biome format --write scripts"
   },
   "dependencies": {
-    "@a3s-lab/code": "4.2.1"
+    "@a3s-lab/code": "6.1.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.14",
     "@tauri-apps/cli": "^2",
     "@types/node": "^22.7.9",
     "rimraf": "^6.0.1",
+    "socket.io-client": "^4.8.3",
     "typescript": "^5.6.3"
   }
 }

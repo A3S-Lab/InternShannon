@@ -150,6 +150,7 @@ function createHarness(): {
         ),
         resolvedModelApiKeyMissing: jest.fn().mockReturnValue(false),
         resolveDefaultModel: jest.fn().mockReturnValue('provider/model'),
+        resolveRuntimeModel: jest.fn().mockReturnValue('provider/model'),
         runtimeKey: jest.fn((overrides: SessionRuntimeOverrides) => JSON.stringify(overrides)),
         sessionMetadataOverrides: jest.fn().mockReturnValue({}),
         systemRuntimeDefaults: jest.fn().mockReturnValue({}),

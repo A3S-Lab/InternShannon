@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP_DIR = path.resolve(SCRIPT_DIR, '..');
 const REPO_ROOT = path.resolve(DESKTOP_DIR, '..', '..');
-const API_ENTRYPOINT = path.join(REPO_ROOT, 'apps', 'api', 'dist', 'main.js');
+const SIDECAR_ENTRYPOINT = path.join(REPO_ROOT, 'apps', 'sidecar', 'dist', 'main.js');
 const TAURI_CONFIG_PATH = path.join(DESKTOP_DIR, 'src-tauri', 'tauri.conf.json');
 
 function usage() {
@@ -241,7 +241,7 @@ function resetSourceNodeRuntime() {
 }
 
 function resetSourceSidecarToDistOnly() {
-    if (!fs.existsSync(API_ENTRYPOINT)) {
+    if (!fs.existsSync(SIDECAR_ENTRYPOINT)) {
         console.warn(
             'build-standalone-tauri: skipping dist-only sidecar reset because apps/sidecar/dist/main.js is missing.',
         );
@@ -324,15 +324,24 @@ function candidateResourcesDirs(tauriArgs, options) {
 }
 
 function resolveResourcesDir(tauriArgs, options) {
-    for (const candidate of candidateResourcesDirs(tauriArgs, options)) {
-        if (hasSidecarEntrypoint(candidate)) {
-            if (!options.resourcesDir && candidate.endsWith(path.join('src-tauri', 'resources'))) {
-                console.warn(
-                    'build-standalone-tauri: using staged src-tauri/resources for validation because no inspectable bundled Resources directory was found.',
-                );
-            }
-            return candidate;
-        }
+    const validCandidates = candidateResourcesDirs(tauriArgs, options).filter(hasSidecarEntrypoint);
+    if (options.resourcesDir && validCandidates.length > 0) {
+        return validCandidates[0];
+    }
+
+    const stagedResourcesDir = path.join(DESKTOP_DIR, 'src-tauri', 'resources');
+    const bundledCandidates = validCandidates
+        .filter(candidate => path.resolve(candidate) !== path.resolve(stagedResourcesDir))
+        .sort((left, right) => fs.statSync(right).mtimeMs - fs.statSync(left).mtimeMs);
+    if (bundledCandidates.length > 0) {
+        return bundledCandidates[0];
+    }
+
+    if (validCandidates.length > 0) {
+        console.warn(
+            'build-standalone-tauri: using staged src-tauri/resources for validation because no inspectable bundled Resources directory was found.',
+        );
+        return validCandidates[0];
     }
 
     throw new Error(
@@ -394,10 +403,12 @@ function main() {
                     resourcesDir,
                     '--require-standalone',
                 ]);
+                run(process.execPath, ['scripts/verify-sdk-runtime.mjs', '--dir', resourcesDir]);
             }
             if (options.smoke) {
                 if (canSmokeRuntime(runtimeTarget)) {
                     run(process.execPath, ['scripts/smoke-standalone-sidecar.mjs', '--dir', resourcesDir]);
+                    run(process.execPath, ['scripts/smoke-unicode-provider-websocket.mjs', '--dir', resourcesDir]);
                 } else {
                     console.warn(
                         [

@@ -28,7 +28,7 @@
     "dependencies": {
         "@a3s-lab/acl": "^0.2.1",
         "@a3s-lab/agent-planning": "workspace:*",
-        "@a3s-lab/code": "4.2.1",
+        "@a3s-lab/code": "6.1.0",
         "@a3s-lab/lark": "workspace:*",
         "@a3s-lab/ocr": "workspace:*",
         "@nestjs/axios": "^4.0.1",

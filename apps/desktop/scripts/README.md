@@ -13,8 +13,13 @@ These scripts support the current InternShannon Tauri desktop flow.
   staged source resources.
 - `verify-sidecar-resources.mjs`: validate sidecar JS resources in a Tauri
   Resources directory.
+- `verify-sdk-runtime.mjs`: inspect the packaged SDK manifest, native platform
+  binding, and compiled ACL dependency marker.
 - `smoke-standalone-sidecar.mjs`: launch the bundled sidecar from an isolated
   temporary copy and wait for `/api/v1/health`.
+- `smoke-unicode-provider-websocket.mjs`: launch the packaged sidecar, configure
+  a Unicode provider, and complete a deterministic agent response over the real
+  Socket.IO WebSocket transport.
 
 Generated resources under `src-tauri/resources/sidecar` and
 `src-tauri/resources/node` are staging outputs for Tauri development and bundle

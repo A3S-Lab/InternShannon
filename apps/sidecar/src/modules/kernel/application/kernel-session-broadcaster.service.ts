@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Server } from 'socket.io';
+import { redactDeep } from '@/shared/common/security/secret-redaction';
 
 /**
  * Thin bridge that lets services outside the kernel WebSocket gateway push
@@ -26,6 +27,6 @@ export class KernelSessionBroadcaster {
             this.logger.debug(`Drop broadcast to ${sessionId}: gateway not yet attached`);
             return;
         }
-        this.server.to(`session:${sessionId}`).emit('message', message);
+        this.server.to(`session:${sessionId}`).emit('message', redactDeep(message));
     }
 }

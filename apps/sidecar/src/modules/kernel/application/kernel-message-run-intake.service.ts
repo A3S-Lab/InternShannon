@@ -1,6 +1,9 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import type { Session } from '../domain/entities/session.entity';
-import type { IKernelMessageRunService, KernelMessageRunInput } from '../domain/services/kernel-message-run.service.interface';
+import type {
+    IKernelMessageRunService,
+    KernelMessageRunInput,
+} from '../domain/services/kernel-message-run.service.interface';
 import { type IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
 import { describeLockedRunViolation, isLockedAgent, LOCKED_AGENT_POLICY } from './agents/locked-agent.policy';
 import { KernelConversationLogService } from './kernel-conversation-log.service';
@@ -10,6 +13,7 @@ import { KernelSessionRuntimeStateService } from './kernel-session-runtime-state
 import type { ActiveSession } from './session-runtime.types';
 import type { ToolConfirmationGate } from './tool-confirmation-gate';
 import { kernelContentLogValue } from './kernel-content-logging';
+import { redactSecretValuesInText } from '@/shared/common/security/secret-redaction';
 
 export interface KernelMessageRunIntakeInput extends KernelMessageRunInput {
     confirmation?: ToolConfirmationGate | null;
@@ -131,10 +135,11 @@ export class KernelMessageRunIntakeService implements IKernelMessageRunService {
             this.logger.log(`Active session ready for ${input.sessionId}, agentId=${activeSession.agentId}`);
             return activeSession;
         } catch (error) {
-            this.logger.error(`Failed to create or access session ${input.sessionId}: ${error}`);
+            const safeMessage = redactSecretValuesInText(error instanceof Error ? error.message : String(error));
+            this.logger.error(`Failed to create or access session ${input.sessionId}: ${safeMessage}`);
             input.emit({
                 type: 'error',
-                message: error instanceof Error ? error.message : String(error),
+                message: safeMessage,
             });
             input.emit({
                 type: 'status_change',

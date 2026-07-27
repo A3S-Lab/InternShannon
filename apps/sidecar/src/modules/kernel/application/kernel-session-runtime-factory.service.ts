@@ -11,6 +11,7 @@ import { promises as fs } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { MetricsService } from '@/shared/observability/metrics';
+import { redactSecretValuesInText } from '@/shared/common/security/secret-redaction';
 import { IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
 import { AgentRegistry } from './agents/agent-registry';
 import { INTERNAL_CAPABILITIES_MCP_SERVER_NAME } from './capabilities-runtime.constants';
@@ -111,7 +112,8 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         // Effective precedence (top wins):
         //   systemRuntimeDefaults < session-metadata < per-session patch < GLOBAL-assistant
         // and default.agent.runtimeDefaults() fills only the still-unset gaps below.
-        const isDefaultAgent = resolvedAgentId === 'default' || this.agentRegistry.resolve(resolvedAgentId)?.id === 'default';
+        const isDefaultAgent =
+            resolvedAgentId === 'default' || this.agentRegistry.resolve(resolvedAgentId)?.id === 'default';
         const runtimeOverrides = runtimeConfig.mergeRuntimeOverrides(
             runtimeConfig.systemRuntimeDefaults(),
             runtimeConfig.sessionMetadataOverrides(kernelSession),
@@ -153,13 +155,14 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         };
 
         const resolvedModel = runtimeConfig.resolveDefaultModel(finalOverrides);
+        const runtimeModel = runtimeConfig.resolveRuntimeModel(finalOverrides);
         const modelApiKeyMissing = runtimeConfig.resolvedModelApiKeyMissing(resolvedModel);
         const basePermissionPolicy = permissionPolicyForMode(finalOverrides.permissionMode, nativeConfirmationEnabled);
         const confirmationPolicy = confirmationPolicyForMode(finalOverrides.permissionMode, nativeConfirmationEnabled);
 
         const sessionOptions: SessionOptions = {
             sessionId,
-            model: resolvedModel,
+            model: runtimeModel,
             ...localRuntimeStores,
             permissionPolicy: basePermissionPolicy,
             confirmationPolicy,
@@ -218,9 +221,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         };
 
         const session = this.createOrResumeSdkSession(agent, workspace, sessionId, sessionOptions);
-        const internalMcpServers = this.shouldEnableCapabilities(finalOverrides)
-            ? [this.capabilitiesMcpServer()]
-            : [];
+        const internalMcpServers = this.shouldEnableCapabilities(finalOverrides) ? [this.capabilitiesMcpServer()] : [];
         const allMcpServers = this.uniqueMcpServers([
             ...internalMcpServers,
             ...(finalOverrides.mcpServers ?? []),
@@ -299,7 +300,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
             this.metrics?.incCounter('kernel_runtime_agent_created_total');
             return agent;
         } catch (error) {
-            this.logger.error(`Failed to create Agent: ${error}`);
+            this.logger.error(`Failed to create Agent: ${redactSecretValuesInText(String(error))}`);
             throw error;
         }
     }

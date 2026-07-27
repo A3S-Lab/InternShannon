@@ -30,6 +30,7 @@ import type { MessagePayload, SubscribePayload } from '../../application/session
 import { IKernelService, KERNEL_SERVICE } from '../../domain/services/kernel-service.interface';
 import { type ToolConfirmationResponse, WebSocketConfirmationManager } from './websocket-confirmation-manager';
 import { desktopCorsOrigin, desktopSocketAllowRequest } from '@/shared/infrastructure/network/desktop-cors';
+import { redactDeep, redactSecretValuesInText } from '@/shared/common/security/secret-redaction';
 
 /**
  * Kernel WebSocket Gateway
@@ -267,10 +268,11 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
                     this.logger.debug(`Unhandled message type: ${type}`);
             }
         } catch (error) {
-            this.logger.error(`Unhandled gateway message error for ${sessionId}: ${error}`);
+            const safeMessage = redactSecretValuesInText(error instanceof Error ? error.message : String(error));
+            this.logger.error(`Unhandled gateway message error for ${sessionId}: ${safeMessage}`);
             client.emit('message', {
                 type: 'error',
-                message: error instanceof Error ? error.message : String(error),
+                message: safeMessage,
             });
             client.emit('message', {
                 type: 'status_change',
@@ -376,7 +378,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
      * Broadcast a message to all clients in a session room
      */
     broadcastToSession(sessionId: string, message: unknown): void {
-        this.server.to(`session:${sessionId}`).emit('message', message);
+        this.server.to(`session:${sessionId}`).emit('message', redactDeep(message));
     }
 
     private async emitSessionInit(client: Socket, sessionId: string): Promise<void> {

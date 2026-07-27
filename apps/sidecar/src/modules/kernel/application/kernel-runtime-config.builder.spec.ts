@@ -100,6 +100,48 @@ describe('KernelRuntimeConfigBuilder', () => {
         expect(builder.resolveDefaultModel({ model: 'zhipu/glm-5.2' })).toBe('zhipu/glm-5.2');
     });
 
+    it('keeps a Unicode provider URL and key paired behind a stable ASCII runtime alias', () => {
+        process.env.APP_PORT = '29670';
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: '智谱/glm-5',
+            providers: [
+                {
+                    name: '智谱',
+                    apiKey: 'zhipu-paired-key',
+                    baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+                    models: [{ id: 'glm-5', name: 'GLM-5', family: 'openai' }],
+                },
+            ],
+        });
+
+        const runtimeModel = builder.resolveRuntimeModel({});
+        const hcl = builder.buildAgentConfig({});
+
+        expect(builder.resolveDefaultModel({})).toBe('智谱/glm-5');
+        expect(runtimeModel).toMatch(/^provider-[a-f0-9]{16}\/glm-5$/);
+        expect(hcl).toContain(`default_model = "${runtimeModel}"`);
+        expect(hcl).toContain(`providers "${runtimeModel.split('/')[0]}" {`);
+        expect(hcl).toContain('  apiKey = "zhipu-paired-key"');
+        expect(hcl).toContain('baseUrl = "http://127.0.0.1:29670/api/v1/kernel/llm-compat/zhipu-coding"');
+        expect(hcl).not.toContain('智谱');
+    });
+
+    it('normalizes a standard Zhipu URL even when the provider display name is Unicode', () => {
+        const builder = new KernelRuntimeConfigBuilder({
+            defaultModel: '智谱/glm-5',
+            providers: [
+                {
+                    name: '智谱',
+                    apiKey: 'zhipu-paired-key',
+                    baseUrl: 'https://open.bigmodel.cn/api/paas/v4/',
+                    models: [{ id: 'glm-5', name: 'GLM-5', family: 'openai' }],
+                },
+            ],
+        });
+
+        expect(builder.buildAgentConfig({})).toContain('baseUrl = "https://open.bigmodel.cn"');
+    });
+
     it('normalizes the standard Zhipu base URL before the SDK appends its fixed API path', () => {
         const builder = new KernelRuntimeConfigBuilder({
             defaultModel: 'zhipu/glm-5.2',
@@ -159,9 +201,7 @@ describe('KernelRuntimeConfigBuilder', () => {
         const hcl = builder.buildAgentConfig({});
 
         expect(hcl).toContain('  baseUrl = "https://open.bigmodel.cn"');
-        expect(hcl).toContain(
-            '    baseUrl = "http://127.0.0.1:29670/api/v1/kernel/llm-compat/zhipu-coding"',
-        );
+        expect(hcl).toContain('    baseUrl = "http://127.0.0.1:29670/api/v1/kernel/llm-compat/zhipu-coding"');
         expect(hcl).not.toContain('baseUrl = "https://open.bigmodel.cn/api/coding/paas/v4/"');
     });
 
@@ -253,7 +293,9 @@ describe('KernelRuntimeConfigBuilder', () => {
 
         const hcl = builder.buildAgentConfig({});
 
-        expect(hcl).toMatch(/models "gpt-5\.5" \{[\s\S]*limit = \{\n      output = 128000\n      context = 258000\n    \}/);
+        expect(hcl).toMatch(
+            /models "gpt-5\.5" \{[\s\S]*limit = \{\n      output = 128000\n      context = 258000\n    \}/,
+        );
         expect(hcl).toMatch(
             /models "custom-frontier" \{[\s\S]*limit = \{\n      output = 65536\n      context = 128000\n    \}/,
         );
@@ -265,7 +307,9 @@ describe('KernelRuntimeConfigBuilder', () => {
 
         const hcl = builder.buildAgentConfig({ model: 'openai/gpt-5.5' });
 
-        expect(hcl).toMatch(/models "gpt-5\.5" \{[\s\S]*limit = \{\n      output = 128000\n      context = 258000\n    \}/);
+        expect(hcl).toMatch(
+            /models "gpt-5\.5" \{[\s\S]*limit = \{\n      output = 128000\n      context = 258000\n    \}/,
+        );
     });
 
     it('guards generated datasets from being streamed through large inline write arguments', () => {

@@ -40,5 +40,10 @@ Then open `http://127.0.0.1:5000`.
   built macOS app bundle.
 - `pnpm run check:standalone-sidecar`: validate that bundled sidecar resources
   are standalone.
+- `pnpm run check:sdk-runtime`: assert that the packaged native runtime is
+  `@a3s-lab/code@6.1.0` compiled with `a3s-acl@0.3.0`.
 - `pnpm run smoke:standalone-sidecar`: smoke-test the bundled sidecar from an
   isolated temporary copy.
+- `pnpm run smoke:unicode-provider-websocket`: run a packaged, real-WebSocket
+  message round trip through a Unicode provider name and verify URL/key/model
+  pairing against a local OpenAI-compatible endpoint.

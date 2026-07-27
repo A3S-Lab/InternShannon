@@ -2,6 +2,7 @@ mod browser;
 mod config;
 mod server;
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use chrono::Local;
 use notify::RecommendedWatcher; // Required for Debouncer type inference
 use serde::{Deserialize, Serialize};
@@ -240,6 +241,32 @@ fn default_gateway_port() -> u16 {
     29653
 }
 
+const GATEWAY_FALLBACK_PORT_COUNT: u16 = 20;
+
+fn select_available_gateway_port(
+    preferred_port: u16,
+    mut port_in_use: impl FnMut(u16) -> bool,
+) -> Result<(u16, bool), String> {
+    if !port_in_use(preferred_port) {
+        return Ok((preferred_port, false));
+    }
+
+    for offset in 1..=GATEWAY_FALLBACK_PORT_COUNT {
+        let Some(candidate) = preferred_port.checked_add(offset) else {
+            break;
+        };
+        if !port_in_use(candidate) {
+            return Ok((candidate, true));
+        }
+    }
+
+    Err(format!(
+        "No free loopback gateway port was found in {}-{}",
+        preferred_port,
+        preferred_port.saturating_add(GATEWAY_FALLBACK_PORT_COUNT)
+    ))
+}
+
 fn show_blocking_message_dialog<R: tauri::Runtime>(
     app: &impl Manager<R>,
     title: &str,
@@ -272,16 +299,15 @@ fn ensure_default_gateway_port_available<R: tauri::Runtime>(
     _app: &impl Manager<R>,
 ) -> Result<(String, u16, bool, Option<u32>, Option<String>), String> {
     let host = default_gateway_host();
-    let port = default_gateway_port();
+    let preferred_port = default_gateway_port();
+    let (port, preferred_port_in_use) =
+        select_available_gateway_port(preferred_port, |candidate| inspect_port_owner(candidate).0)?;
 
-    let (port_in_use, owner_pid, owner_name) = inspect_port_owner(port);
-    if !port_in_use {
+    if !preferred_port_in_use {
         return Ok((host, port, false, None, None));
     }
 
-    // Port is in use - likely because NestJS sidecar is already running.
-    // Just log a warning and continue. The sidecar spawn code will detect
-    // the port is in use and skip spawning.
+    let (_, owner_pid, owner_name) = inspect_port_owner(preferred_port);
     let owner_label = match (owner_name.as_deref(), owner_pid) {
         (Some(name), Some(pid)) => format!("{name} (PID {pid})"),
         (None, Some(pid)) => format!("PID {pid}"),
@@ -289,9 +315,8 @@ fn ensure_default_gateway_port_available<R: tauri::Runtime>(
         (None, None) => "unknown-process".to_string(),
     };
     tracing::warn!(
-        "Gateway port {port} is already in use by {}. \
-         Sidecar may already be running - will skip sidecar spawn.",
-        owner_label
+        "Preferred gateway port {preferred_port} is already in use by {owner_label}; \
+         starting an isolated sidecar on port {port} instead"
     );
 
     Ok((host, port, true, owner_pid, owner_name))
@@ -1245,6 +1270,74 @@ fn open_folder(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn reveal_in_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("open")
+        .args(["-R", &path])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    std::process::Command::new("explorer")
+        .arg(format!("/select,{}", path))
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "linux")]
+    std::process::Command::new("xdg-open")
+        .arg(
+            Path::new(&path)
+                .parent()
+                .unwrap_or_else(|| Path::new(&path)),
+        )
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct KnowledgeSourceFile {
+    name: String,
+    original_path: String,
+    content_base64: String,
+    size: u64,
+}
+
+#[tauri::command]
+fn read_knowledge_source(path: String) -> Result<KnowledgeSourceFile, String> {
+    let source = PathBuf::from(path.trim());
+    if !source.is_absolute() || !source.is_file() {
+        return Err(
+            "The selected knowledge source must be an existing absolute file path".to_string(),
+        );
+    }
+    let name = source
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| "Invalid knowledge source filename".to_string())?
+        .to_string();
+    let bytes = fs::read(&source).map_err(|e| e.to_string())?;
+    Ok(KnowledgeSourceFile {
+        name,
+        original_path: source.to_string_lossy().to_string(),
+        content_base64: BASE64_STANDARD.encode(&bytes),
+        size: bytes.len() as u64,
+    })
+}
+
+#[tauri::command]
+fn save_file_bytes(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    let destination = PathBuf::from(path.trim());
+    if destination.as_os_str().is_empty() || !destination.is_absolute() {
+        return Err("The selected save path must be absolute".to_string());
+    }
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(destination, bytes).map_err(|e| e.to_string())
+}
+
 fn validate_workspace_write_target(path: &Path) -> Result<(), String> {
     if path.as_os_str().is_empty() {
         return Err("Target file path is empty".to_string());
@@ -1667,6 +1760,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             open_folder,
+            reveal_in_folder,
+            read_knowledge_source,
+            save_file_bytes,
             workspace_write_file,
             open_url_in_browser,
             execute_command,
@@ -1946,7 +2042,13 @@ pub fn run() {
                 }
                 let progress_app_handle = app_handle.clone();
                 let browser_runtime = resolve_sidecar_search_browser_runtime();
-                let startup_result = server::start_sidecar_with_progress(browser_runtime, move |stage, message| {
+                let gateway_port = gateway_state
+                    .status
+                    .lock()
+                    .ok()
+                    .map(|status| status.port)
+                    .unwrap_or_else(default_gateway_port);
+                let startup_result = server::start_sidecar_with_progress(gateway_port, browser_runtime, move |stage, message| {
                     let gateway_state = progress_app_handle.state::<EmbeddedGatewayState>();
                     let status_result = gateway_state.status.lock();
                     if let Ok(mut status) = status_result {
@@ -2054,8 +2156,9 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        browser_manifest, browser_platform_key, macos_chromium_browser_candidates, sha256_hex,
-        startup_window_size, verify_lightpanda_file, workspace_write_file,
+        browser_manifest, browser_platform_key, macos_chromium_browser_candidates,
+        select_available_gateway_port, sha256_hex, startup_window_size, verify_lightpanda_file,
+        workspace_write_file,
     };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -2090,6 +2193,22 @@ mod tests {
         let (w, h) = startup_window_size(820.0, 620.0);
         assert_eq!(w, 800.0);
         assert_eq!(h, 600.0);
+    }
+
+    #[test]
+    fn gateway_uses_preferred_port_when_it_is_free() {
+        assert_eq!(
+            select_available_gateway_port(29653, |_| false).expect("select preferred port"),
+            (29653, false)
+        );
+    }
+
+    #[test]
+    fn gateway_uses_first_free_fallback_instead_of_reusing_old_app() {
+        let selected =
+            select_available_gateway_port(29653, |port| matches!(port, 29653 | 29654 | 29655))
+                .expect("select isolated fallback port");
+        assert_eq!(selected, (29656, true));
     }
 
     #[test]

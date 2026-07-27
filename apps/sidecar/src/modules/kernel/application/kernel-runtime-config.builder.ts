@@ -49,8 +49,8 @@ export class KernelRuntimeConfigBuilder {
         const defaultModel = this.resolveDefaultModel(overrides);
         const defaultModelRef = this.parseModelRef(defaultModel);
 
-        if (defaultModel) {
-            lines.push(`default_model = ${this.hclQuote(defaultModel)}`);
+        if (defaultModelRef) {
+            lines.push(`default_model = ${this.hclQuote(this.runtimeModelRef(defaultModelRef))}`);
             lines.push('');
         }
 
@@ -64,10 +64,12 @@ export class KernelRuntimeConfigBuilder {
                 if (isOverrideProvider) {
                     overrideProviderWritten = true;
                 }
-                lines.push(`providers ${this.hclQuote(provider.name)} {`);
+                lines.push(`providers ${this.hclQuote(this.runtimeProviderName(provider.name))} {`);
                 lines.push(`  apiKey = ${this.hclQuote(this.providerApiKey(provider.name, provider.apiKey))}`);
                 if (provider.baseUrl) {
-                    lines.push(`  baseUrl = ${this.hclQuote(this.runtimeProviderBaseUrl(provider.name, provider.baseUrl))}`);
+                    lines.push(
+                        `  baseUrl = ${this.hclQuote(this.runtimeProviderBaseUrl(provider.name, provider.baseUrl))}`,
+                    );
                 }
                 this.appendHeaders(lines, provider.headers, 2);
                 if (provider.sessionIdHeader) {
@@ -123,7 +125,7 @@ export class KernelRuntimeConfigBuilder {
             const providerName = overrideModel?.providerName || 'openai';
             const modelId = overrideModel?.modelId || this.envOpenAiModel();
             overrideProviderWritten = !!overrideModel;
-            lines.push(`providers ${this.hclQuote(providerName)} {`);
+            lines.push(`providers ${this.hclQuote(this.runtimeProviderName(providerName))} {`);
             lines.push(`  apiKey = ${this.hclQuote(this.envOpenAiApiKey() || '')}`);
             this.appendSyntheticModel(lines, modelId);
             lines.push(`}`);
@@ -152,13 +154,13 @@ export class KernelRuntimeConfigBuilder {
                     `Generated HCL will set apiKey="" — model calls will return empty response.`,
             );
         }
-        lines.push(`providers ${this.hclQuote(modelRef.providerName)} {`);
+        lines.push(`providers ${this.hclQuote(this.runtimeProviderName(modelRef.providerName))} {`);
         lines.push(`  apiKey = ${this.hclQuote(apiKey)}`);
         this.appendSyntheticModel(lines, modelRef.modelId);
         lines.push(`}`);
     }
 
-    private runtimeProviderBaseUrl(providerName: string, configuredBaseUrl: string): string {
+    private runtimeProviderBaseUrl(_providerName: string, configuredBaseUrl: string): string {
         try {
             const url = new URL(configuredBaseUrl.trim());
             const pathname = url.pathname.replace(/\/+$/, '');
@@ -166,11 +168,7 @@ export class KernelRuntimeConfigBuilder {
             if (url.hostname === 'open.bigmodel.cn' && pathname === '/api/coding/paas/v4') {
                 return `${resolveSelfApiBaseUrl()}/api/v1/kernel/llm-compat/zhipu-coding`;
             }
-            if (
-                providerName.trim().toLowerCase().startsWith('zhipu') &&
-                url.hostname === 'open.bigmodel.cn' &&
-                pathname === '/api/paas/v4'
-            ) {
+            if (url.hostname === 'open.bigmodel.cn' && pathname === '/api/paas/v4') {
                 return url.origin;
             }
         } catch {
@@ -271,6 +269,20 @@ export class KernelRuntimeConfigBuilder {
         const ref = this.parseModelRef(model);
         if (!ref) return true;
         return !this.hasModelApiKey(ref);
+    }
+
+    /**
+     * Model reference passed to the native SDK. The SDK currently assumes provider
+     * identifiers are ASCII in an internal byte-slicing path, so user-facing Unicode
+     * names are mapped to a stable runtime-only alias. The model id is preserved and
+     * remains the exact value sent to the provider API.
+     */
+    resolveRuntimeModel(overrides: SessionRuntimeOverrides): string {
+        const resolved = this.parseModelRef(this.resolveDefaultModel(overrides));
+        if (!resolved) {
+            throw new Error('Resolved model is not a valid provider/model reference.');
+        }
+        return this.runtimeModelRef(resolved);
     }
 
     private firstCredentialedModel(): { providerName: string; modelId: string } | null {
@@ -435,10 +447,7 @@ export class KernelRuntimeConfigBuilder {
             skills: this.stringArrayMetadata(metadata, 'skills'),
             skillDirs: this.stringArrayMetadata(metadata, 'skillDirs'),
             builtinSkills: this.booleanMetadata(metadata, 'builtinSkills'),
-            enforceActiveSkillToolRestrictions: this.booleanMetadata(
-                metadata,
-                'enforceActiveSkillToolRestrictions',
-            ),
+            enforceActiveSkillToolRestrictions: this.booleanMetadata(metadata, 'enforceActiveSkillToolRestrictions'),
             planningMode: this.stringMetadata(metadata, 'planningMode'),
             goalTracking: this.booleanMetadata(metadata, 'goalTracking'),
             maxToolRounds: this.numberMetadata(metadata, 'maxToolRounds'),
@@ -771,9 +780,7 @@ export class KernelRuntimeConfigBuilder {
             .join('\n\n');
     }
 
-    private responseGuards(
-        overrides: Pick<SessionRuntimeOverrides, 'allowCapabilities' | 'skills'> = {},
-    ): string {
+    private responseGuards(overrides: Pick<SessionRuntimeOverrides, 'allowCapabilities' | 'skills'> = {}): string {
         const workspacePolicy = [
             '- For local file operations such as listing, reading, writing, or editing files, use the available local tools directly when the user provides enough information. Do not ask unnecessary clarification questions.',
         ];
@@ -802,7 +809,7 @@ export class KernelRuntimeConfigBuilder {
             '- Keep scratch files inside the current workspace or paths explicitly allowed by the available tools. Do not write temporary files to arbitrary absolute paths.',
             ...workspacePolicy,
             ...knowledgeGrounding,
-            "- To help the user ACT on a built-in 书小安 feature (not just read about it), you may render a one-click quick-action card by emitting a fenced code block tagged `agent-ui` whose body is JSON `{ \"component\": \"quick-actions\", \"props\": { \"title\": \"…\", \"actions\": [ … ] } }`. Each action is either `{ \"label\": \"…\", \"icon\": \"rocket|search|plus|book|tool|package\", \"prefill\": \"a concrete follow-up you will handle\", \"autoSend\": true }` (preferred — hands yourself the next step) or `{ \"label\": \"…\", \"navigate\": \"/an/internal/route\" }` (only for an internal app route you are certain exists). Prefer one quick-action card over describing click-by-click steps; render at most one card per reply and only for features available in this session.",
+            '- To help the user ACT on a built-in 书小安 feature (not just read about it), you may render a one-click quick-action card by emitting a fenced code block tagged `agent-ui` whose body is JSON `{ "component": "quick-actions", "props": { "title": "…", "actions": [ … ] } }`. Each action is either `{ "label": "…", "icon": "rocket|search|plus|book|tool|package", "prefill": "a concrete follow-up you will handle", "autoSend": true }` (preferred — hands yourself the next step) or `{ "label": "…", "navigate": "/an/internal/route" }` (only for an internal app route you are certain exists). Prefer one quick-action card over describing click-by-click steps; render at most one card per reply and only for features available in this session.',
             '- Do not use web search for creative writing, local file edits, or workspace inspection unless the user explicitly asks to search or the answer depends on current external facts.',
             '- Never print raw tool-call JSON, tool arguments, event payloads, or schemas as assistant prose. Tool arguments belong only in tool calls.',
             '- All user-facing prose for the turn MUST stay in the same natural language as the latest user message, including progress updates, tool-recovery narration, error explanations, assumptions, plans, verification summaries, and final answers.',
@@ -846,6 +853,18 @@ export class KernelRuntimeConfigBuilder {
         const modelId = slashIndex >= 0 ? normalized.slice(slashIndex + 1).trim() : normalized;
         if (!providerName || !modelId) return null;
         return { providerName, modelId };
+    }
+
+    private runtimeModelRef(modelRef: { providerName: string; modelId: string }): string {
+        return `${this.runtimeProviderName(modelRef.providerName)}/${modelRef.modelId}`;
+    }
+
+    private runtimeProviderName(providerName: string): string {
+        const normalized = providerName.trim();
+        if (/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(normalized)) {
+            return normalized;
+        }
+        return `provider-${createHash('sha256').update(normalized).digest('hex').slice(0, 16)}`;
     }
 
     private hclQuote(value: string): string {

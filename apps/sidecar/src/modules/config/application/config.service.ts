@@ -165,7 +165,10 @@ export class ConfigServiceImpl implements ConfigService {
         for (const key of Object.keys(CATEGORY_KEYS) as CategoryKey[]) {
             const loadedCategory = loadedRecord[key];
             const normalizedCategory = normalizedRecord[key];
-            if (this.hasMissingDefaults(loadedCategory, normalizedCategory)) {
+            if (
+                this.hasMissingDefaults(loadedCategory, normalizedCategory) ||
+                (key === 'platform' && this.hasLegacyBuiltinMenuPlugin(loadedCategory))
+            ) {
                 writes.push(this.repo.setValue(CATEGORY_KEYS[key], JSON.stringify(normalizedCategory)));
             }
         }
@@ -961,6 +964,7 @@ export class ConfigServiceImpl implements ConfigService {
             ...merged.platform,
             appName: this.normalizeAppName(merged.platform.appName, general.appName ?? defaults.platform.appName),
             language: merged.platform.language ?? general.language ?? defaults.platform.language,
+            menuPlugins: this.normalizeBuiltinMenuPlugins(merged.platform.menuPlugins),
         });
 
         const assets = { ...merged.assets };
@@ -994,6 +998,38 @@ export class ConfigServiceImpl implements ConfigService {
             storage,
             assistant: merged.assistant ?? {},
         };
+    }
+
+    /**
+     * Replace only the legacy built-in example that depended on public CDNs.
+     * User-created plugins, including plugins that deliberately use a remote
+     * script inside the sandbox, remain untouched.
+     */
+    private normalizeBuiltinMenuPlugins(menuPlugins: PlatformSettings['menuPlugins']): PlatformSettings['menuPlugins'] {
+        if (!Array.isArray(menuPlugins)) return menuPlugins;
+        const currentBuiltin = DEFAULT_SETTINGS.platform.menuPlugins?.find(
+            plugin => plugin.id === 'example-plugin' && plugin.builtin === true,
+        );
+        if (!currentBuiltin) return menuPlugins;
+
+        return menuPlugins.map(plugin =>
+            this.isLegacyBuiltinMenuPlugin(plugin) ? this.cloneValue(currentBuiltin) : plugin,
+        );
+    }
+
+    private hasLegacyBuiltinMenuPlugin(platform: unknown): boolean {
+        if (!this.isPlainObject(platform) || !Array.isArray(platform.menuPlugins)) return false;
+        return platform.menuPlugins.some(plugin => this.isLegacyBuiltinMenuPlugin(plugin));
+    }
+
+    private isLegacyBuiltinMenuPlugin(plugin: unknown): boolean {
+        if (!this.isPlainObject(plugin)) return false;
+        return (
+            plugin.id === 'example-plugin' &&
+            plugin.builtin === true &&
+            typeof plugin.html === 'string' &&
+            /https:\/\/(?:unpkg\.com|cdn\.jsdelivr\.net|esm\.sh)/i.test(plugin.html)
+        );
     }
 
     private normalizeOcrSettings(input: OcrSettings | undefined): OcrSettings {
