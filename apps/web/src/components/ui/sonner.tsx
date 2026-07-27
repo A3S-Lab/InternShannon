@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { Toaster as Sonner } from "sonner";
+import { Toaster as Sonner, toast } from "sonner";
 
 import { cn } from "./lib/cn";
 
@@ -34,4 +34,4 @@ const Toaster = ({ className, closeButton = true, toastOptions, theme = "system"
   );
 };
 
-export { Toaster, type ToasterProps };
+export { toast, Toaster, type ToasterProps };
