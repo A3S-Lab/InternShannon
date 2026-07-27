@@ -1171,6 +1171,7 @@ export interface WikiSourceEntry {
   retryable?: boolean;
   chunkCount?: number;
   extractionMethod?: "native" | "ocr";
+  originalPath?: string;
 }
 
 export interface WikiPageEntry {
@@ -1362,13 +1363,7 @@ export interface WikiIngestJobStatus {
   retryOf?: string;
 }
 
-export type WikiCurationStatusValue =
-  | "idle"
-  | "pending"
-  | "ingesting"
-  | "awaiting_review"
-  | "synthesizing"
-  | "ready";
+export type WikiCurationStatusValue = "idle" | "pending" | "ingesting" | "awaiting_review" | "synthesizing" | "ready";
 
 export interface WikiCurationStatus {
   assetId: string;
@@ -1530,14 +1525,8 @@ export const assetsApi = {
   /** 解析当前用户的专属知识库(首次访问时后端懒创建,每用户唯一)。 */
   getMyKnowledge: () => apiClient.get<Asset>(`/api/assets/me/knowledge`),
   /** 把源文档直接沉淀进当前用户的专属知识库(默认捕获入口),可选立即摄取。 */
-  addToMyKnowledge: (input: {
-    sources: Array<{ path: string; content: string }>;
-    ingest?: boolean;
-  }) =>
-    apiClient.post<{ assetId: string; paths: string[]; job?: unknown }>(
-      `/api/assets/me/knowledge/sources`,
-      input,
-    ),
+  addToMyKnowledge: (input: { sources: Array<{ path: string; content: string }>; ingest?: boolean }) =>
+    apiClient.post<{ assetId: string; paths: string[]; job?: unknown }>(`/api/assets/me/knowledge/sources`, input),
   /**
    * 播种/重新摄取 InternShannon 文档知识库(os-docs,本地 Desktop 用于文档问答)。
    * 超管专属(后端 platform:runtime:access 把关)。幂等:重复同步以文件名覆盖、不产生副本。
@@ -1561,24 +1550,14 @@ export const assetsApi = {
    * 为某个领域创建一条公开共享的全局知识库(超管专属,后端 platform:runtime:access 把关)。
    * 同一域已存在则后端返回 400(每域单例)。返回 {id, domain, name, description}。
    */
-  createGlobalKnowledge: (
-    input: { domain: string; name?: string; description?: string },
-    options?: ApiRequestInit,
-  ) => apiClient.post<GlobalKnowledgeDomain>(`/api/assets/docs/knowledge`, input, options),
+  createGlobalKnowledge: (input: { domain: string; name?: string; description?: string }, options?: ApiRequestInit) =>
+    apiClient.post<GlobalKnowledgeDomain>(`/api/assets/docs/knowledge`, input, options),
   /**
    * 更新某域全局知识库的展示名 / 描述(超管专属,后端 platform:runtime:access 把关)。
    * 域不存在返回 404。返回 {id, domain, name, description}。
    */
-  updateGlobalKnowledge: (
-    domain: string,
-    input: { name?: string; description?: string },
-    options?: ApiRequestInit,
-  ) =>
-    apiClient.put<GlobalKnowledgeDomain>(
-      `/api/assets/docs/knowledge/${encodeURIComponent(domain)}`,
-      input,
-      options,
-    ),
+  updateGlobalKnowledge: (domain: string, input: { name?: string; description?: string }, options?: ApiRequestInit) =>
+    apiClient.put<GlobalKnowledgeDomain>(`/api/assets/docs/knowledge/${encodeURIComponent(domain)}`, input, options),
   /**
    * 软归档 / 取消归档某域全局知识库(超管专属;archived=true 后该域默认从列表隐藏)。
    * 后端仅写 metadata.knowledge.archived(无迁移)。返回 {id, domain, archived}。
@@ -1753,10 +1732,7 @@ export const assetsApi = {
       const status = businessCode ?? response.status;
       const serverMessage = typeof payload?.message === "string" ? payload.message.trim() : "";
       // 大文件夹一次性 base64 上传易触发 413/网关体积上限——给出可操作提示而非裸状态码。
-      const hint =
-        status === 413 || status === 502
-          ? "(文件过大或过多,请减少文件数量/体积,或改用 Git 导入)"
-          : "";
+      const hint = status === 413 || status === 502 ? "(文件过大或过多,请减少文件数量/体积,或改用 Git 导入)" : "";
       const detail =
         serverMessage ||
         (text && !payload ? `服务器返回非预期响应(HTTP ${response.status} ${response.statusText})` : "") ||
@@ -1827,7 +1803,9 @@ export const assetsApi = {
   wikiCurationStatus: (id: string) => apiClient.get<WikiCurationStatus>(`/api/assets/${id}/wiki/curation`),
   /** 配置知识库自动策展开关。 */
   wikiSetCurationConfig: (id: string, autoCuration: boolean) =>
-    apiClient.put<{ assetId: string; autoCuration: boolean }>(`/api/assets/${id}/wiki/curation/config`, { autoCuration }),
+    apiClient.put<{ assetId: string; autoCuration: boolean }>(`/api/assets/${id}/wiki/curation/config`, {
+      autoCuration,
+    }),
   wikiListCurationSuggestions: (id: string, options?: ApiRequestInit) =>
     apiClient.get<WikiCurationSuggestionsResult>(`/api/assets/${id}/wiki/curation/suggestions`, options),
   wikiRefreshCurationSuggestions: (id: string) =>
@@ -1844,7 +1822,7 @@ export const assetsApi = {
     ),
   wikiUploadSources: (
     id: string,
-    input: { sources: Array<{ name: string; contentBase64: string }>; ingest?: boolean },
+    input: { sources: Array<{ name: string; contentBase64: string; originalPath?: string }>; ingest?: boolean },
   ) => apiClient.post<{ paths: string[]; job?: WikiIngestJobStatus }>(`/api/assets/${id}/wiki/sources`, input),
   wikiDeleteSource: (id: string, path: string) =>
     apiClient.delete<{ deleted: boolean; path: string }>(`/api/assets/${id}/wiki/sources${toQuery({ path })}`),
@@ -1893,8 +1871,7 @@ export const assetsApi = {
       knowledgeType?: string;
       embedding?: Partial<WikiConfig["embedding"]>;
     },
-  ) =>
-    apiClient.put<WikiConfig>(`/api/assets/${id}/wiki/config`, input),
+  ) => apiClient.put<WikiConfig>(`/api/assets/${id}/wiki/config`, input),
   wikiReindex: (id: string) =>
     apiClient.post<{ nodeCount: number; linkCount: number }>(`/api/assets/${id}/wiki/reindex`),
   wikiMigrateStorage: (id: string) =>
@@ -1905,12 +1882,10 @@ export const assetsApi = {
       metadataBytesBefore: number;
       metadataBytesAfter: number;
     }>(`/api/assets/${id}/wiki/storage/migrate`),
-  wikiValidateOkf: (id: string) =>
-    apiClient.get<OkfBundleValidation>(`/api/assets/${id}/wiki/okf/validate`),
+  wikiValidateOkf: (id: string) => apiClient.get<OkfBundleValidation>(`/api/assets/${id}/wiki/okf/validate`),
   wikiImportOkf: (id: string, archiveBase64: string, overwrite = false) =>
     apiClient.post<OkfImportResult>(`/api/assets/${id}/wiki/okf/import`, { archiveBase64, overwrite }),
-  wikiExportOkf: (id: string) =>
-    apiClient.get<OkfExportResult>(`/api/assets/${id}/wiki/okf/export`),
+  wikiExportOkf: (id: string) => apiClient.get<OkfExportResult>(`/api/assets/${id}/wiki/okf/export`),
   wikiStartIngest: (id: string, sourcePaths: string[]) =>
     apiClient.post<WikiIngestJobStatus>(`/api/assets/${id}/wiki/ingest-jobs`, { sourcePaths }),
   wikiIngestStatus: (id: string, jobId: string) =>
@@ -1925,10 +1900,7 @@ export const assetsApi = {
   wikiAuditLog: (id: string, limit?: number) =>
     apiClient.get<WikiAuditEntry[]>(`/api/assets/${id}/wiki/audit-log${toQuery({ limit })}`),
   updateBlob: (id: string, path: string, input: UpdateAssetBlobInput) =>
-    apiClient.post<{ commitSha: string; blobSha: string }>(
-      `/api/assets/${id}/blobs/update${toQuery({ path })}`,
-      input,
-    ),
+    apiClient.post<{ commitSha: string; blobSha: string }>(`/api/assets/${id}/blobs/update${toQuery({ path })}`, input),
   deleteBlob: (id: string, path: string, input: DeleteAssetBlobInput) =>
     apiClient.post<{ commitSha: string; deleted: boolean }>(
       `/api/assets/${id}/blobs/delete${toQuery({ path })}`,
@@ -2054,9 +2026,7 @@ export const assetsApi = {
     apiClient.patch<Collaborator>(`/api/assets/${assetId}/collaborators/${encodeURIComponent(userId)}`, input),
   listCollaboratorAccessEvents: (assetId: string, params?: PageQueryParams) =>
     apiClient
-      .get<AssetListResponse<CollaboratorAccessEvent>>(
-        `/api/assets/${assetId}/collaborators/events${toQuery(params)}`,
-      )
+      .get<AssetListResponse<CollaboratorAccessEvent>>(`/api/assets/${assetId}/collaborators/events${toQuery(params)}`)
       .then(assetItems),
   listCollaboratorInvitations: (
     assetId: string,
@@ -2069,11 +2039,7 @@ export const assetsApi = {
       .then(assetItems),
   inviteCollaborator: (assetId: string, input: InviteCollaboratorInput) =>
     apiClient.post<CollaboratorInvitation>(`/api/assets/${assetId}/collaborators/invitations`, input),
-  resendCollaboratorInvitation: (
-    assetId: string,
-    invitationId: string,
-    input?: ResendCollaboratorInvitationInput,
-  ) =>
+  resendCollaboratorInvitation: (assetId: string, invitationId: string, input?: ResendCollaboratorInvitationInput) =>
     apiClient.post<CollaboratorInvitation>(
       `/api/assets/${assetId}/collaborators/invitations/${encodeURIComponent(invitationId)}/resend`,
       input ?? {},
@@ -2094,9 +2060,7 @@ export const assetsApi = {
     ),
   listMyCollaboratorInvitations: (params?: PageQueryParams) =>
     apiClient
-      .get<AssetListResponse<CollaboratorInvitation>>(
-        `/api/assets/collaborator-invitations/me${toQuery(params)}`,
-      )
+      .get<AssetListResponse<CollaboratorInvitation>>(`/api/assets/collaborator-invitations/me${toQuery(params)}`)
       .then(assetItems),
   listWebhooks: (assetId: string, params?: PageQueryParams) =>
     apiClient

@@ -1,5 +1,7 @@
 import type { WikiConfig } from "@/lib/api/assets";
 import { parseAssetWorkspacePath } from "@/lib/asset-workspace-path";
+import { hasTauriCore } from "@/lib/runtime-environment";
+import { invokeDesktop } from "@/desktop/lib/tauri-runtime";
 
 export interface PendingKnowledgeUpload {
   id: string;
@@ -41,16 +43,59 @@ export function readFileAsBase64(file: File): Promise<string> {
   });
 }
 
-export function downloadBase64File(filename: string, contentBase64: string, mime: string) {
+export type SavedFileDestination = "chosen" | "download" | "cancelled";
+
+export async function saveBase64File(
+  filename: string,
+  contentBase64: string,
+  mime: string,
+): Promise<SavedFileDestination> {
   const binary = globalThis.atob(contentBase64);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+
+  if (hasTauriCore()) {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const destination = await save({
+      defaultPath: filename,
+      filters: [{ name: "OKF 知识包", extensions: ["zip", "okf"] }],
+    });
+    if (!destination) return "cancelled";
+    await invokeDesktop("save_file_bytes", { path: destination, bytes: Array.from(bytes) });
+    return "chosen";
+  }
+
+  const picker = (
+    window as typeof window & {
+      showSaveFilePicker?: (options: {
+        suggestedName: string;
+        types: Array<{ description: string; accept: Record<string, string[]> }>;
+      }) => Promise<{ createWritable(): Promise<{ write(data: Blob): Promise<void>; close(): Promise<void> }> }>;
+    }
+  ).showSaveFilePicker;
+  if (picker) {
+    try {
+      const handle = await picker({
+        suggestedName: filename,
+        types: [{ description: "OKF 知识包", accept: { [mime]: [".zip", ".okf"] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(new Blob([bytes], { type: mime }));
+      await writable.close();
+      return "chosen";
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
+      throw error;
+    }
+  }
+
   const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+  return "download";
 }
 
 export function relativeActiveFile(path: string | null | undefined) {

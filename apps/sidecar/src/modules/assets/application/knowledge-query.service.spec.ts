@@ -36,6 +36,8 @@ function createKnowledgeHarness(embeddings?: KnowledgeEmbeddingService) {
 				].join("\n"),
 				"wiki/playbooks/incident.md":
 					"---\ntype: Playbook\ntitle: Incident response\ntags: [oncall]\n---\n\nTriage freshness alerts.\n",
+				"wiki/policies/freeze-window.md":
+					"---\ntype: Policy\ntitle: 发布冻结窗口\ntags: [发布]\n---\n\n冻结窗口从每周五 18:00 开始。\n",
 			},
 		},
 	});
@@ -72,6 +74,17 @@ describe("KnowledgeQueryService", () => {
 		});
 		expect(result.hits[0].snippet).toContain("refunds");
 		expect(result.hits[0].score).toBeGreaterThan(0);
+	});
+
+	it("extracts the subject from a Chinese natural-language question", async () => {
+		const { asset, knowledge } = createKnowledgeHarness();
+
+		const result = await knowledge.searchAsset(asset.id, "冻结窗口是什么时候", 8);
+
+		expect(result.hits[0]).toMatchObject({
+			path: "wiki/policies/freeze-window.md",
+			title: "发布冻结窗口",
+		});
 	});
 
 	it("reads concepts and supports progressive directory/tag traversal", async () => {

@@ -17,7 +17,7 @@ import {
 import sheetsZhCN from "@univerjs/preset-sheets-core/locales/zh-CN";
 import "@univerjs/preset-sheets-core/lib/index.css";
 import type { IDockviewPanelProps } from "@/desktop/components/dockview";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   FILE_EDITOR_SAVE_ALL_EVENT,
   type FileEditorSaveAllDetail,

@@ -10,7 +10,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { assetsApi, type Branch } from "@/lib/api/assets";
 import {

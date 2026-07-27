@@ -23,6 +23,7 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { readUserJsonStorage, writeUserJsonStorage } from "@/lib/browser-storage";
 import { writeClipboardText } from "@/lib/clipboard";
+import { parseAssetWorkspacePath } from "@/lib/asset-workspace-path";
 import { createCompatId, hasTauriCore, isApplePlatform } from "@/lib/runtime-environment";
 import { cn } from "@/lib/utils";
 import { workspaceApi, type GitStatusResult } from "@/lib/workspace-api";
@@ -92,10 +93,7 @@ import { CommandPalette } from "./command-palette";
 import type { WorkspaceCommand } from "./command-registry";
 import { ShortcutsCheatsheet } from "./shortcuts-cheatsheet";
 import { QuickOpen, type QuickOpenFile } from "./quick-open";
-import {
-  resolveNativeRevealPath,
-  type NativeOpenOptions,
-} from "./native-reveal-state";
+import { resolveNativeRevealPath, type NativeOpenOptions } from "./native-reveal-state";
 
 // Lucide icons for UI controls (keep these)
 import {
@@ -137,7 +135,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useReactive } from "ahooks";
 import { createPortal } from "react-dom";
 import type { ImperativePanelHandle } from "react-resizable-panels";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import "./styles.css";
 
 // ── File Tab Icon (used in Dockview tabs) ───────────────────────────────────
@@ -516,6 +514,10 @@ export interface FileTreeEditorProps {
   onAfterSave?: (path: string) => void;
   /** Optional command scope so shared shells do not trigger every mounted editor. */
   commandScope?: string;
+  /** Host-owned request to open a file after the tree/editor runtime is ready. */
+  openFileRequest?: { path: string; nonce: string | number } | null;
+  /** Original on-disk locations for virtual asset files imported by the desktop app. */
+  nativeRevealPaths?: Readonly<Record<string, string>>;
   /** Persist and restore open files/tree state for this root. Default: true. */
   persistSession?: boolean;
   className?: string;
@@ -658,43 +660,261 @@ async function tauriJoin(...parts: string[]): Promise<string> {
 // 文件会回落到「二进制·不可编辑」查看器)。覆盖绝大多数常见开发文件类型,让 WebIDE 支持编辑它们。
 const TEXT_EXTS = new Set([
   // 文档 / 标记
-  "md", "markdown", "mdx", "mkd", "txt", "text", "rst", "adoc", "asciidoc", "textile", "org", "tex", "ltx", "sty", "cls", "bib", "log",
+  "md",
+  "markdown",
+  "mdx",
+  "mkd",
+  "txt",
+  "text",
+  "rst",
+  "adoc",
+  "asciidoc",
+  "textile",
+  "org",
+  "tex",
+  "ltx",
+  "sty",
+  "cls",
+  "bib",
+  "log",
   // 数据 / 配置
-  "json", "jsonc", "json5", "ndjson", "jsonl", "yaml", "yml", "toml", "xml", "xsl", "xslt", "plist", "ini", "cfg", "conf", "config",
-  "properties", "env", "editorconfig", "csv", "tsv", "lock", "diff", "patch", "resx", "ron", "cue",
+  "json",
+  "jsonc",
+  "json5",
+  "ndjson",
+  "jsonl",
+  "yaml",
+  "yml",
+  "toml",
+  "xml",
+  "xsl",
+  "xslt",
+  "plist",
+  "ini",
+  "cfg",
+  "conf",
+  "config",
+  "properties",
+  "env",
+  "editorconfig",
+  "csv",
+  "tsv",
+  "lock",
+  "diff",
+  "patch",
+  "resx",
+  "ron",
+  "cue",
   // Web 前端
-  "html", "htm", "xhtml", "css", "scss", "sass", "less", "styl", "vue", "svelte", "astro",
+  "html",
+  "htm",
+  "xhtml",
+  "css",
+  "scss",
+  "sass",
+  "less",
+  "styl",
+  "vue",
+  "svelte",
+  "astro",
   // JS / TS
-  "js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx",
+  "js",
+  "mjs",
+  "cjs",
+  "jsx",
+  "ts",
+  "mts",
+  "cts",
+  "tsx",
   // 后端 / 脚本语言
-  "py", "pyi", "pyw", "rs", "go", "mod", "sum", "java", "kt", "kts", "scala", "groovy", "gradle", "clj", "cljs", "cljc", "edn",
-  "rb", "erb", "rake", "php", "phtml", "lua", "r", "jl", "dart", "swift", "cs", "fs", "fsx", "fsi", "vb", "ex", "exs", "erl",
-  "hrl", "hs", "lhs", "elm", "ml", "mli", "nim", "zig", "v", "sv", "vhd", "vhdl", "sol", "move", "cairo", "pl", "pm", "tcl",
-  "awk", "sed", "ps1", "psm1", "bat", "cmd", "fish", "nu",
+  "py",
+  "pyi",
+  "pyw",
+  "rs",
+  "go",
+  "mod",
+  "sum",
+  "java",
+  "kt",
+  "kts",
+  "scala",
+  "groovy",
+  "gradle",
+  "clj",
+  "cljs",
+  "cljc",
+  "edn",
+  "rb",
+  "erb",
+  "rake",
+  "php",
+  "phtml",
+  "lua",
+  "r",
+  "jl",
+  "dart",
+  "swift",
+  "cs",
+  "fs",
+  "fsx",
+  "fsi",
+  "vb",
+  "ex",
+  "exs",
+  "erl",
+  "hrl",
+  "hs",
+  "lhs",
+  "elm",
+  "ml",
+  "mli",
+  "nim",
+  "zig",
+  "v",
+  "sv",
+  "vhd",
+  "vhdl",
+  "sol",
+  "move",
+  "cairo",
+  "pl",
+  "pm",
+  "tcl",
+  "awk",
+  "sed",
+  "ps1",
+  "psm1",
+  "bat",
+  "cmd",
+  "fish",
+  "nu",
   // C / C++ / 原生
-  "c", "h", "cc", "cpp", "cxx", "hpp", "hxx", "hh", "m", "mm", "asm", "s", "d", "pas", "f", "f90", "f95", "for",
+  "c",
+  "h",
+  "cc",
+  "cpp",
+  "cxx",
+  "hpp",
+  "hxx",
+  "hh",
+  "m",
+  "mm",
+  "asm",
+  "s",
+  "d",
+  "pas",
+  "f",
+  "f90",
+  "f95",
+  "for",
   // Shell
-  "sh", "bash", "zsh", "ksh",
+  "sh",
+  "bash",
+  "zsh",
+  "ksh",
   // 查询 / IDL / schema
-  "sql", "graphql", "gql", "graphqls", "proto", "thrift", "avsc", "prisma",
+  "sql",
+  "graphql",
+  "gql",
+  "graphqls",
+  "proto",
+  "thrift",
+  "avsc",
+  "prisma",
   // 基础设施 / 构建
-  "dockerfile", "containerfile", "mk", "cmake", "tf", "tfvars", "hcl", "nomad", "bicep", "nginx", "service", "desktop", "reg",
+  "dockerfile",
+  "containerfile",
+  "mk",
+  "cmake",
+  "tf",
+  "tfvars",
+  "hcl",
+  "nomad",
+  "bicep",
+  "nginx",
+  "service",
+  "desktop",
+  "reg",
   // .acl(内置资产 manifest)按普通文本打开,而非回落到 binary 查看器。
   "acl",
   // 模板
-  "hbs", "handlebars", "mustache", "ejs", "pug", "jade", "haml", "njk", "jinja", "jinja2", "j2", "tpl", "liquid", "twig",
+  "hbs",
+  "handlebars",
+  "mustache",
+  "ejs",
+  "pug",
+  "jade",
+  "haml",
+  "njk",
+  "jinja",
+  "jinja2",
+  "j2",
+  "tpl",
+  "liquid",
+  "twig",
   // 字幕 / 杂项文本
-  "srt", "vtt", "http", "rest", "webmanifest", "map", "gitkeep",
+  "srt",
+  "vtt",
+  "http",
+  "rest",
+  "webmanifest",
+  "map",
+  "gitkeep",
 ]);
 
 // 无扩展名 / 点文件的常见纯文本文件(按小写完整文件名匹配):Dockerfile、Makefile、.gitignore 等。
 const TEXT_FILENAMES = new Set([
-  "dockerfile", "containerfile", "makefile", "gnumakefile", "rakefile", "gemfile", "podfile", "brewfile", "vagrantfile",
-  "procfile", "jenkinsfile", "justfile", "caddyfile", "berksfile", "guardfile", "capfile", "thorfile", "codeowners",
-  "license", "licence", "readme", "changelog", "authors", "contributors", "notice", "copying", "install", "todo",
-  ".gitignore", ".gitattributes", ".gitmodules", ".dockerignore", ".npmignore", ".eslintignore", ".prettierignore",
-  ".editorconfig", ".npmrc", ".nvmrc", ".yarnrc", ".babelrc", ".prettierrc", ".eslintrc", ".browserslistrc", ".nojekyll",
-  ".watchmanconfig", ".env", ".bashrc", ".zshrc", ".profile", ".bash_profile", ".vimrc",
+  "dockerfile",
+  "containerfile",
+  "makefile",
+  "gnumakefile",
+  "rakefile",
+  "gemfile",
+  "podfile",
+  "brewfile",
+  "vagrantfile",
+  "procfile",
+  "jenkinsfile",
+  "justfile",
+  "caddyfile",
+  "berksfile",
+  "guardfile",
+  "capfile",
+  "thorfile",
+  "codeowners",
+  "license",
+  "licence",
+  "readme",
+  "changelog",
+  "authors",
+  "contributors",
+  "notice",
+  "copying",
+  "install",
+  "todo",
+  ".gitignore",
+  ".gitattributes",
+  ".gitmodules",
+  ".dockerignore",
+  ".npmignore",
+  ".eslintignore",
+  ".prettierignore",
+  ".editorconfig",
+  ".npmrc",
+  ".nvmrc",
+  ".yarnrc",
+  ".babelrc",
+  ".prettierrc",
+  ".eslintrc",
+  ".browserslistrc",
+  ".nojekyll",
+  ".watchmanconfig",
+  ".env",
+  ".bashrc",
+  ".zshrc",
+  ".profile",
+  ".bash_profile",
+  ".vimrc",
 ]);
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico", "avif"]);
@@ -2185,38 +2405,157 @@ const MONACO_FILENAME_LANG: Record<string, string> = {
 
 const MONACO_LANG_MAP: Record<string, string> = {
   // JavaScript / TypeScript
-  js: "javascript", mjs: "javascript", cjs: "javascript", jsx: "javascript",
-  ts: "typescript", mts: "typescript", cts: "typescript", tsx: "typescript",
+  js: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  jsx: "javascript",
+  ts: "typescript",
+  mts: "typescript",
+  cts: "typescript",
+  tsx: "typescript",
   // Python
-  py: "python", pyi: "python", pyw: "python",
+  py: "python",
+  pyi: "python",
+  pyw: "python",
   // Rust / Go
-  rs: "rust", go: "go", mod: "go", sum: "go",
+  rs: "rust",
+  go: "go",
+  mod: "go",
+  sum: "go",
   // JVM
-  java: "java", kt: "kotlin", kts: "kotlin", scala: "scala", groovy: "groovy", gradle: "groovy", clj: "clojure", cljs: "clojure", cljc: "clojure",
+  java: "java",
+  kt: "kotlin",
+  kts: "kotlin",
+  scala: "scala",
+  groovy: "groovy",
+  gradle: "groovy",
+  clj: "clojure",
+  cljs: "clojure",
+  cljc: "clojure",
   // C / C++ / native
-  c: "c", h: "c", cc: "cpp", cpp: "cpp", cxx: "cpp", hpp: "cpp", hxx: "cpp", hh: "cpp", m: "objective-c", mm: "objective-c", asm: "asm", s: "asm", pas: "pascal",
+  c: "c",
+  h: "c",
+  cc: "cpp",
+  cpp: "cpp",
+  cxx: "cpp",
+  hpp: "cpp",
+  hxx: "cpp",
+  hh: "cpp",
+  m: "objective-c",
+  mm: "objective-c",
+  asm: "asm",
+  s: "asm",
+  pas: "pascal",
   // Other backend
-  cs: "csharp", fs: "fsharp", fsx: "fsharp", vb: "vb", rb: "ruby", erb: "ruby", rake: "ruby", php: "php", phtml: "php",
-  lua: "lua", r: "r", jl: "julia", dart: "dart", swift: "swift", ex: "elixir", exs: "elixir", erl: "erlang", hrl: "erlang",
-  hs: "haskell", lhs: "haskell", elm: "elm", ml: "ocaml", mli: "ocaml", nim: "nim", zig: "zig", sol: "sol", pl: "perl", pm: "perl", tcl: "tcl",
+  cs: "csharp",
+  fs: "fsharp",
+  fsx: "fsharp",
+  vb: "vb",
+  rb: "ruby",
+  erb: "ruby",
+  rake: "ruby",
+  php: "php",
+  phtml: "php",
+  lua: "lua",
+  r: "r",
+  jl: "julia",
+  dart: "dart",
+  swift: "swift",
+  ex: "elixir",
+  exs: "elixir",
+  erl: "erlang",
+  hrl: "erlang",
+  hs: "haskell",
+  lhs: "haskell",
+  elm: "elm",
+  ml: "ocaml",
+  mli: "ocaml",
+  nim: "nim",
+  zig: "zig",
+  sol: "sol",
+  pl: "perl",
+  pm: "perl",
+  tcl: "tcl",
   // Web
-  html: "html", htm: "html", xhtml: "html", css: "css", scss: "scss", sass: "scss", less: "less", styl: "stylus", vue: "html", svelte: "html", astro: "html",
+  html: "html",
+  htm: "html",
+  xhtml: "html",
+  css: "css",
+  scss: "scss",
+  sass: "scss",
+  less: "less",
+  styl: "stylus",
+  vue: "html",
+  svelte: "html",
+  astro: "html",
   // Data / config
-  json: "json", jsonc: "json", json5: "json", ndjson: "json", jsonl: "json", map: "json", webmanifest: "json",
-  yaml: "yaml", yml: "yaml", toml: "toml", xml: "xml", xsl: "xml", xslt: "xml", plist: "xml", svg: "xml", resx: "xml",
-  ini: "ini", cfg: "ini", conf: "ini", config: "ini", properties: "ini", env: "shell", editorconfig: "ini",
+  json: "json",
+  jsonc: "json",
+  json5: "json",
+  ndjson: "json",
+  jsonl: "json",
+  map: "json",
+  webmanifest: "json",
+  yaml: "yaml",
+  yml: "yaml",
+  toml: "toml",
+  xml: "xml",
+  xsl: "xml",
+  xslt: "xml",
+  plist: "xml",
+  svg: "xml",
+  resx: "xml",
+  ini: "ini",
+  cfg: "ini",
+  conf: "ini",
+  config: "ini",
+  properties: "ini",
+  env: "shell",
+  editorconfig: "ini",
   // Shell / scripts
-  sh: "shell", bash: "shell", zsh: "shell", ksh: "shell", fish: "shell", ps1: "powershell", psm1: "powershell", bat: "bat", cmd: "bat",
+  sh: "shell",
+  bash: "shell",
+  zsh: "shell",
+  ksh: "shell",
+  fish: "shell",
+  ps1: "powershell",
+  psm1: "powershell",
+  bat: "bat",
+  cmd: "bat",
   // Query / IDL / infra
-  sql: "sql", graphql: "graphql", gql: "graphql", graphqls: "graphql", proto: "proto", prisma: "prisma",
-  tf: "hcl", tfvars: "hcl", hcl: "hcl", nomad: "hcl",
+  sql: "sql",
+  graphql: "graphql",
+  gql: "graphql",
+  graphqls: "graphql",
+  proto: "proto",
+  prisma: "prisma",
+  tf: "hcl",
+  tfvars: "hcl",
+  hcl: "hcl",
+  nomad: "hcl",
   // Markdown / docs
-  md: "markdown", markdown: "markdown", mdx: "markdown", mmd: "markdown", rst: "restructuredtext", tex: "latex", ltx: "latex",
+  md: "markdown",
+  markdown: "markdown",
+  mdx: "markdown",
+  mmd: "markdown",
+  rst: "restructuredtext",
+  tex: "latex",
+  ltx: "latex",
   // Templates / misc
-  hbs: "handlebars", handlebars: "handlebars", ejs: "html", pug: "pug", twig: "twig", liquid: "html",
-  diff: "diff", patch: "diff", log: "log",
+  hbs: "handlebars",
+  handlebars: "handlebars",
+  ejs: "html",
+  pug: "pug",
+  twig: "twig",
+  liquid: "html",
+  diff: "diff",
+  patch: "diff",
+  log: "log",
   // .acl(内置资产 manifest,HCL 式但 Monaco 无对应语言)按普通文本展示。
-  acl: "plaintext", txt: "plaintext", csv: "plaintext", tsv: "plaintext",
+  acl: "plaintext",
+  txt: "plaintext",
+  csv: "plaintext",
+  tsv: "plaintext",
 };
 
 function getMonacoLanguage(path: string): string {
@@ -2457,9 +2796,7 @@ async function buildWorkspaceTree(
   const entries = await workspaceApi.readDir(path);
   const visibleEntries = entries.filter(
     (entry) =>
-      entry.name !== ".shuan-os-trash" &&
-      entry.name !== ".shuan-os-snapshots" &&
-      entry.name !== ".internshannon",
+      entry.name !== ".shuan-os-trash" && entry.name !== ".shuan-os-snapshots" && entry.name !== ".internshannon",
   );
   const diagnostics: WorkspaceTreeDiagnostics = {
     partialLoadErrorCount: 0,
@@ -3629,7 +3966,7 @@ const TreeNode = React.memo(function TreeNode({
         ]
       : []),
     {
-      label: "在系统中显示",
+      label: "在文件夹中显示",
       icon: <ExternalLink className={iconCls} />,
       onClick: () => onOpenNative(node.path, { isDirectory: false }),
       requiresNativeShell: true,
@@ -3675,7 +4012,7 @@ const TreeNode = React.memo(function TreeNode({
               ]
             : []),
           {
-            label: "在系统中显示",
+            label: "在文件夹中显示",
             icon: <ExternalLink className={iconCls} />,
             onClick: () => onOpenNative(node.path, { isDirectory: false }),
             requiresNativeShell: true,
@@ -3775,7 +4112,7 @@ const TreeNode = React.memo(function TreeNode({
               ]
             : []),
           {
-            label: "在系统中显示",
+            label: "在文件夹中显示",
             icon: <ExternalLink className={iconCls} />,
             onClick: () => onOpenNative(node.path, { isDirectory: false }),
             requiresNativeShell: true,
@@ -4081,9 +4418,7 @@ function TextEditorPanel({
     const currentApi = apiRef.current;
     if (!currentPath || !currentApi) return;
     const currentFileName = currentPath.split("/").pop() || "未命名";
-    const contentToSave = isMarkdown
-      ? contentRef.current
-      : sourceModeContentForSave(contentRef.current);
+    const contentToSave = isMarkdown ? contentRef.current : sourceModeContentForSave(contentRef.current);
     try {
       state.saveStatus = "saving";
       await writeFile(currentPath, contentToSave);
@@ -4833,6 +5168,8 @@ export function FileTreeEditor({
   onStateChange,
   onAfterSave,
   commandScope,
+  openFileRequest,
+  nativeRevealPaths,
   persistSession = true,
   className,
 }: FileTreeEditorProps) {
@@ -6136,39 +6473,53 @@ export function FileTreeEditor({
     state.externalChangeDialog = null;
   }, [rootPath]);
 
-  const handleOpenNative = useCallback(async (path: string, options: NativeOpenOptions = {}) => {
-    const mode = options.mode ?? "reveal";
-    const targetPath =
-      mode === "open-file"
-        ? path.trim()
-        : resolveNativeRevealPath(path, {
-            isDirectory: options.isDirectory,
-            rootPath,
-          });
-    if (!targetPath) {
-      toast.error("没有可打开的路径");
-      return;
-    }
-    if (!hasTauriCore()) {
-      await writeClipboardText(targetPath).catch(() => undefined);
-      toast.info(mode === "open-file" ? "当前浏览器不能打开系统文件，已复制路径" : "当前浏览器不能显示系统位置，已复制路径");
-      return;
-    }
-    try {
-      if (mode === "open-file") {
-        await tauriInvoke("plugin:shell|open", { path: targetPath });
+  const handleOpenNative = useCallback(
+    async (path: string, options: NativeOpenOptions = {}) => {
+      const mode = options.mode ?? "reveal";
+      const assetPath = parseAssetWorkspacePath(path);
+      const targetPath = path.trim();
+      if (!targetPath) {
+        toast.error("没有可打开的路径");
         return;
       }
-      await tauriInvoke("open_folder", { path: targetPath });
-    } catch {
-      if (mode === "open-file") {
-        toast.error("无法打开文件");
+      if (!hasTauriCore()) {
+        const fallbackPath =
+          mode === "reveal"
+            ? resolveNativeRevealPath(path, { isDirectory: options.isDirectory, rootPath })
+            : targetPath;
+        await writeClipboardText(fallbackPath).catch(() => undefined);
+        toast.info(
+          mode === "open-file" ? "当前浏览器不能打开系统文件，已复制路径" : "当前浏览器不能显示系统位置，已复制路径",
+        );
         return;
       }
-      await writeClipboardText(targetPath).catch(() => undefined);
-      toast.error("无法在系统中显示，已复制路径");
-    }
-  }, [rootPath]);
+      try {
+        if (mode === "open-file") {
+          await tauriInvoke("plugin:shell|open", { path: targetPath });
+          return;
+        }
+        if (assetPath && !options.isDirectory) {
+          const originalPath = nativeRevealPaths?.[path];
+          if (!originalPath) {
+            toast.info("该知识文件没有可用的原始位置");
+            return;
+          }
+          await tauriInvoke("reveal_in_folder", { path: originalPath });
+          return;
+        }
+        if (options.isDirectory) await tauriInvoke("open_folder", { path: targetPath });
+        else await tauriInvoke("reveal_in_folder", { path: targetPath });
+      } catch {
+        if (mode === "open-file") {
+          toast.error("无法打开文件");
+          return;
+        }
+        await writeClipboardText(targetPath).catch(() => undefined);
+        toast.error("无法在系统中显示，已复制路径");
+      }
+    },
+    [nativeRevealPaths, rootPath],
+  );
 
   const handleCopyPath = useCallback((path: string) => {
     writeClipboardText(path)
@@ -6225,13 +6576,10 @@ export function FileTreeEditor({
   // 活动编辑器实例表(path→Monaco editor),由 TextEditorPanel 在 mount/unmount 维护;
   // 供命令面板对当前活动编辑器触发格式化/转到行等内置动作(键位仍由 Monaco 直接处理)。
   const editorInstancesRef = useRef<Map<string, monacoEditor.editor.IStandaloneCodeEditor>>(new Map());
-  const setEditorInstance = useCallback(
-    (path: string, editor: monacoEditor.editor.IStandaloneCodeEditor | null) => {
-      if (editor) editorInstancesRef.current.set(path, editor);
-      else editorInstancesRef.current.delete(path);
-    },
-    [],
-  );
+  const setEditorInstance = useCallback((path: string, editor: monacoEditor.editor.IStandaloneCodeEditor | null) => {
+    if (editor) editorInstancesRef.current.set(path, editor);
+    else editorInstancesRef.current.delete(path);
+  }, []);
 
   const handleFileClick = useCallback(
     (path: string, options?: OpenFileOptions) => {
@@ -8005,6 +8353,14 @@ export function FileTreeEditor({
     state.selectedPath,
   ]);
 
+  const lastOpenFileRequestRef = useRef<string | number | null>(null);
+  useEffect(() => {
+    if (!openFileRequest || state.loading || !state.tree) return;
+    if (lastOpenFileRequestRef.current === openFileRequest.nonce) return;
+    lastOpenFileRequestRef.current = openFileRequest.nonce;
+    handleFileClick(openFileRequest.path, { pinned: true });
+  }, [handleFileClick, openFileRequest, state.loading, state.tree]);
+
   // 命令面板(Cmd+Shift+P)。命令 = 文件树自身动作 + 父级注入的 extraCommands(上线流水线等)。
   // 单一事实源:keybinding 仅展示,真正派发仍在下方 keydown / Monaco;面板只调 run()。
   // 批量关闭标签页(命令面板用)。安全:跳过未保存(dirty)标签,不批量丢失改动 —— 这些仍由用户用 X 单独关。
@@ -8074,7 +8430,14 @@ export function FileTreeEditor({
   }, [quickOpenOpen, nodeByPath, rootPath, state.recentFiles]);
   const paletteCommands = useMemo<WorkspaceCommand[]>(() => {
     const list: WorkspaceCommand[] = [
-      { id: "save-all", title: "保存全部", group: "文件", keybinding: DOCUMENT_KEYBINDINGS["save-all"], when: () => !readOnly, run: () => void saveAllDirty() },
+      {
+        id: "save-all",
+        title: "保存全部",
+        group: "文件",
+        keybinding: DOCUMENT_KEYBINDINGS["save-all"],
+        when: () => !readOnly,
+        run: () => void saveAllDirty(),
+      },
       {
         id: "new-file",
         title: "新建文件",
@@ -8097,8 +8460,20 @@ export function FileTreeEditor({
           void handleCreateFolder(rootPath || undefined);
         },
       },
-      { id: "quick-open", title: "快速打开文件", group: "导航", keybinding: DOCUMENT_KEYBINDINGS["quick-open"], run: () => setQuickOpenOpen(true) },
-      { id: "focus-explorer", title: "聚焦资源管理器", group: "导航", keybinding: DOCUMENT_KEYBINDINGS["focus-explorer"], run: () => showSidebarPanel("explorer") },
+      {
+        id: "quick-open",
+        title: "快速打开文件",
+        group: "导航",
+        keybinding: DOCUMENT_KEYBINDINGS["quick-open"],
+        run: () => setQuickOpenOpen(true),
+      },
+      {
+        id: "focus-explorer",
+        title: "聚焦资源管理器",
+        group: "导航",
+        keybinding: DOCUMENT_KEYBINDINGS["focus-explorer"],
+        run: () => showSidebarPanel("explorer"),
+      },
       { id: "source-control", title: "源代码管理", group: "导航", run: () => showSidebarPanel("sourceControl") },
       {
         id: "git-refresh",
@@ -8145,7 +8520,13 @@ export function FileTreeEditor({
         when: () => closedTabsRef.current.length > 0,
         run: reopenClosedTab,
       },
-      { id: "show-shortcuts", title: "显示快捷键", group: "帮助", keybinding: DOCUMENT_KEYBINDINGS["show-shortcuts"], run: () => setCheatsheetOpen(true) },
+      {
+        id: "show-shortcuts",
+        title: "显示快捷键",
+        group: "帮助",
+        keybinding: DOCUMENT_KEYBINDINGS["show-shortcuts"],
+        run: () => setCheatsheetOpen(true),
+      },
       {
         id: "format-document",
         title: "格式化文档",
@@ -8172,7 +8553,13 @@ export function FileTreeEditor({
       },
     ];
     if (showGlobalSearchPanel) {
-      list.push({ id: "search", title: "全局搜索", group: "导航", keybinding: DOCUMENT_KEYBINDINGS["search"], run: () => showSidebarPanel("search") });
+      list.push({
+        id: "search",
+        title: "全局搜索",
+        group: "导航",
+        keybinding: DOCUMENT_KEYBINDINGS["search"],
+        run: () => showSidebarPanel("search"),
+      });
     }
     if (supportsNativeShell) {
       list.push({

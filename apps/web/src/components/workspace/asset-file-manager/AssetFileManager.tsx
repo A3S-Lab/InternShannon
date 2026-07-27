@@ -25,6 +25,8 @@ export type AssetFileManagerProps = Pick<
   | "onStateChange"
   | "onAfterSave"
   | "commandScope"
+  | "openFileRequest"
+  | "nativeRevealPaths"
   | "persistSession"
   | "className"
 >;

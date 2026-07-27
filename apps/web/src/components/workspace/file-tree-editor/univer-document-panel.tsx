@@ -15,7 +15,7 @@ import { UniverDocsCorePreset } from "@univerjs/preset-docs-core";
 import docsZhCN from "@univerjs/preset-docs-core/locales/zh-CN";
 import "@univerjs/preset-docs-core/lib/index.css";
 import type { IDockviewPanelProps } from "@/desktop/components/dockview";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { workspaceApi } from "@/lib/workspace-api";
 import {
   FILE_EDITOR_SAVE_ALL_EVENT,

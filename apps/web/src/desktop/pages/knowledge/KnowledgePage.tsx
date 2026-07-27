@@ -14,7 +14,7 @@ import {
   Settings2,
   Upload,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { AssetFileManager, type AssetFileManagerStateSnapshot } from "@/components/workspace/asset-file-manager";
 import { dispatchFileTreeEditorCommand } from "@/components/workspace/file-tree-editor/events";
 import {
@@ -32,6 +32,8 @@ import {
 } from "@/lib/api/assets";
 import { buildAssetWorkspaceRoot } from "@/lib/asset-workspace-path";
 import { parseKnowledgeAssetCitation } from "@/lib/knowledge-citation";
+import { hasTauriCore } from "@/lib/runtime-environment";
+import { invokeDesktop } from "@/desktop/lib/tauri-runtime";
 import { cn } from "@/lib/utils";
 import { CurationPane } from "./components/knowledge-curation-pane";
 import { BacklinksPane, ExplorerHeader, OverviewPane } from "./components/knowledge-explorer-pane";
@@ -39,7 +41,7 @@ import { GraphPane } from "./components/knowledge-graph-pane";
 import { ingestProgress, OperationsPane } from "./components/knowledge-operations-pane";
 import { KnowledgeSettingsPane } from "./components/knowledge-settings-pane";
 import {
-  downloadBase64File,
+  saveBase64File,
   formatRelativeTime,
   type PendingKnowledgeUpload,
   readFileAsBase64,
@@ -47,6 +49,13 @@ import {
 } from "./knowledge-page-utils";
 
 type LoadState = "loading" | "ready" | "error";
+
+interface SelectedKnowledgeSource {
+  name: string;
+  size: number;
+  contentBase64: string;
+  originalPath?: string;
+}
 
 export default function KnowledgePage() {
   const [searchParams] = useSearchParams();
@@ -73,7 +82,6 @@ export default function KnowledgePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editorState, setEditorState] = useState<AssetFileManagerStateSnapshot | null>(null);
-  const openedCitationRef = useRef<string | null>(null);
 
   const assetRoot = useMemo(() => {
     if (!asset) return null;
@@ -86,21 +94,25 @@ export default function KnowledgePage() {
     [ingestJobs],
   );
   const activeIngestProgress = activeIngestJob ? ingestProgress(activeIngestJob) : null;
+  const nativeRevealPaths = useMemo(() => {
+    if (!assetRoot) return {};
+    return Object.fromEntries(
+      sources
+        .filter((source): source is WikiSourceEntry & { originalPath: string } => Boolean(source.originalPath))
+        .map((source) => [`${assetRoot}/${source.path}`, source.originalPath]),
+    );
+  }, [assetRoot, sources]);
 
-  useEffect(() => {
+  const citationOpenRequest = useMemo(() => {
     const source = searchParams.get("source");
-    if (!assetRoot || !asset || !source || openedCitationRef.current === source) return;
+    const openRequest = searchParams.get("open") || source;
+    if (!assetRoot || !asset || !source || !openRequest) return null;
     const citation = parseKnowledgeAssetCitation(source);
-    if (!citation || citation.assetId !== asset.id) return;
-    openedCitationRef.current = source;
-    const timer = window.setTimeout(() => {
-      dispatchFileTreeEditorCommand(
-        "open-file-preserve-sidebar",
-        "desktop-knowledge",
-        `${assetRoot}/${citation.relativePath}`,
-      );
-    }, 0);
-    return () => window.clearTimeout(timer);
+    if (!citation) return null;
+    const belongsToPersonalKnowledge =
+      citation.assetId === asset.id || citation.assetId === "personal-knowledge" || citation.assetId === asset.name;
+    if (!belongsToPersonalKnowledge) return null;
+    return { path: `${assetRoot}/${citation.relativePath}`, nonce: openRequest };
   }, [asset, assetRoot, searchParams]);
 
   const loadKnowledge = useCallback(async () => {
@@ -149,6 +161,7 @@ export default function KnowledgePage() {
       setSearchState("idle");
       return;
     }
+    setSearchHits([]);
     setSearchState("loading");
     let cancelled = false;
     const timer = window.setTimeout(() => {
@@ -262,10 +275,9 @@ export default function KnowledgePage() {
     [activeRelativeFile, asset, assetRoot, curationSuggestions, editorState?.activeSaveStatus, refreshMetadata],
   );
 
-  const handleUploadFiles = useCallback(
-    async (files: FileList | null) => {
-      if (!asset || !files?.length) return;
-      const selectedFiles = Array.from(files);
+  const uploadSelectedSources = useCallback(
+    async (selectedFiles: SelectedKnowledgeSource[]) => {
+      if (!asset || selectedFiles.length === 0) return;
       const uploads = selectedFiles.map((file, index) => ({
         id: `${Date.now()}-${index}-${file.name}`,
         name: file.name,
@@ -283,10 +295,9 @@ export default function KnowledgePage() {
         selectedFiles.map(async (file, index) => {
           const upload = uploads[index];
           try {
-            const contentBase64 = await readFileAsBase64(file);
             updateUpload(upload.id, "uploading");
             const uploaded = await assetsApi.wikiUploadSources(asset.id, {
-              sources: [{ name: file.name, contentBase64 }],
+              sources: [{ name: file.name, contentBase64: file.contentBase64, originalPath: file.originalPath }],
               ingest: true,
             });
             updateUpload(upload.id, "starting");
@@ -310,6 +321,40 @@ export default function KnowledgePage() {
     },
     [asset, refreshMetadata],
   );
+
+  const handleUploadFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files?.length) return;
+      const selectedFiles = await Promise.all(
+        Array.from(files).map(async (file) => ({
+          name: file.name,
+          size: file.size,
+          contentBase64: await readFileAsBase64(file),
+        })),
+      );
+      await uploadSelectedSources(selectedFiles);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+    [uploadSelectedSources],
+  );
+
+  const handleChooseSources = useCallback(async () => {
+    if (!hasTauriCore()) {
+      fileInputRef.current?.click();
+      return;
+    }
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({ multiple: true, directory: false, title: "选择知识库资料" });
+      const paths = typeof selected === "string" ? [selected] : (selected ?? []);
+      const files = await Promise.all(
+        paths.map((path) => invokeDesktop<SelectedKnowledgeSource>("read_knowledge_source", { path })),
+      );
+      await uploadSelectedSources(files);
+    } catch (selectionError) {
+      toast.error(selectionError instanceof Error ? selectionError.message : "读取所选资料失败");
+    }
+  }, [uploadSelectedSources]);
 
   const handleReindex = useCallback(async () => {
     if (!asset) return;
@@ -444,12 +489,13 @@ export default function KnowledgePage() {
     setBusy(true);
     try {
       const result = await assetsApi.wikiExportOkf(asset.id);
-      downloadBase64File(result.filename, result.contentBase64, "application/zip");
+      const destination = await saveBase64File(result.filename, result.contentBase64, "application/zip");
+      if (destination === "cancelled") return;
       const errors = result.validation.diagnostics.filter((item) => item.severity === "error").length;
       toast.success("OKF 知识包已导出", {
         description: errors
           ? `导出完成，当前 bundle 有 ${errors} 条校验错误`
-          : `${result.validation.conceptCount} 个 concept`,
+          : `${result.validation.conceptCount} 个 concept${destination === "download" ? "，已保存到浏览器下载目录" : ""}`,
       });
     } catch (exportError) {
       toast.error(exportError instanceof Error ? exportError.message : "OKF 导出失败");
@@ -528,7 +574,7 @@ export default function KnowledgePage() {
           />
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => void handleChooseSources()}
             disabled={!asset}
             className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -581,6 +627,8 @@ export default function KnowledgePage() {
             defaultSidebarPanel="explorer"
             sidebarPanelRequest={sidebarPanelRequest ?? undefined}
             commandScope="desktop-knowledge"
+            openFileRequest={citationOpenRequest}
+            nativeRevealPaths={nativeRevealPaths}
             enableRichMarkdown={false}
             className="h-full"
             newFileTemplate={newFileTemplate}

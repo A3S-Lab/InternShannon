@@ -639,7 +639,13 @@ export class KnowledgeQueryService {
     private queryTerms(query: string): string[] {
         const lower = query.toLowerCase();
         const terms = lower.split(/[\s,，。！？;；:：]+/).filter(Boolean);
-        return Array.from(new Set([lower, ...terms])).slice(0, 16);
+        const intentStripped = lower
+            .replace(/(?:请问|帮我|麻烦|搜索|查找|查询|找一下|搜一下)/gu, ' ')
+            .replace(/(?:是什么时候|什么时候|是何时|是什么|在哪里|在哪儿|怎么做|如何|为何|为什么|吗|呢|呀|啊)/gu, ' ')
+            .split(/[\s,，。！？;；:：]+/)
+            .map(term => term.trim())
+            .filter(term => term.length >= 2);
+        return Array.from(new Set([lower, ...terms, ...intentStripped])).slice(0, 16);
     }
 
     private requireQuery(query: string): string {

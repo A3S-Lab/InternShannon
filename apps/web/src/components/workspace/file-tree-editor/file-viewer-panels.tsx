@@ -3,7 +3,7 @@
  */
 import { useReactive } from "ahooks";
 import { lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   AlertCircle,
   Copy,
