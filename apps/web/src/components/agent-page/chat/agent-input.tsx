@@ -2,7 +2,7 @@ import { useReactive } from "ahooks";
 import { FileText, Loader2, Send, Terminal, Upload, X } from "lucide-react";
 import type React from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import type { SuggestionItem } from "@/components/tiptap-editor/mention-list";
 import TiptapEditor, { type TiptapEditorRef } from "@/components/tiptap-editor/TiptapEditor";

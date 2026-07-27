@@ -7,7 +7,7 @@
 import { useReactive } from "ahooks";
 import { AlertCircle, CheckCircle2, Download, FolderOpen, Globe2, RefreshCw, Save, Search, Shield } from "lucide-react";
 import { useCallback, useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";

@@ -1,7 +1,7 @@
 import { useReactive } from "ahooks";
 import { ChevronDown, ChevronRight, CircleAlert, Loader2, MessageSquare, Send, WifiOff, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import { connectSession, sendToSession } from "@/hooks/use-agent-ws";
 import { agentApi } from "@/lib/agent-api";

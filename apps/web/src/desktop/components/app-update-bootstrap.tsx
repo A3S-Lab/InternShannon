@@ -18,7 +18,7 @@ import { readStorage, writeStorage } from "@/lib/browser-storage";
 import { Download, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect } from "react";
 import { useReactive } from "ahooks";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { shouldRunStartupUpdateCheck } from "./app-update-bootstrap-state";
 
 const STARTUP_CHECK_KEY = "internshannon-update-startup-checked";

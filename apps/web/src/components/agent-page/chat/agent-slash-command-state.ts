@@ -16,12 +16,18 @@ export type AgentSlashCommandDispatchAction =
   | { kind: "clear-session" }
   | { kind: "focus-model"; toastMessage: string }
   | { kind: "show-help"; toastMessage: string }
+  | { kind: "local-info"; commandName: "history" | "mcp" | "tools" | "skills" | "status" }
   | { kind: "unavailable"; actionError: { message: string; dismissLabel: string }; toastMessage: string };
 
 const LOCAL_COMMAND_DESCRIPTIONS: Record<string, string> = {
   model: "查看或切换当前模型",
   clear: "清空对话历史",
   help: "查看可用命令列表",
+  history: "查看当前会话的消息历史与最近操作",
+  mcp: "查看当前会话已连接的 MCP 工具服务",
+  tools: "查看当前会话可以调用的工具及状态",
+  skills: "查看当前会话已加载的技能",
+  status: "查看模型、连接和运行时状态",
 };
 
 const KNOWN_COMMAND_DESCRIPTIONS: Record<string, string> = {
@@ -97,6 +103,14 @@ export function resolveAgentSlashCommandDispatchAction(
     return {
       kind: "show-help",
       toastMessage: "已打开快捷键与命令帮助",
+    };
+  }
+
+  if (["history", "mcp", "tools", "skills", "status"].includes(commandName)) {
+    if (hasArguments) return unavailableSlashCommand(commandName, `/${commandName} 不支持参数，请直接输入命令。`);
+    return {
+      kind: "local-info",
+      commandName: commandName as "history" | "mcp" | "tools" | "skills" | "status",
     };
   }
 

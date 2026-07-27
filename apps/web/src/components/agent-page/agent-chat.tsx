@@ -1,9 +1,9 @@
 import { useReactive } from "ahooks";
 import dayjs from "dayjs";
 import { ArrowDown, Circle, CircleAlert, Copy, Loader2, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { subscribe, useSnapshot } from "valtio";
 import { ErrorBoundary } from "@/components/custom/error-boundary";
 import { ToolConfirmationDialog } from "@/components/custom/tool-confirmation-dialog";
@@ -57,6 +57,7 @@ import { resolveAgentSlashCommandDispatchAction } from "./chat/agent-slash-comma
 import { ChatHeader } from "./chat/chat-header";
 import { AgentMessageInbox, AuthStatusBanner, ConnectionStatusBanner, EmptyChat } from "./chat/chat-panels";
 import MessageItem, { DateSeparator } from "./chat/message-item";
+import { resolveSelectionToolbarPosition, type SelectionToolbarRect } from "./chat/selection-toolbar-state";
 import {
   formatSessionRelaunchError,
   resolveSessionRelaunchFeedback,
@@ -139,14 +140,36 @@ function SelectionToolbar() {
   const state = useReactive({
     visible: false,
     position: { x: 0, y: 0 },
+    placement: "above" as "above" | "below",
+    selectionRect: null as SelectionToolbarRect | null,
     selectedText: "",
   });
   const toolbarRef = useRef<HTMLDivElement>(null);
 
+  const positionToolbar = useCallback(
+    (selectionRect: SelectionToolbarRect, toolbarSize = { width: 40, height: 38 }) => {
+      const position = resolveSelectionToolbarPosition({
+        selectionRect,
+        toolbarSize,
+        viewportSize: { width: window.innerWidth, height: window.innerHeight },
+      });
+      state.position = { x: position.left, y: position.top };
+      state.placement = position.placement;
+    },
+    [state],
+  );
+
+  useLayoutEffect(() => {
+    if (!state.visible || !state.selectionRect || !toolbarRef.current) return;
+    const toolbarRect = toolbarRef.current.getBoundingClientRect();
+    positionToolbar(state.selectionRect, { width: toolbarRect.width, height: toolbarRect.height });
+  }, [positionToolbar, state.selectionRect, state.visible]);
+
   useEffect(() => {
     let pendingSelection = false;
 
-    const handleMouseUp = () => {
+    const handleMouseUp = (event: MouseEvent) => {
+      if (event.target instanceof Node && toolbarRef.current?.contains(event.target)) return;
       pendingSelection = true;
       // Delay to let browser finalize selection
       setTimeout(() => {
@@ -157,11 +180,17 @@ function SelectionToolbar() {
           const range = selection?.getRangeAt(0);
           const rect = range?.getBoundingClientRect();
           if (rect) {
-            state.selectedText = text;
-            state.position = {
-              x: rect.left + rect.width / 2,
-              y: rect.top - 8,
+            const selectionRect = {
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              bottom: rect.bottom,
+              width: rect.width,
+              height: rect.height,
             };
+            state.selectedText = text;
+            state.selectionRect = selectionRect;
+            positionToolbar(selectionRect);
             state.visible = true;
           }
         } else {
@@ -171,7 +200,8 @@ function SelectionToolbar() {
       }, 10);
     };
 
-    const handleMouseDown = () => {
+    const handleMouseDown = (event: MouseEvent) => {
+      if (event.target instanceof Node && toolbarRef.current?.contains(event.target)) return;
       pendingSelection = false;
       state.visible = false;
     };
@@ -191,7 +221,7 @@ function SelectionToolbar() {
       document.removeEventListener("mousedown", handleMouseDown);
       document.removeEventListener("selectionchange", handleSelectionChange);
     };
-  }, [state]);
+  }, [positionToolbar, state]);
 
   const handleCopy = useCallback(async () => {
     if (!state.selectedText) return;
@@ -206,16 +236,18 @@ function SelectionToolbar() {
     <div
       ref={toolbarRef}
       className="fixed z-[100] flex items-center gap-0.5 rounded-[8px] border border-black/10 bg-background/95 px-1.5 py-1 shadow-[0_12px_16px_-4px_rgba(36,36,36,0.08)] backdrop-blur-md"
+      data-selection-toolbar-placement={state.placement}
       style={{
         left: `${state.position.x}px`,
         top: `${state.position.y}px`,
-        transform: "translate(-50%, -100%)",
       }}
     >
       <button
         type="button"
         onClick={handleCopy}
+        onMouseDown={(event) => event.preventDefault()}
         className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground transition-colors"
+        aria-label="复制选中文本"
         title="复制"
       >
         <Copy className="size-3.5" />
@@ -980,6 +1012,34 @@ export default function AgentChat({
         if (slashCommandAction.kind === "show-help") {
           state.showShortcutsHelp = true;
           toast.info(slashCommandAction.toastMessage);
+          return true;
+        }
+
+        if (slashCommandAction.kind === "local-info") {
+          const commandName = slashCommandAction.commandName;
+          if (commandName === "history") {
+            state.searchFocusRequest += 1;
+            toast.info(`当前会话共 ${richMessages.length} 条消息，可直接输入关键词检索`);
+            return true;
+          }
+          if (commandName === "status") {
+            const model = currentSession?.model || processInfo?.model || "未设置";
+            const runtimeStatus = sessionStatus[targetSessionId] || "idle";
+            const transportStatus = connectionStatus[targetSessionId] || "disconnected";
+            toast.info(`模型 ${model} · 运行 ${runtimeStatus} · 连接 ${transportStatus}`);
+            return true;
+          }
+          if (commandName === "mcp") {
+            const servers = currentSession?.mcpServers ?? [];
+            toast.info(
+              servers.length
+                ? `MCP：${servers.map((server) => `${server.name}(${server.status})`).join("、")}`
+                : "当前会话未加载 MCP 服务",
+            );
+            return true;
+          }
+          const names = commandName === "tools" ? currentSession?.tools ?? [] : currentSession?.skills ?? [];
+          toast.info(names.length ? `${commandName === "tools" ? "工具" : "技能"}：${names.join("、")}` : `当前会话未加载${commandName === "tools" ? "工具" : "技能"}`);
           return true;
         }
 

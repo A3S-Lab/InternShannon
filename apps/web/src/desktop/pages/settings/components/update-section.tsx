@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import { useReactive } from "ahooks";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 function formatBytes(value?: number | null) {
 	if (!value || value <= 0) return "0 B";

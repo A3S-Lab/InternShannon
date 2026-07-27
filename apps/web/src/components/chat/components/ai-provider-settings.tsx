@@ -16,7 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import AnthropicLogoUrl from "@/assets/images/logos/llm/anthropic.svg";
 import OpenAiLogoUrl from "@/assets/images/logos/llm/openai.svg";
 import ZhipuLogoUrl from "@/assets/images/logos/llm/zhipu.svg";

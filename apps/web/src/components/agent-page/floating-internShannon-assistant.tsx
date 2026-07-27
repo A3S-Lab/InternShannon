@@ -38,7 +38,7 @@ import { cn } from "@/lib/utils";
 import type { InternShannonMemoryConversationRef } from "@/lib/internShannon-memory-timeline";
 import agentModel from "@/models/agent.model";
 import assistantIdentityModel from "@/models/assistant-identity.model";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { createAgentSession, refreshSessionsInBackground } from "@/lib/session-bootstrap";
 import {
   buildAgentSessionCreateOptions,

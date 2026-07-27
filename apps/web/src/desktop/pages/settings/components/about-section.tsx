@@ -4,7 +4,7 @@ import { getCurrentAppVersion } from "@/desktop/lib/app-version";
 import globalModel from "@/models/global.model";
 import { RotateCcw, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 export function AboutSection() {
 	const [version, setVersion] = useState("0.1.1");

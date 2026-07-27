@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { AppError } from "@/lib/error";
 import type { FieldError } from "@/lib/constants";
 

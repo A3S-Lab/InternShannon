@@ -17,7 +17,7 @@ import {
 } from "./slash-commands";
 import Image from "@tiptap/extension-image";
 import { TableKit } from "@tiptap/extension-table";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { CalloutDecoration } from "./callout-decoration";
 import { restoreWikiLinkBrackets, WikiLink } from "./wikilink-extension";
 import Placeholder from "@tiptap/extension-placeholder";

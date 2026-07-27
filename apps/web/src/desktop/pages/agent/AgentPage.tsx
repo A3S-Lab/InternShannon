@@ -2,7 +2,7 @@ import { useReactive } from "ahooks";
 import { CircleAlert, Loader2, MessageCirclePlus, PanelLeft, Plus, RefreshCw, Settings } from "lucide-react";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import AgentChat from "@/components/agent-page/agent-chat";
 import {

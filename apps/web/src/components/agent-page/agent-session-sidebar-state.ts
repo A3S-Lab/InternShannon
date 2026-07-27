@@ -322,6 +322,9 @@ export function resolveSessionSidebarStatus(input: SessionSidebarStatusInput): S
   if (input.sessionStatus === "compacting") {
     return { label: "正在整理上下文", tone: "running" };
   }
+  if (input.sessionState === "running") {
+    return { label: "正在回复", tone: "running" };
+  }
   if (input.connectionStatus === "connecting") {
     return { label: "连接中", tone: "connecting" };
   }
@@ -329,14 +332,14 @@ export function resolveSessionSidebarStatus(input: SessionSidebarStatusInput): S
     return { label: "连接已断开", tone: "disconnected" };
   }
   if (input.connectionStatus === "connected") {
-    return { label: "已连接", tone: "active" };
+    return { label: "空闲", tone: "idle" };
   }
   return { label: "空闲", tone: "idle" };
 }
 
 export function isSessionSidebarActive(input: SessionSidebarStatusInput): boolean {
   const tone = resolveSessionSidebarStatus(input).tone;
-  return tone === "active" || tone === "running" || tone === "creating" || tone === "connecting";
+  return tone === "running" || tone === "creating";
 }
 
 export function sessionSearchHaystack(input: {

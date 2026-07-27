@@ -1,7 +1,7 @@
 import { useReactive } from "ahooks";
 import { AlertTriangle, Copy, Loader2, RefreshCw } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { getCurrentAppVersion } from "@/desktop/lib/app-version";
 import { getSpaRuntimeKind, invokeDesktopOptional } from "@/desktop/lib/tauri-runtime";

@@ -1,5 +1,5 @@
 import { type ButtonHTMLAttributes, type MouseEvent, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { tv, type VariantProps } from "tailwind-variants";
 import { useSnapshot } from "valtio";
 import { Button } from "@/components/ui/button";

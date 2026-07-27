@@ -1,6 +1,6 @@
 import { FolderOpen, Loader2, Settings2, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import { Button } from "@/components/ui/button";
 import {

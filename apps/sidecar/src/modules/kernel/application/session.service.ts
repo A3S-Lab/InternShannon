@@ -67,6 +67,7 @@ const SESSION_METADATA_KEYS = [
     'ownerId',
     'creationRequestId',
     'sourceCaseId',
+    'tags',
     'initialPrompt',
     'agentKind',
     'taskWorkbench',

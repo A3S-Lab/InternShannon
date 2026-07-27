@@ -54,7 +54,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useReactive } from "ahooks";
 import NiceAvatar, { genConfig } from "react-nice-avatar";
 import type { AvatarFullConfig } from "react-nice-avatar";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 
 // =============================================================================
