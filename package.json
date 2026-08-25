@@ -2,6 +2,7 @@
   "name": "@internshannon/workspace",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.34.5",
   "description": "Desktop and sidecar workspace",
   "engines": {
     "node": ">=22.18.0"

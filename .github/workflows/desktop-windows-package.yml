@@ -12,11 +12,16 @@ on:
         required: true
         default: nsis
       node_runtime_version:
-        description: Optional exact bundled Node.js version, for example v22.21.1. Empty uses latest Node 22.x.
+        description: Optional exact bundled Node.js version. Empty uses the version pinned in .nvmrc.
         required: false
         default: ""
       skip_smoke:
         description: Skip standalone sidecar smoke test after packaging.
+        type: boolean
+        required: true
+        default: false
+      skip_install_smoke:
+        description: Skip installing, launching, and uninstalling the generated NSIS package.
         type: boolean
         required: true
         default: false
@@ -46,8 +51,8 @@ env:
   TAURI_TARGET: ${{ inputs.target || 'x86_64-pc-windows-msvc' }}
   TAURI_BUNDLES: ${{ inputs.bundles || 'nsis' }}
   INTERNSHANNON_NODE_MAJOR: "22"
-  INTERNSHANNON_NODE_VERSION: ${{ inputs.node_runtime_version || '' }}
   SKIP_SMOKE: ${{ inputs.skip_smoke || 'false' }}
+  SKIP_INSTALL_SMOKE: ${{ inputs.skip_install_smoke || 'false' }}
 
 jobs:
   package-windows:
@@ -63,23 +68,76 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate target and resolve bundled Node.js version
+        env:
+          REQUESTED_NODE_RUNTIME_VERSION: ${{ inputs.node_runtime_version || '' }}
+        run: |
+          if ($env:TAURI_TARGET -ne "x86_64-pc-windows-msvc") {
+            throw "Phase 1 Windows packaging only supports x86_64-pc-windows-msvc because the bundled native Node modules do not provide Windows ARM64 binaries."
+          }
+          $bundleTypes = @($env:TAURI_BUNDLES -split '[,\s]+' | Where-Object { $_ })
+          if ($bundleTypes -notcontains "nsis") {
+            throw "Phase 1 Windows packaging requires an NSIS bundle; got '$env:TAURI_BUNDLES'."
+          }
+
+          $version = $env:REQUESTED_NODE_RUNTIME_VERSION.Trim()
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = (Get-Content ".nvmrc" -Raw).Trim()
+          }
+          if (-not $version.StartsWith("v")) {
+            $version = "v$version"
+          }
+          if ($version -notmatch '^v22\.\d+\.\d+$') {
+            throw "Phase 1 requires an exact Node.js 22.x.y bundled runtime so native modules match the build runtime; got $version."
+          }
+          "INTERNSHANNON_NODE_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
           run_install: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.96.1
         with:
           targets: ${{ env.TAURI_TARGET }}
+
+      - name: Verify pinned build toolchain
+        run: |
+          $expectedNode = "v$((Get-Content '.nvmrc' -Raw).Trim().TrimStart('v'))"
+          $actualNode = (node --version).Trim()
+          if ($actualNode -ne $expectedNode) {
+            throw "Expected Node.js $expectedNode, got $actualNode."
+          }
+
+          $packageManager = (Get-Content "package.json" -Raw | ConvertFrom-Json).packageManager
+          $expectedPnpm = $packageManager.Substring($packageManager.LastIndexOf("@") + 1)
+          $actualPnpm = (pnpm --version).Trim()
+          if ($actualPnpm -ne $expectedPnpm) {
+            throw "Expected pnpm $expectedPnpm, got $actualPnpm."
+          }
+
+          $rustToolchain = Get-Content "apps/desktop/src-tauri/rust-toolchain.toml" -Raw
+          $expectedRust = [regex]::Match($rustToolchain, 'channel\s*=\s*"([^"]+)"').Groups[1].Value
+          $actualRust = ((rustc --version).Trim() -split '\s+')[1]
+          if ($actualRust -ne $expectedRust) {
+            throw "Expected Rust $expectedRust, got $actualRust."
+          }
+
+          cargo metadata `
+            --manifest-path "apps/desktop/src-tauri/Cargo.toml" `
+            --locked `
+            --no-deps `
+            --format-version 1 | Out-Null
+
+          Write-Host "Pinned toolchain OK: Node.js $actualNode, pnpm $actualPnpm, Rust $actualRust"
 
       - name: Cache Rust build output
         uses: Swatinem/rust-cache@v2
@@ -99,10 +157,30 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Verify desktop packaging scripts
-        run: pnpm --filter @internshannon/desktop run doctor:test
+        run: |
+          $tests = @(Get-ChildItem "apps/desktop/scripts" -Filter "*.spec.mjs" -File | ForEach-Object { $_.FullName })
+          if ($tests.Count -eq 0) {
+            throw "No desktop packaging script tests were found."
+          }
+          node --test @tests
+
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "apps/desktop/scripts/smoke-windows-installer.ps1").Path,
+            [ref]$tokens,
+            [ref]$parseErrors
+          ) | Out-Null
+          if ($parseErrors.Count -gt 0) {
+            $parseErrors | ForEach-Object { Write-Error $_.Message }
+            throw "Windows installer smoke script failed PowerShell syntax validation."
+          }
 
       - name: Build Windows installer
         run: |
+          # The repository Cargo config carries a macOS-only libc++ workaround.
+          # An explicit empty value prevents Cargo from applying it to MSVC.
+          $env:CXXFLAGS = ""
           $extraArgs = @()
           if ($env:SKIP_SMOKE -eq "true") {
             $extraArgs += "--skip-smoke"
@@ -149,12 +227,22 @@ jobs:
           } | Set-Content "$artifactDir/bundle-tree.txt"
           Get-ChildItem $artifactDir | Format-Table Name, Length
 
+      - name: Smoke test installed Windows application
+        if: ${{ env.SKIP_INSTALL_SMOKE != 'true' }}
+        run: |
+          $installers = @(Get-ChildItem "artifacts/desktop-windows" -Filter "*-setup.exe" -File)
+          if ($installers.Count -ne 1) {
+            throw "Expected exactly one NSIS setup executable, found $($installers.Count)."
+          }
+          & "apps/desktop/scripts/smoke-windows-installer.ps1" -Installer $installers[0].FullName
+
       - name: Upload Windows package artifact
+        if: ${{ always() && !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: desktop-windows-${{ env.TAURI_TARGET }}
           path: artifacts/desktop-windows/*
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload draft release assets

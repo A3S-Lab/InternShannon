@@ -11,25 +11,35 @@ import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP_DIR = path.resolve(SCRIPT_DIR, '..');
+const REPO_ROOT = path.resolve(DESKTOP_DIR, '..', '..');
 const CACHE_DIR = path.join(DESKTOP_DIR, '.cache', 'node-runtime');
 const NODE_RESOURCE_DIR = path.join(DESKTOP_DIR, 'src-tauri', 'resources', 'node');
+const DEFAULT_NODE_VERSION = `v${fs
+    .readFileSync(path.join(REPO_ROOT, '.nvmrc'), 'utf8')
+    .trim()
+    .replace(/^v/, '')}`;
 const DEFAULT_NODE_MAJOR = '22';
 const DEFAULT_NODE_DIST_BASE_URL = 'https://nodejs.org/dist';
 
 function usage() {
-    console.log(`Usage: node scripts/stage-node-runtime.mjs [--clean] [--version <v22.x.x>] [--platform <darwin|linux|win>] [--arch <x64|arm64>]
+    console.log(`Usage: node scripts/stage-node-runtime.mjs [--clean] [--version <v22.x.x>] [--major <22>] [--platform <darwin|linux|win>] [--arch <x64|arm64>]
 
 Downloads and stages an official Node.js runtime into src-tauri/resources/node
 so Tauri can bundle it into the desktop app. Downloaded archives are cached in
 apps/desktop/.cache/node-runtime.
+
+The default runtime is pinned to ${DEFAULT_NODE_VERSION}. Use --major only when
+you intentionally want to resolve the latest release in a Node.js major line.
 `);
 }
 
 function parseArgs(argv) {
+    const configuredVersion = process.env.INTERNSHANNON_NODE_VERSION;
+    const configuredMajor = process.env.INTERNSHANNON_NODE_MAJOR;
     const args = {
         clean: false,
-        version: process.env.INTERNSHANNON_NODE_VERSION,
-        major: process.env.INTERNSHANNON_NODE_MAJOR ?? DEFAULT_NODE_MAJOR,
+        version: configuredVersion || (configuredMajor ? undefined : DEFAULT_NODE_VERSION),
+        major: configuredMajor ?? DEFAULT_NODE_MAJOR,
         platform: process.env.INTERNSHANNON_NODE_PLATFORM,
         arch: process.env.INTERNSHANNON_NODE_ARCH,
     };
@@ -43,6 +53,7 @@ function parseArgs(argv) {
             index += 1;
         } else if (token === '--major') {
             args.major = argv[index + 1];
+            args.version = undefined;
             index += 1;
         } else if (token === '--platform') {
             args.platform = argv[index + 1];

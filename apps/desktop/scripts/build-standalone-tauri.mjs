@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP_DIR = path.resolve(SCRIPT_DIR, '..');
 const REPO_ROOT = path.resolve(DESKTOP_DIR, '..', '..');
-const API_ENTRYPOINT = path.join(REPO_ROOT, 'apps', 'api', 'dist', 'main.js');
+const SIDECAR_ENTRYPOINT = path.join(REPO_ROOT, 'apps', 'sidecar', 'dist', 'main.js');
 const TAURI_CONFIG_PATH = path.join(DESKTOP_DIR, 'src-tauri', 'tauri.conf.json');
 
 function usage() {
@@ -241,7 +241,7 @@ function resetSourceNodeRuntime() {
 }
 
 function resetSourceSidecarToDistOnly() {
-    if (!fs.existsSync(API_ENTRYPOINT)) {
+    if (!fs.existsSync(SIDECAR_ENTRYPOINT)) {
         console.warn(
             'build-standalone-tauri: skipping dist-only sidecar reset because apps/sidecar/dist/main.js is missing.',
         );

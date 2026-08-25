@@ -6,6 +6,7 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_RESOURCES_DIR = 'src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources';
 const DEFAULT_TIMEOUT_MS = 45_000;
@@ -78,6 +79,17 @@ function findSidecarDir(startDir) {
     }
 
     throw new Error(`Could not find sidecar main.js under ${resolved}. Build a standalone desktop app first.`);
+}
+
+function findResourcesDir(startDir, sidecarDir) {
+    const resolved = path.resolve(startDir);
+    if (sidecarDir === path.join(resolved, 'sidecar')) {
+        return resolved;
+    }
+    if (sidecarDir === resolved && path.basename(resolved) === 'sidecar') {
+        return path.dirname(resolved);
+    }
+    return resolved;
 }
 
 function findBundledNode(startDir) {
@@ -214,11 +226,20 @@ function terminateChild(child) {
     });
 }
 
-function copyToIsolatedDir(sidecarDir) {
+function copyToIsolatedDir(resourcesDir, sidecarDir) {
     const isolatedRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'internshannon-sidecar-smoke.'));
-    const isolatedSidecarDir = path.join(isolatedRoot, 'sidecar');
-    fs.cpSync(sidecarDir, isolatedSidecarDir, { recursive: true, verbatimSymlinks: true });
-    return { isolatedRoot, isolatedSidecarDir };
+    const isolatedResourcesDir = path.join(isolatedRoot, 'resources');
+    const sidecarRelativePath = path.relative(resourcesDir, sidecarDir);
+    if (sidecarRelativePath.startsWith('..') || path.isAbsolute(sidecarRelativePath)) {
+        fs.rmSync(isolatedRoot, { recursive: true, force: true });
+        throw new Error(`Sidecar directory ${sidecarDir} is outside resources directory ${resourcesDir}.`);
+    }
+    fs.cpSync(resourcesDir, isolatedResourcesDir, { recursive: true, verbatimSymlinks: true });
+    return {
+        isolatedRoot,
+        isolatedResourcesDir,
+        isolatedSidecarDir: path.join(isolatedResourcesDir, sidecarRelativePath),
+    };
 }
 
 async function main() {
@@ -229,11 +250,12 @@ async function main() {
     }
 
     const sourceSidecarDir = findSidecarDir(args.dir);
+    const sourceResourcesDir = findResourcesDir(args.dir, sourceSidecarDir);
     const port = args.port ?? (await getFreePort());
     let isolatedRoot = null;
     const sidecarDir = args.isolate
         ? (() => {
-              const isolated = copyToIsolatedDir(sourceSidecarDir);
+              const isolated = copyToIsolatedDir(sourceResourcesDir, sourceSidecarDir);
               isolatedRoot = isolated.isolatedRoot;
               return isolated.isolatedSidecarDir;
           })()
@@ -244,7 +266,10 @@ async function main() {
 
     try {
         dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'internshannon-sidecar-data.'));
-        const nodeExecutable = findBundledNode(sidecarDir) ?? process.execPath;
+        const nodeExecutable = findBundledNode(sidecarDir);
+        if (!nodeExecutable) {
+            throw new Error(`Bundled Node.js runtime not found next to standalone sidecar: ${sidecarDir}`);
+        }
         child = spawn(nodeExecutable, [path.join(sidecarDir, 'main.js')], {
             cwd: sidecarDir,
             env: {
@@ -281,7 +306,11 @@ async function main() {
     }
 }
 
-main().catch(error => {
-    console.error(`smoke-standalone-sidecar: ${error.message}`);
-    process.exit(1);
-});
+export { copyToIsolatedDir, findBundledNode, findResourcesDir, findSidecarDir };
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    main().catch(error => {
+        console.error(`smoke-standalone-sidecar: ${error.message}`);
+        process.exit(1);
+    });
+}

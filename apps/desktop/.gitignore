@@ -56,7 +56,6 @@ src-tauri/resources/box/lib/
 src-tauri/resources/box/manifest.json
 
 # Rust build artifacts
-Cargo.lock
 *.rs.bk
 
 # IDE
