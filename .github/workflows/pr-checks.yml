@@ -14,8 +14,12 @@ concurrency:
 jobs:
   knowledge-and-web:
     name: Knowledge sidecar and desktop web
-    runs-on: ubuntu-24.04
+    runs-on: windows-2025
     timeout-minutes: 30
+
+    defaults:
+      run:
+        shell: pwsh
 
     steps:
       - name: Checkout
@@ -29,12 +33,35 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.18.0
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
+      - name: Restore controlled Windows A3S
+        run: |
+          $assetName = "a3s-lab-code-6.6.1-knowledge-complete.3-win32-x64.tgz"
+          $assetDirectory = Join-Path $env:RUNNER_TEMP "controlled-a3s"
+          $assetPath = Join-Path $assetDirectory $assetName
+          New-Item -ItemType Directory -Force -Path $assetDirectory | Out-Null
+
+          Invoke-WebRequest `
+            -Uri "https://github.com/CharlieZiChen/InternShannon/releases/download/shuxiaoan-0.2.3-rc-f445e2fc/$assetName" `
+            -OutFile $assetPath
+
+          $expected = "18ca8253e1711b2abc4d850250e2210a928916c18b9d73637554e0abe9e68187"
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $assetPath).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "受控 A3S SHA-256 不匹配：expected=$expected actual=$actual"
+          }
+
+          node packaging/rc/scripts/restore-controlled-a3s.mjs --target win32-x64 --asset-dir $assetDirectory
+          node packaging/rc/scripts/stage-controlled-a3s-dependency.mjs --target win32-x64
+
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Verify controlled Windows A3S
+        run: node packaging/rc/scripts/verify-controlled-a3s-install.mjs --target win32-x64
 
       - name: Check sidecar DDD boundaries
         run: pnpm --filter @internshannon/sidecar run ddd:check
@@ -43,14 +70,14 @@ jobs:
         run: pnpm --filter @internshannon/sidecar run compact:architecture-check
 
       - name: Test knowledge and OKF workflows
-        run: |
-          pnpm --filter @internshannon/sidecar exec jest --runInBand \
-            src/modules/assets/domain/knowledge/open-knowledge-format.spec.ts \
-            src/modules/assets/application/knowledge-ingestion.service.spec.ts \
-            src/modules/assets/application/knowledge-query.service.spec.ts \
-            src/modules/assets/application/knowledge-operations.service.spec.ts \
-            src/modules/assets/application/knowledge-okf.service.spec.ts \
-            src/modules/assets/presentation/controllers/desktop-assets.controller.spec.ts
+        run: >
+          pnpm --filter @internshannon/sidecar exec jest --runInBand
+          src/modules/assets/domain/knowledge/open-knowledge-format.spec.ts
+          src/modules/assets/application/knowledge-ingestion.service.spec.ts
+          src/modules/assets/application/knowledge-query.service.spec.ts
+          src/modules/assets/application/knowledge-operations.service.spec.ts
+          src/modules/assets/application/knowledge-okf.service.spec.ts
+          src/modules/assets/presentation/controllers/desktop-assets.controller.spec.ts
 
       - name: Build sidecar
         run: pnpm --filter @internshannon/sidecar build

@@ -1,7 +1,7 @@
 {
 	"schemaVersion": 1,
-	"repository": "CharlieZiChen/InternShannon-RC-Private",
-	"releaseTag": "rc-inputs-0.2.3-kc3",
+	"repository": "CharlieZiChen/InternShannon",
+	"releaseTag": "shuxiaoan-0.2.3-rc-f445e2fc",
 	"application": {
 		"name": "书小安",
 		"version": "0.2.3",
@@ -32,7 +32,9 @@
 			"darwin-arm64": {
 				"status": "verified",
 				"asset": "a3s-lab-code-6.6.1-knowledge-complete.3-darwin-arm64.tgz",
+				"assetUrl": "https://github.com/CharlieZiChen/InternShannon/releases/download/shuxiaoan-0.2.3-rc-f445e2fc/a3s-lab-code-6.6.1-knowledge-complete.3-darwin-arm64.tgz",
 				"destination": "vendor/a3s/darwin-arm64/a3s-lab-code-6.6.1-knowledge-complete.3.tgz",
+				"bytes": 19860270,
 				"sha256": "1119c3649a6b3308acc9b692f14aedcc77ecc4db76d7c3f28aadd5d25eca29eb",
 				"nativeBinary": "index.darwin-arm64.node",
 				"nativeBinarySha256": "2e797e935b18c11c586fbbba6a59f6dc6b3aa77094a311b32b95dd4b53292fec"
@@ -40,7 +42,7 @@
 			"win32-x64": {
 				"status": "verified",
 				"asset": "a3s-lab-code-6.6.1-knowledge-complete.3-win32-x64.tgz",
-				"assetUrl": "https://github.com/CharlieZiChen/InternShannon-RC-Private/releases/download/rc-inputs-0.2.3-kc3/a3s-lab-code-6.6.1-knowledge-complete.3-win32-x64.tgz",
+				"assetUrl": "https://github.com/CharlieZiChen/InternShannon/releases/download/shuxiaoan-0.2.3-rc-f445e2fc/a3s-lab-code-6.6.1-knowledge-complete.3-win32-x64.tgz",
 				"checksumAsset": "a3s-lab-code-6.6.1-knowledge-complete.3-win32-x64.tgz.sha256",
 				"destination": "vendor/a3s/win32-x64/a3s-lab-code-6.6.1-knowledge-complete.3.tgz",
 				"bytes": 20510255,
