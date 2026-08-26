@@ -105,12 +105,24 @@ function checkSdkHistoryContract() {
     const historyGuard = method.search(
         /if\s*\(\s*input\.activeSession\.session\.history\(\)\.length\s*>\s*0\s*\)\s*return\s*\[\s*\]\s*;/,
     );
-    const persistedHistoryRead = method.indexOf("this.conversationLog.listRuntimeHistory");
+    const directPersistedHistoryRead = method.indexOf("this.conversationLog.listRuntimeHistory");
+    const delegatedPersistedHistoryRead = method.indexOf("this.resolvePersistedRuntimeHistory");
+    const persistedHistoryRead = [directPersistedHistoryRead, delegatedPersistedHistoryRead]
+        .filter((index) => index >= 0)
+        .sort((left, right) => left - right)[0] ?? -1;
     if (historyGuard < 0) {
         violations.push(`${relative}: restored SDK history must suppress persisted transcript bootstrap`);
     }
     if (persistedHistoryRead < 0 || (historyGuard >= 0 && persistedHistoryRead < historyGuard)) {
         violations.push(`${relative}: persisted transcript may only be read after the SDK history guard`);
+    }
+    if (delegatedPersistedHistoryRead >= 0) {
+        const helperStart = source.indexOf("private async resolvePersistedRuntimeHistory");
+        const helperEnd = helperStart < 0 ? -1 : source.indexOf("\n    private ", helperStart + 1);
+        const helper = helperStart >= 0 && helperEnd >= 0 ? source.slice(helperStart, helperEnd) : "";
+        if (!helper.includes("this.conversationLog.listRuntimeHistory")) {
+            violations.push(`${relative}: persisted history delegate must read through conversationLog`);
+        }
     }
 }
 
