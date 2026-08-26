@@ -70,18 +70,21 @@ export function IntegratedTerminal({
       write("\x1b[2J\x1b[H");
     }
     const nextLogs = activeSession.logs.slice(writtenCountRef.current);
-    nextLogs.forEach((line) => write(`${line}\r\n`));
+    nextLogs.forEach((line) => {
+      write(`${line}\r\n`);
+    });
     writtenCountRef.current = activeSession.logs.length;
   }, [activeSession, ready, write]);
 
   useEffect(() => {
+    void activeSessionId;
     if (ready) focus();
   }, [focus, ready, activeSessionId]);
 
   return (
     <section
       className={cn(
-        "dark flex h-full min-h-0 flex-col bg-background text-foreground",
+        "flex h-full min-h-0 flex-col bg-background text-foreground",
         className
       )}
       aria-label="集成终端"

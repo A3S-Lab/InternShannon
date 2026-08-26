@@ -1,15 +1,16 @@
-import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
-import { ASSET_SERVICE, type IAssetService } from '@/modules/assets/domain/services/asset.service.interface';
-import type { ApiModule, ApiOperation } from '../domain/services/api-explorer.interface';
-import { IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
+import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
+import { ASSET_SERVICE, type IAssetService } from "@/modules/assets/domain/services/asset.service.interface";
+import type { ApiModule, ApiOperation } from "../domain/services/api-explorer.interface";
+import { IKernelService, KERNEL_SERVICE } from "../domain/services/kernel-service.interface";
 import {
     KNOWLEDGE_QUERY_PORT,
     type KnowledgeQueryPort,
     type KnowledgeQueryScope,
-} from '../domain/services/knowledge-query.port';
-import { LockedAgentSessionStore } from './agents/locked-agent-session.store';
+    type KnowledgeStructuredQueryRequest,
+} from "../domain/services/knowledge-query.port";
+import { LockedAgentSessionStore } from "./agents/locked-agent-session.store";
 
-export type CapabilityAction = 'list' | 'describe' | 'search' | 'execute';
+export type CapabilityAction = "list" | "describe" | "search" | "execute";
 
 export interface CapabilityRequest {
     action?: CapabilityAction;
@@ -32,97 +33,157 @@ export type CapabilityResult =
     | null;
 
 export interface CapabilitiesTool {
-    name: 'capabilities';
-    description: 'Discover OS APIs and search/read the user-visible OKF knowledge bases';
+    name: "capabilities";
+    description: "Discover OS APIs and search/read the user-visible OKF knowledge bases";
     input_schema: {
-        type: 'object';
+        type: "object";
         properties: {
             action: {
-                type: 'string';
-                enum: ['list', 'search', 'describe', 'execute'];
+                type: "string";
+                enum: ["list", "search", "describe", "execute"];
                 description: string;
             };
             module?: {
-                type: 'string';
+                type: "string";
                 description: string;
             };
             query?: {
-                type: 'string';
+                type: "string";
                 description: string;
             };
             operation?: {
-                type: 'string';
+                type: "string";
                 description: string;
             };
             params?: {
-                type: 'object';
+                type: "object";
                 description: string;
             };
             sessionId?: {
-                type: 'string';
+                type: "string";
                 description: string;
             };
         };
-        required: ['action'];
+        required: ["action"];
     };
 }
 
 const A3S_CODE_AGENT_SCAFFOLD_TEMPLATES = new Set([
-    'a3s-code-basic-agent',
-    'a3s-code-tool-agent',
-    'a3s-code-python-basic-agent',
-    'a3s-code-python-tool-agent',
+    "a3s-code-basic-agent",
+    "a3s-code-tool-agent",
+    "a3s-code-python-basic-agent",
+    "a3s-code-python-tool-agent",
 ]);
 
 const KNOWLEDGE_OPERATIONS: ApiOperation[] = [
     {
-        name: 'search',
-        operationId: 'knowledge.search',
-        description: 'Search OKF concepts and indexed source chunks in personal, docs, or global knowledge and return cited snippets',
-        method: 'GET',
-        path: 'virtual://knowledge/search',
-        action: 'get',
+        name: "search",
+        operationId: "knowledge.search",
+        description:
+            "Search OKF concepts and indexed source chunks in personal, docs, or global knowledge and return cited snippets",
+        method: "GET",
+        path: "virtual://knowledge/search",
+        action: "get",
         parameters: [
-            { name: 'scope', type: 'string', required: true, description: 'personal, docs, or global' },
-            { name: 'query', type: 'string', required: true, description: 'Knowledge search query' },
-            { name: 'limit', type: 'number', required: false, description: 'Maximum hits, 1-50' },
+            { name: "scope", type: "string", required: true, description: "personal, docs, or global" },
+            { name: "query", type: "string", required: true, description: "Knowledge search query" },
+            { name: "limit", type: "number", required: false, description: "Maximum hits, 1-50" },
+            {
+                name: "includeTableCatalog",
+                type: "boolean",
+                required: false,
+                description: "Include a bounded table catalog for system-side grounding planning",
+            },
+            {
+                name: "searchCursor",
+                type: "string",
+                required: false,
+                description: "Opaque cursor returned by the previous knowledge search page",
+            },
+            {
+                name: "catalogCursor",
+                type: "string",
+                required: false,
+                description: "Opaque cursor returned by the previous table catalog page",
+            },
         ],
     },
     {
-        name: 'read',
-        operationId: 'knowledge.read',
-        description: 'Read one OKF concept or indexed source chunk after search, preserving content, resource, and citations',
-        method: 'GET',
-        path: 'virtual://knowledge/read',
-        action: 'get',
+        name: "query",
+        operationId: "knowledge.query",
+        description:
+            "Run a bounded, revision-aware CSV filter/aggregate or schema-declared equi-join without executing arbitrary SQL",
+        method: "GET",
+        path: "virtual://knowledge/query",
+        action: "get",
         parameters: [
-            { name: 'scope', type: 'string', required: true, description: 'personal, docs, or global' },
-            { name: 'path', type: 'string', required: true, description: 'Concept id or path returned by search' },
-            { name: 'assetId', type: 'string', required: false, description: 'Required for a global hit when ambiguous' },
+            { name: "scope", type: "string", required: true, description: "personal, docs, or global" },
+            { name: "from", type: "string", required: true, description: "A public raw/sources/*.csv path" },
+            { name: "filters", type: "array", required: false, description: "Bounded column filter DSL" },
+            { name: "aggregates", type: "array", required: false, description: "count/sum/min/max definitions" },
+            { name: "joins", type: "array", required: false, description: "schema.md-declared equi-joins only" },
+            { name: "expectedRevision", type: "string", required: false, description: "Reject mixed-revision queries" },
         ],
     },
     {
-        name: 'list',
-        operationId: 'knowledge.list',
-        description: 'List one OKF bundle directory for progressive disclosure',
-        method: 'GET',
-        path: 'virtual://knowledge/list',
-        action: 'list',
+        name: "read",
+        operationId: "knowledge.read",
+        description:
+            "Read one OKF concept or indexed source chunk after search, preserving content, resource, and citations",
+        method: "GET",
+        path: "virtual://knowledge/read",
+        action: "get",
+        parameters: [
+            { name: "scope", type: "string", required: true, description: "personal, docs, or global" },
+            { name: "path", type: "string", required: true, description: "Concept id or path returned by search" },
+            {
+                name: "assetId",
+                type: "string",
+                required: false,
+                description: "Required for a global hit when ambiguous",
+            },
+            {
+                name: "identifiers",
+                type: "array",
+                required: false,
+                description: "Exact record identifiers to locate across a tabular source before chunking",
+            },
+            {
+                name: "filters",
+                type: "array",
+                required: false,
+                description: "Revision-pinned exact column filters for relation records",
+            },
+            {
+                name: "expectedRevision",
+                type: "string",
+                required: false,
+                description: "Index revision returned by search; rejects mixed-revision reads",
+            },
+        ],
     },
     {
-        name: 'tags',
-        operationId: 'knowledge.tags',
-        description: 'List OKF tags and concept counts',
-        method: 'GET',
-        path: 'virtual://knowledge/tags',
-        action: 'list',
+        name: "list",
+        operationId: "knowledge.list",
+        description: "List one OKF bundle directory for progressive disclosure",
+        method: "GET",
+        path: "virtual://knowledge/list",
+        action: "list",
+    },
+    {
+        name: "tags",
+        operationId: "knowledge.tags",
+        description: "List OKF tags and concept counts",
+        method: "GET",
+        path: "virtual://knowledge/tags",
+        action: "list",
     },
 ];
 
 const KNOWLEDGE_MODULE: ApiModule = {
-    name: 'knowledge',
-    description: 'Read-only OKF and indexed-source search, reading, and progressive traversal',
-    path: 'virtual://knowledge',
+    name: "knowledge",
+    description: "Read-only OKF and indexed-source search, reading, and progressive traversal",
+    path: "virtual://knowledge",
     operations: KNOWLEDGE_OPERATIONS,
 };
 
@@ -143,23 +204,23 @@ export class CapabilitiesToolService {
 
     toolDefinition(): CapabilitiesTool {
         return {
-            name: 'capabilities',
-            description: 'Discover OS APIs and search/read the user-visible OKF knowledge bases',
+            name: "capabilities",
+            description: "Discover OS APIs and search/read the user-visible OKF knowledge bases",
             input_schema: {
-                type: 'object',
+                type: "object",
                 properties: {
                     action: {
-                        type: 'string',
-                        enum: ['list', 'search', 'describe', 'execute'],
-                        description: 'Action to perform',
+                        type: "string",
+                        enum: ["list", "search", "describe", "execute"],
+                        description: "Action to perform",
                     },
-                    module: { type: 'string', description: 'Module name (used by describe and execute)' },
-                    query: { type: 'string', description: 'Search keywords (used by search)' },
-                    operation: { type: 'string', description: 'Operation name (used by execute)' },
-                    params: { type: 'object', description: 'Operation parameters (used by execute)' },
-                    sessionId: { type: 'string', description: 'Kernel session id for agent policy enforcement' },
+                    module: { type: "string", description: "Module name (used by describe and execute)" },
+                    query: { type: "string", description: "Search keywords (used by search)" },
+                    operation: { type: "string", description: "Operation name (used by execute)" },
+                    params: { type: "object", description: "Operation parameters (used by execute)" },
+                    sessionId: { type: "string", description: "Kernel session id for agent policy enforcement" },
                 },
-                required: ['action'],
+                required: ["action"],
             },
         };
     }
@@ -169,38 +230,38 @@ export class CapabilitiesToolService {
      * Throws on invalid input so the caller can map to the appropriate transport error.
      */
     async dispatch(input: CapabilityRequest, userId: string): Promise<CapabilityResult> {
-        const action: CapabilityAction = input.action || 'list';
+        const action: CapabilityAction = input.action || "list";
 
         switch (action) {
-            case 'list':
+            case "list":
                 return this.withKnowledgeModule(await this.kernelService.listModules(userId));
 
-            case 'describe': {
+            case "describe": {
                 const moduleName = input.module ?? input.query;
                 if (!moduleName) {
-                    throw new Error('module parameter is required for describe action');
+                    throw new Error("module parameter is required for describe action");
                 }
                 if (this.isKnowledgeModule(moduleName)) return KNOWLEDGE_MODULE;
                 return this.kernelService.getModule(moduleName, userId);
             }
 
-            case 'search':
+            case "search":
                 if (!input.query) {
-                    throw new Error('query parameter is required for search action');
+                    throw new Error("query parameter is required for search action");
                 }
                 return this.withKnowledgeOperations(
                     await this.kernelService.searchOperations(input.query, userId),
                     input.query,
                 );
 
-            case 'execute': {
+            case "execute": {
                 const moduleName = input.module ?? input.query;
                 const operationName = input.operation;
                 if (!moduleName) {
-                    throw new Error('module parameter is required for execute action');
+                    throw new Error("module parameter is required for execute action");
                 }
                 if (!operationName) {
-                    throw new Error('operation parameter is required for execute action');
+                    throw new Error("operation parameter is required for execute action");
                 }
                 if (this.isKnowledgeModule(moduleName)) {
                     return this.dispatchKnowledgeOperation(operationName, input.params ?? {}, userId);
@@ -228,22 +289,22 @@ export class CapabilitiesToolService {
     }
 
     private withKnowledgeModule(modules: ApiModule[]): ApiModule[] {
-        return this.knowledgeQuery && !modules.some(module => this.isKnowledgeModule(module.name))
+        return this.knowledgeQuery && !modules.some((module) => this.isKnowledgeModule(module.name))
             ? [...modules, KNOWLEDGE_MODULE]
             : modules;
     }
 
     private withKnowledgeOperations(operations: ApiOperation[], query: string): ApiOperation[] {
         if (!this.knowledgeQuery || !/(knowledge|okf|知识|wiki|笔记|文档)/i.test(query)) return operations;
-        const existing = new Set(operations.map(operation => operation.operationId || operation.name));
+        const existing = new Set(operations.map((operation) => operation.operationId || operation.name));
         return [
             ...operations,
-            ...KNOWLEDGE_OPERATIONS.filter(operation => !existing.has(operation.operationId || operation.name)),
+            ...KNOWLEDGE_OPERATIONS.filter((operation) => !existing.has(operation.operationId || operation.name)),
         ];
     }
 
     private isKnowledgeModule(value: string): boolean {
-        return value.trim().toLowerCase() === 'knowledge';
+        return value.trim().toLowerCase() === "knowledge";
     }
 
     private async dispatchKnowledgeOperation(
@@ -251,34 +312,54 @@ export class CapabilitiesToolService {
         params: Record<string, unknown>,
         userId: string,
     ): Promise<CapabilityResult> {
-        if (!this.knowledgeQuery) throw new BadRequestException('知识库查询服务不可用');
+        if (!this.knowledgeQuery) throw new BadRequestException("知识库查询服务不可用");
         const scope = this.knowledgeScope(params.scope);
         const assetId = this.stringValue(params.assetId) || undefined;
-        switch (operation.trim().toLowerCase().replace(/^knowledge\./, '')) {
-            case 'search':
+        switch (
+            operation
+                .trim()
+                .toLowerCase()
+                .replace(/^knowledge\./, "")
+        ) {
+            case "search":
                 return (await this.knowledgeQuery.searchScope(
                     scope,
                     userId,
-                    this.stringValue(params.query) || this.stringValue(params.q) || '',
+                    this.stringValue(params.query) || this.stringValue(params.q) || "",
                     this.numberValue(params.limit, 8),
+                    params.includeTableCatalog === true,
+                    {
+                        searchCursor: this.stringValue(params.searchCursor) || undefined,
+                        catalogCursor: this.stringValue(params.catalogCursor) || undefined,
+                    },
                 )) as unknown as Record<string, unknown>;
-            case 'read':
-            case 'read_concept':
+            case "read":
+            case "read_concept":
                 return (await this.knowledgeQuery.readScopedConcept(
                     scope,
                     userId,
-                    this.stringValue(params.path) || this.stringValue(params.conceptId) || '',
+                    this.stringValue(params.path) || this.stringValue(params.conceptId) || "",
                     assetId,
+                    this.identifierValues(params.identifiers),
+                    this.stringValue(params.expectedRevision) || undefined,
+                    this.readFilters(params.filters),
                 )) as CapabilityResult;
-            case 'list':
-            case 'list_directory':
+            case "query":
+            case "structured_query":
+                return (await this.knowledgeQuery.queryStructuredScope(
+                    scope,
+                    userId,
+                    this.structuredQueryInput(params, assetId),
+                )) as CapabilityResult;
+            case "list":
+            case "list_directory":
                 return (await this.knowledgeQuery.listScopedDirectory(
                     scope,
                     userId,
-                    this.stringValue(params.path) || this.stringValue(params.directory) || '',
+                    this.stringValue(params.path) || this.stringValue(params.directory) || "",
                     assetId,
                 )) as CapabilityResult;
-            case 'tags':
+            case "tags":
                 return (await this.knowledgeQuery.listScopedTags(scope, userId, assetId)) as CapabilityResult;
             default:
                 throw new BadRequestException(`未知 knowledge operation: ${operation}`);
@@ -286,9 +367,78 @@ export class CapabilitiesToolService {
     }
 
     private knowledgeScope(value: unknown): KnowledgeQueryScope {
-        const scope = this.stringValue(value) || 'personal';
-        if (scope === 'personal' || scope === 'docs' || scope === 'global') return scope;
-        throw new BadRequestException('knowledge scope 必须是 personal、docs 或 global');
+        const scope = this.stringValue(value) || "personal";
+        if (scope === "personal" || scope === "docs" || scope === "global") return scope;
+        throw new BadRequestException("knowledge scope 必须是 personal、docs 或 global");
+    }
+
+    private identifierValues(value: unknown): string[] | undefined {
+        if (!Array.isArray(value)) return undefined;
+        const identifiers = Array.from(
+            new Set(
+                value
+                    .filter((item): item is string => typeof item === "string")
+                    .map((item) => item.trim())
+                    .filter((item) => item.length > 0 && item.length <= 160),
+            ),
+        ).slice(0, 64);
+        return identifiers.length > 0 ? identifiers : undefined;
+    }
+
+    private readFilters(
+        value: unknown,
+    ): Array<{ column: string; op: "eq" | "in"; value: string | string[] }> | undefined {
+        if (!Array.isArray(value)) return undefined;
+        const filters = value
+            .flatMap((item) => {
+                if (!item || typeof item !== "object" || Array.isArray(item)) return [];
+                const record = item as Record<string, unknown>;
+                const column = (this.stringValue(record.column) ?? "").trim();
+                if (!column || column.length > 160) return [];
+                const values = (Array.isArray(record.value) ? record.value : [record.value])
+                    .filter((entry): entry is string => typeof entry === "string")
+                    .map((entry) => entry.trim())
+                    .filter((entry) => entry.length > 0 && entry.length <= 160)
+                    .slice(0, 64);
+                if (values.length === 0) return [];
+                return [
+                    {
+                        column,
+                        op: values.length === 1 ? ("eq" as const) : ("in" as const),
+                        value: values.length === 1 ? values[0] : values,
+                    },
+                ];
+            })
+            .slice(0, 16);
+        return filters.length > 0 ? filters : undefined;
+    }
+
+    private structuredQueryInput(
+        params: Record<string, unknown>,
+        assetId: string | undefined,
+    ): KnowledgeStructuredQueryRequest {
+        const from = this.stringValue(params.from);
+        if (!from) throw new BadRequestException("knowledge.query from 参数为必填项");
+        return {
+            ...(assetId ? { assetId } : {}),
+            from,
+            ...(Array.isArray(params.select) ? { select: params.select as string[] } : {}),
+            ...(Array.isArray(params.filters)
+                ? { filters: params.filters as KnowledgeStructuredQueryRequest["filters"] }
+                : {}),
+            ...(Array.isArray(params.aggregates)
+                ? { aggregates: params.aggregates as KnowledgeStructuredQueryRequest["aggregates"] }
+                : {}),
+            ...(Array.isArray(params.joins) ? { joins: params.joins as KnowledgeStructuredQueryRequest["joins"] } : {}),
+            ...(Array.isArray(params.orderBy)
+                ? { orderBy: params.orderBy as KnowledgeStructuredQueryRequest["orderBy"] }
+                : {}),
+            ...(params.limit !== undefined ? { limit: this.numberValue(params.limit, 50) } : {}),
+            ...(this.stringValue(params.cursor) ? { cursor: this.stringValue(params.cursor) } : {}),
+            ...(this.stringValue(params.expectedRevision)
+                ? { expectedRevision: this.stringValue(params.expectedRevision) }
+                : {}),
+        };
     }
 
     private numberValue(value: unknown, fallback: number): number {
@@ -303,23 +453,23 @@ export class CapabilitiesToolService {
      */
     private normalizeAssetCreateName(input: CapabilityRequest, operation: ApiOperation): void {
         if (!this.isRootAssetCreate(operation)) return;
-        if ((input.module ?? input.query ?? '').toLowerCase() !== 'assets') return;
+        if ((input.module ?? input.query ?? "").toLowerCase() !== "assets") return;
         const params = input.params ?? {};
         const rawName = this.stringValue(params.name);
         if (!rawName || /^[a-z0-9][a-z0-9-]*$/.test(rawName)) return;
 
         const slug = rawName
             .toLowerCase()
-            .replace(/[\s_]+/g, '-')
-            .replace(/[^a-z0-9-]+/g, '')
-            .replace(/-{2,}/g, '-')
-            .replace(/^-+|-+$/g, '');
+            .replace(/[\s_]+/g, "-")
+            .replace(/[^a-z0-9-]+/g, "")
+            .replace(/-{2,}/g, "-")
+            .replace(/^-+|-+$/g, "");
         // 纯中文等 slug 化后为空/过短:按类别兜底 + 时间戳尾缀防撞名。
-        const fallback = `${this.stringValue(params.category) || 'asset'}-${Date.now().toString(36).slice(-5)}`;
+        const fallback = `${this.stringValue(params.category) || "asset"}-${Date.now().toString(36).slice(-5)}`;
         params.name = slug.length >= 3 ? slug : fallback;
 
         const profile =
-            params.catalogProfile && typeof params.catalogProfile === 'object'
+            params.catalogProfile && typeof params.catalogProfile === "object"
                 ? (params.catalogProfile as Record<string, unknown>)
                 : {};
         if (!this.stringValue(profile.displayName)) {
@@ -337,11 +487,11 @@ export class CapabilitiesToolService {
      */
     private async applyAssetAgentCategoryHint(input: CapabilityRequest, operation: ApiOperation): Promise<void> {
         if (!input.sessionId || !this.isRootAssetCreate(operation)) return;
-        const moduleName = (input.module ?? input.query ?? '').toLowerCase();
-        if (moduleName !== 'assets') return;
+        const moduleName = (input.module ?? input.query ?? "").toLowerCase();
+        if (moduleName !== "assets") return;
 
         const session = await this.kernelService.getSession(input.sessionId);
-        if (session?.agentId !== 'asset') return;
+        if (session?.agentId !== "asset") return;
 
         const hint = this.stringValue(session.metadata?.assetCategory);
         if (!hint) return;
@@ -364,18 +514,18 @@ export class CapabilitiesToolService {
 
     private async applyBuiltInAssetAgentDefaults(input: CapabilityRequest, operation: ApiOperation): Promise<void> {
         if (!input.sessionId || !this.isRootAssetCreate(operation)) return;
-        const moduleName = (input.module ?? input.query ?? '').toLowerCase();
-        if (moduleName !== 'assets') return;
+        const moduleName = (input.module ?? input.query ?? "").toLowerCase();
+        if (moduleName !== "assets") return;
 
         const session = await this.kernelService.getSession(input.sessionId);
-        if (session?.agentId !== 'asset') return;
+        if (session?.agentId !== "asset") return;
 
         const params = input.params ?? {};
-        if (params.category !== 'agent') return;
+        if (params.category !== "agent") return;
 
         const scaffoldTemplate = this.stringValue(params.scaffoldTemplate);
         if (!scaffoldTemplate) {
-            params.scaffoldTemplate = 'a3s-code-basic-agent';
+            params.scaffoldTemplate = "a3s-code-basic-agent";
             input.params = params;
             return;
         }
@@ -390,11 +540,11 @@ export class CapabilitiesToolService {
             return;
 
         const session = await this.kernelService.getSession(input.sessionId);
-        if (session?.agentId !== 'asset') return;
+        if (session?.agentId !== "asset") return;
 
         const targetAssetId = this.extractTargetAssetId(operation, input.params ?? {});
         const assetCategory = await this.resolveTargetAssetCategory(session.metadata, targetAssetId);
-        if (assetCategory !== 'agent') return;
+        if (assetCategory !== "agent") return;
 
         if (this.isRepositoryScaffoldOperation(operation)) {
             this.assertA3sCodeScaffoldTemplate(this.stringValue(input.params?.templateKey));
@@ -418,7 +568,7 @@ export class CapabilitiesToolService {
     async execute(input: CapabilityRequest, userId: string): Promise<Record<string, unknown>> {
         try {
             const result = await this.dispatch(input, userId);
-            return this.shapeToolResult(input.action || 'list', input, result);
+            return this.shapeToolResult(input.action || "list", input, result);
         } catch (error) {
             return {
                 success: false,
@@ -433,11 +583,11 @@ export class CapabilitiesToolService {
         result: CapabilityResult,
     ): Record<string, unknown> {
         switch (action) {
-            case 'list': {
+            case "list": {
                 const modules = (result as ApiModule[]) ?? [];
                 return {
                     success: true,
-                    modules: modules.map(m => ({
+                    modules: modules.map((m) => ({
                         name: m.name,
                         description: m.description,
                         path: m.path,
@@ -448,12 +598,12 @@ export class CapabilitiesToolService {
                 };
             }
 
-            case 'search': {
+            case "search": {
                 const operations = (result as ApiOperation[]) ?? [];
                 return {
                     success: true,
                     query: input.query,
-                    results: operations.map(op => ({
+                    results: operations.map((op) => ({
                         name: op.name,
                         description: op.description,
                         method: op.method,
@@ -467,7 +617,7 @@ export class CapabilitiesToolService {
                 };
             }
 
-            case 'describe': {
+            case "describe": {
                 const moduleResult = result as ApiModule | null;
                 if (!moduleResult) {
                     return {
@@ -481,7 +631,7 @@ export class CapabilitiesToolService {
                         name: moduleResult.name,
                         description: moduleResult.description,
                         path: moduleResult.path,
-                        operations: moduleResult.operations?.map(op => ({
+                        operations: moduleResult.operations?.map((op) => ({
                             name: op.name,
                             description: op.description,
                             method: op.method,
@@ -496,7 +646,7 @@ export class CapabilitiesToolService {
                             sortFields: op.sortFields,
                             relatedOperations: op.relatedOperations,
                         })),
-                        submodules: moduleResult.submodules?.map(sub => ({
+                        submodules: moduleResult.submodules?.map((sub) => ({
                             name: sub.name,
                             description: sub.description,
                             operationCount: sub.operations?.length || 0,
@@ -505,7 +655,7 @@ export class CapabilitiesToolService {
                 };
             }
 
-            case 'execute':
+            case "execute":
                 return {
                     success: true,
                     module: input.module ?? input.query,
@@ -526,7 +676,7 @@ export class CapabilitiesToolService {
 
     private findOperation(module: ApiModule | null, operationName: string): ApiOperation | null {
         if (!module) return null;
-        const direct = module.operations?.find(op => op.name === operationName || op.operationId === operationName);
+        const direct = module.operations?.find((op) => op.name === operationName || op.operationId === operationName);
         if (direct) return direct;
         for (const sub of module.submodules ?? []) {
             const nested = this.findOperation(sub, operationName);
@@ -546,7 +696,7 @@ export class CapabilitiesToolService {
         const session = await this.kernelService.getSession(input.sessionId);
         if (!session || !this.isSingleAssetAgent(session.agentId)) return;
 
-        const moduleName = (input.module ?? input.query ?? '').toLowerCase();
+        const moduleName = (input.module ?? input.query ?? "").toLowerCase();
 
         // Locked asset sessions are scoped to a single
         // digital asset. They are explicitly NOT allowed to issue writes
@@ -556,9 +706,9 @@ export class CapabilitiesToolService {
         // closes the prompt-injection abuse path where a model could be
         // coerced into publishing a package, deploying a runtime, or
         // mutating resources unrelated to the bound asset.
-        if (moduleName !== 'assets') {
+        if (moduleName !== "assets") {
             throw new BadRequestException(
-                `内置智能体（${session.agentId}）会话仅允许通过 capabilities 对 assets 模块执行写操作；当前请求目标模块为 "${moduleName || 'unknown'}"，已被拒绝。如需进行该操作，请由用户在对应界面手动触发。`,
+                `内置智能体（${session.agentId}）会话仅允许通过 capabilities 对 assets 模块执行写操作；当前请求目标模块为 "${moduleName || "unknown"}"，已被拒绝。如需进行该操作，请由用户在对应界面手动触发。`,
             );
         }
 
@@ -576,11 +726,11 @@ export class CapabilitiesToolService {
         }
 
         if (this.isAssetForkOperation(operation)) {
-            throw new BadRequestException('当前内置智能体会话只能绑定一个数字资产，不能在会话内 fork 出第二个资产。');
+            throw new BadRequestException("当前内置智能体会话只能绑定一个数字资产，不能在会话内 fork 出第二个资产。");
         }
 
         if (!targetAssetId) {
-            throw new BadRequestException('当前内置智能体会话的资产写操作必须携带目标资产 id，以便校验单资产会话锁。');
+            throw new BadRequestException("当前内置智能体会话的资产写操作必须携带目标资产 id，以便校验单资产会话锁。");
         }
 
         if (lockedAssetId && targetAssetId !== lockedAssetId) {
@@ -605,9 +755,9 @@ export class CapabilitiesToolService {
     private async assertConversationalAgentReadOnly(input: CapabilityRequest, operation: ApiOperation): Promise<void> {
         if (!input.sessionId || !this.isWriteMethod(operation)) return;
         const session = await this.kernelService.getSession(input.sessionId);
-        if (session?.agentId === 'default') {
+        if (session?.agentId === "default") {
             throw new BadRequestException(
-                'internShannon(对话助手)通过渐进式 API 仅可执行只读(查询)操作;写入 / 删除请在对应产品界面手动完成。',
+                "internShannon(对话助手)通过渐进式 API 仅可执行只读(查询)操作;写入 / 删除请在对应产品界面手动完成。",
             );
         }
     }
@@ -653,53 +803,53 @@ export class CapabilitiesToolService {
      * boundaries; tighten via deployment config if you want the strict mode.
      */
     private assertAssetProposalConfirmed(sessionId: string, agentId: string | undefined): void {
-        if (agentId !== 'asset') return;
+        if (agentId !== "asset") return;
         if (!this.lockedAgentSessions) return;
         const entry = this.lockedAgentSessions.get(sessionId);
         if (!entry?.asset) return;
         if (!entry.asset.lastProposal) {
             throw new BadRequestException(
-                '创建资产前必须先用 ```asset-proposal``` 围栏块向用户展示方案；用户回话确认后才能调用 createAsset。',
+                "创建资产前必须先用 ```asset-proposal``` 围栏块向用户展示方案；用户回话确认后才能调用 createAsset。",
             );
         }
         if (!entry.asset.proposalConfirmed) {
             throw new BadRequestException(
-                '上一份 asset-proposal 还没收到用户回话，不能调用 createAsset。请等待用户确认或修改。',
+                "上一份 asset-proposal 还没收到用户回话，不能调用 createAsset。请等待用户确认或修改。",
             );
         }
     }
 
     private isAssetWriteOperation(input: CapabilityRequest, operation: ApiOperation): boolean {
-        const moduleName = (input.module ?? input.query ?? '').toLowerCase();
-        return moduleName === 'assets' && this.isWriteMethod(operation);
+        const moduleName = (input.module ?? input.query ?? "").toLowerCase();
+        return moduleName === "assets" && this.isWriteMethod(operation);
     }
 
     private isWriteMethod(operation: ApiOperation): boolean {
-        return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(operation.method);
+        return ["POST", "PUT", "PATCH", "DELETE"].includes(operation.method);
     }
 
     private isSingleAssetAgent(agentId?: string): boolean {
-        return agentId === 'asset';
+        return agentId === "asset";
     }
 
     private isRootAssetCreate(operation: ApiOperation): boolean {
         const normalizedPath = this.normalizePath(operation.path);
-        return operation.method === 'POST' && /^\/api\/assets\/?$/.test(normalizedPath);
+        return operation.method === "POST" && /^\/api\/assets\/?$/.test(normalizedPath);
     }
 
     private isRepositoryScaffoldOperation(operation: ApiOperation): boolean {
         const normalizedPath = this.normalizePath(operation.path);
-        return operation.method === 'POST' && /\/repository\/scaffold\/?$/.test(normalizedPath);
+        return operation.method === "POST" && /\/repository\/scaffold\/?$/.test(normalizedPath);
     }
 
     private isRepositoryFilesUploadOperation(operation: ApiOperation): boolean {
         const normalizedPath = this.normalizePath(operation.path);
-        return operation.method === 'POST' && /\/repository\/files\/?$/.test(normalizedPath);
+        return operation.method === "POST" && /\/repository\/files\/?$/.test(normalizedPath);
     }
 
     private isBlobUpdateOperation(operation: ApiOperation): boolean {
         const normalizedPath = this.normalizePath(operation.path);
-        return operation.method === 'POST' && /\/blobs\/.+\/update\/?$/.test(normalizedPath);
+        return operation.method === "POST" && /\/blobs\/.+\/update\/?$/.test(normalizedPath);
     }
 
     private isAssetForkOperation(operation: ApiOperation): boolean {
@@ -707,7 +857,7 @@ export class CapabilitiesToolService {
     }
 
     private extractTargetAssetId(operation: ApiOperation, params: Record<string, unknown>): string | undefined {
-        const preferredKeys = ['assetId', 'id', ':assetId', ':id'];
+        const preferredKeys = ["assetId", "id", ":assetId", ":id"];
         for (const key of preferredKeys) {
             const value = this.stringValue(params[key]);
             if (value) return value;
@@ -715,9 +865,9 @@ export class CapabilitiesToolService {
 
         const pathParamNames =
             operation.parameters
-                ?.filter(param => param.in === 'path')
-                .map(param => param.name)
-                .filter(name => /asset|^id$/i.test(name)) ?? [];
+                ?.filter((param) => param.in === "path")
+                .map((param) => param.name)
+                .filter((name) => /asset|^id$/i.test(name)) ?? [];
         for (const name of pathParamNames) {
             const value = this.stringValue(params[name]) ?? this.stringValue(params[`:${name}`]);
             if (value) return value;
@@ -747,21 +897,21 @@ export class CapabilitiesToolService {
         const files = Array.isArray(params?.files) ? params.files : [];
         const byPath = new Map<string, string | undefined>();
         for (const item of files) {
-            if (!item || typeof item !== 'object') continue;
+            if (!item || typeof item !== "object") continue;
             const record = item as Record<string, unknown>;
             const filePath = this.normalizeRepositoryPath(this.stringValue(record.path));
             if (!filePath) continue;
             byPath.set(filePath, this.decodeBase64Text(this.stringValue(record.contentBase64)));
         }
 
-        const agentJson = byPath.get('.a3s/agent.json');
-        const agentAcl = byPath.get('.a3s/agent.acl');
-        const packageJson = byPath.get('package.json');
-        const pyproject = byPath.get('pyproject.toml');
+        const agentJson = byPath.get(".a3s/agent.json");
+        const agentAcl = byPath.get(".a3s/agent.acl");
+        const packageJson = byPath.get("package.json");
+        const pyproject = byPath.get("pyproject.toml");
 
         if (!agentJson || !agentAcl || (!packageJson && !pyproject)) {
             throw new BadRequestException(
-                '开发智能体上传智能体资产仓库时必须包含 a3s-code 结构：.a3s/agent.json、.a3s/agent.acl，以及 package.json 或 pyproject.toml。',
+                "开发智能体上传智能体资产仓库时必须包含 a3s-code 结构：.a3s/agent.json、.a3s/agent.acl，以及 package.json 或 pyproject.toml。",
             );
         }
 
@@ -772,31 +922,31 @@ export class CapabilitiesToolService {
 
     private assertCriticalAgentBlobUsesA3sCode(params: Record<string, unknown>): void {
         const filePath = this.normalizeRepositoryPath(
-            this.stringValue(params.path) ?? this.stringValue(params.filePath) ?? this.stringValue(params[':path']),
+            this.stringValue(params.path) ?? this.stringValue(params.filePath) ?? this.stringValue(params[":path"]),
         );
         if (!filePath) return;
 
         const content = this.stringValue(params.content);
         if (content == null) return;
 
-        if (filePath === '.a3s/agent.json') {
+        if (filePath === ".a3s/agent.json") {
             this.assertAgentJsonUsesA3sCode(content);
             return;
         }
 
-        if (filePath === 'package.json') {
+        if (filePath === "package.json") {
             this.assertPackageJsonUsesA3sCode(content);
             return;
         }
 
-        if (filePath === 'pyproject.toml') {
+        if (filePath === "pyproject.toml") {
             this.assertPyprojectUsesA3sCode(content);
         }
     }
 
     private assertAgentJsonUsesA3sCode(content: string): void {
-        const parsed = this.parseJsonObject(content, '.a3s/agent.json');
-        if (parsed.category !== 'agent' || parsed.framework !== 'a3s-code') {
+        const parsed = this.parseJsonObject(content, ".a3s/agent.json");
+        if (parsed.category !== "agent" || parsed.framework !== "a3s-code") {
             throw new BadRequestException(
                 '智能体资产的 .a3s/agent.json 必须声明 {"category":"agent","framework":"a3s-code"}。',
             );
@@ -804,30 +954,30 @@ export class CapabilitiesToolService {
     }
 
     private assertPackageJsonUsesA3sCode(content: string): void {
-        const parsed = this.parseJsonObject(content, 'package.json');
+        const parsed = this.parseJsonObject(content, "package.json");
         const dependencies = [
             parsed.dependencies,
             parsed.devDependencies,
             parsed.peerDependencies,
             parsed.optionalDependencies,
         ].filter(
-            (value): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value),
+            (value): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value),
         );
-        if (!dependencies.some(deps => typeof deps['@a3s-lab/code'] === 'string')) {
-            throw new BadRequestException('TypeScript 智能体资产的 package.json 必须依赖 @a3s-lab/code。');
+        if (!dependencies.some((deps) => typeof deps["@a3s-lab/code"] === "string")) {
+            throw new BadRequestException("TypeScript 智能体资产的 package.json 必须依赖 @a3s-lab/code。");
         }
     }
 
     private assertPyprojectUsesA3sCode(content: string): void {
         if (!/(^|["'\s])a3s-code([<>=~!,"\]\s]|$)/m.test(content)) {
-            throw new BadRequestException('Python 智能体资产的 pyproject.toml 必须依赖 a3s-code。');
+            throw new BadRequestException("Python 智能体资产的 pyproject.toml 必须依赖 a3s-code。");
         }
     }
 
     private parseJsonObject(content: string, label: string): Record<string, unknown> {
         try {
             const parsed = JSON.parse(content);
-            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
                 return parsed as Record<string, unknown>;
             }
         } catch {
@@ -837,14 +987,14 @@ export class CapabilitiesToolService {
     }
 
     private normalizeRepositoryPath(value?: string): string | undefined {
-        const normalized = value?.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+        const normalized = value?.trim().replace(/\\/g, "/").replace(/^\/+/, "");
         return normalized || undefined;
     }
 
     private decodeBase64Text(value?: string): string | undefined {
         if (!value) return undefined;
         try {
-            return Buffer.from(value, 'base64').toString('utf8');
+            return Buffer.from(value, "base64").toString("utf8");
         } catch {
             return undefined;
         }
@@ -852,13 +1002,13 @@ export class CapabilitiesToolService {
 
     private throwA3sCodeScaffoldRequired(): never {
         throw new BadRequestException(
-            '开发智能体创建或初始化智能体数字资产时必须使用 a3s-code 脚手架模板，例如 a3s-code-basic-agent。',
+            "开发智能体创建或初始化智能体数字资产时必须使用 a3s-code 脚手架模板，例如 a3s-code-basic-agent。",
         );
     }
 
     private extractAssetIdFromResult(result: unknown): string | undefined {
         const data = this.unwrapOperationResult(result);
-        if (!data || typeof data !== 'object' || Array.isArray(data)) return undefined;
+        if (!data || typeof data !== "object" || Array.isArray(data)) return undefined;
         const record = data as Record<string, unknown>;
         return this.stringValue(record.id) ?? this.stringValue(record.assetId);
     }
@@ -870,7 +1020,7 @@ export class CapabilitiesToolService {
         agentKind?: string;
     } {
         const data = this.unwrapOperationResult(result);
-        if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
+        if (!data || typeof data !== "object" || Array.isArray(data)) return {};
         const record = data as Record<string, unknown>;
         return {
             ...(this.stringValue(record.name) ? { name: this.stringValue(record.name) } : {}),
@@ -882,19 +1032,19 @@ export class CapabilitiesToolService {
 
     private unwrapOperationResult(result: unknown): CapabilityResult {
         if (result == null) return null;
-        if (typeof result !== 'object' || Array.isArray(result)) return result as CapabilityResult;
+        if (typeof result !== "object" || Array.isArray(result)) return result as CapabilityResult;
         const record = result as Record<string, unknown>;
-        if ('data' in record && (('code' in record && 'message' in record) || '_meta' in record)) {
+        if ("data" in record && (("code" in record && "message" in record) || "_meta" in record)) {
             return record.data as CapabilityResult;
         }
         return result as CapabilityResult;
     }
 
     private normalizePath(path: string): string {
-        return path.startsWith('/') ? path : `/${path}`;
+        return path.startsWith("/") ? path : `/${path}`;
     }
 
     private stringValue(value: unknown): string | undefined {
-        return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+        return typeof value === "string" && value.trim() ? value.trim() : undefined;
     }
 }

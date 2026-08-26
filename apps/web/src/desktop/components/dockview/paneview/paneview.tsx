@@ -40,26 +40,31 @@ export const PaneviewReact = React.forwardRef(
 		const domRef = React.useRef<HTMLDivElement>(null);
 		const paneviewRef = React.useRef<PaneviewApi | null>(null);
 		const [portals, addPortal] = usePortalsLifecycle();
+		const initialPropsRef = React.useRef(props);
+		const initialAddPortalRef = React.useRef(addPortal);
+		const { components, headerComponents, onDidDrop, showDndOverlay } = props;
 
 		React.useImperativeHandle(ref, () => domRef.current!, []);
 
 		React.useEffect(() => {
+			const initialProps = initialPropsRef.current;
+			const initialAddPortal = initialAddPortalRef.current;
 			const createComponent = (
 				id: string,
 				_componentId: string,
 				component: any,
 			) =>
 				new PanePanelSection(id, component, {
-					addPortal,
+					addPortal: initialAddPortal,
 				});
 
 			const api = createPaneview(domRef.current!, {
-				disableAutoResizing: props.disableAutoResizing,
-				frameworkComponents: props.components,
+				disableAutoResizing: initialProps.disableAutoResizing,
+				frameworkComponents: initialProps.components,
 				components: {},
 				headerComponents: {},
-				disableDnd: props.disableDnd,
-				headerframeworkComponents: props.headerComponents,
+				disableDnd: initialProps.disableDnd,
+				headerframeworkComponents: initialProps.headerComponents,
 				frameworkWrapper: {
 					header: {
 						createComponent,
@@ -68,14 +73,14 @@ export const PaneviewReact = React.forwardRef(
 						createComponent,
 					},
 				},
-				showDndOverlay: props.showDndOverlay,
+				showDndOverlay: initialProps.showDndOverlay,
 			});
 
 			const { clientWidth, clientHeight } = domRef.current!;
 			api.layout(clientWidth, clientHeight);
 
-			if (props.onReady) {
-				props.onReady({ api });
+			if (initialProps.onReady) {
+				initialProps.onReady({ api });
 			}
 
 			paneviewRef.current = api;
@@ -102,18 +107,18 @@ export const PaneviewReact = React.forwardRef(
 				return;
 			}
 			paneviewRef.current.updateOptions({
-				frameworkComponents: props.components,
+					frameworkComponents: components,
 			});
-		}, [props.components]);
+		}, [components]);
 
 		React.useEffect(() => {
 			if (!paneviewRef.current) {
 				return;
 			}
 			paneviewRef.current.updateOptions({
-				headerframeworkComponents: props.headerComponents,
+					headerframeworkComponents: headerComponents,
 			});
-		}, [props.headerComponents]);
+		}, [headerComponents]);
 
 		React.useEffect(() => {
 			if (!paneviewRef.current) {
@@ -125,8 +130,8 @@ export const PaneviewReact = React.forwardRef(
 			const api = paneviewRef.current;
 
 			const disposable = api.onDidDrop((event) => {
-				if (props.onDidDrop) {
-					props.onDidDrop({
+				if (onDidDrop) {
+					onDidDrop({
 						...event,
 						api,
 					});
@@ -136,16 +141,16 @@ export const PaneviewReact = React.forwardRef(
 			return () => {
 				disposable.dispose();
 			};
-		}, [props.onDidDrop]);
+		}, [onDidDrop]);
 
 		React.useEffect(() => {
 			if (!paneviewRef.current) {
 				return;
 			}
 			paneviewRef.current.updateOptions({
-				showDndOverlay: props.showDndOverlay,
+					showDndOverlay,
 			});
-		}, [props.showDndOverlay]);
+		}, [showDndOverlay]);
 
 		return (
 			<div

@@ -92,7 +92,7 @@ else
         echo "[install-browser] sha256 mismatch for $url" >&2
         echo "                  expected: $sha" >&2
         echo "                  actual:   $actual" >&2
-        echo "                  Upstream nightly probably moved — bump apps/sidecar/config/browser-binary.json." >&2
+        echo "                  The pinned release asset changed — review provenance before updating apps/sidecar/config/browser-binary.json." >&2
         exit 1
     fi
     mv "$tmp" "$target"

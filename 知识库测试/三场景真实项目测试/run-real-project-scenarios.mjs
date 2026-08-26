@@ -846,7 +846,7 @@ async function verifyBrowser(assetId) {
           const textButton = editor.locator("aside").filter({ hasText: "幻灯片文字" }).locator("button").first();
           await textButton.click();
           await editor.getByLabel("幻灯片文本内容").fill(`${scenario.title} ${uiMarker}`);
-          const applyText = editor.getByRole("button", { name: "应用文字" });
+          const applyText = editor.getByRole("button", { name: "应用幻灯片文字修改", exact: true });
           await waitUntil(() => applyText.isEnabled(), 5_000, `${fileName} slide draft dirty state`);
           await applyText.click();
         }

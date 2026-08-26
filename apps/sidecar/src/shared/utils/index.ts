@@ -1,4 +1,5 @@
 export * from './example';
-export * from './guard';
+export { Guard } from './guard';
+export type { GuardArgument, Result as GuardResult } from './guard';
 export * from './result';
 export * from './serializer';

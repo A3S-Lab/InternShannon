@@ -1,7 +1,7 @@
 import { useReactive } from "ahooks";
 import { AlertTriangle, Copy, Loader2, RefreshCw } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { getCurrentAppVersion } from "@/desktop/lib/app-version";
 import { getSpaRuntimeKind, invokeDesktopOptional } from "@/desktop/lib/tauri-runtime";
@@ -88,7 +88,7 @@ function buildFailureDetails(
 export function BackendStartupGuard(props: { children?: ReactNode }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const lastFocusedPhaseRef = useRef<string | null>(null);
-  const ui = useReactive<
+	const ui = useReactive<
     GuardState & {
       retryToken: number;
       appVersion: string;
@@ -100,18 +100,22 @@ export function BackendStartupGuard(props: { children?: ReactNode }) {
     retryToken: 0,
     appVersion: "",
     showDiagnostics: false,
-    embeddedGateway: null,
-  });
+		embeddedGateway: null,
+	});
+	const phase = ui.phase;
 
-  useEffect(() => {
-    if (ui.phase === "ready") {
-      lastFocusedPhaseRef.current = null;
-      return;
-    }
-    if (lastFocusedPhaseRef.current === ui.phase) return;
-    lastFocusedPhaseRef.current = ui.phase;
-    window.requestAnimationFrame(() => dialogRef.current?.focus());
-  }, [ui.phase]);
+	useEffect(() => {
+		// `phase` is the render-time trigger; the stable reactive proxy supplies the
+		// current value when the scheduled effect runs.
+		void phase;
+		if (ui.phase === "ready") {
+			lastFocusedPhaseRef.current = null;
+			return;
+		}
+		if (lastFocusedPhaseRef.current === ui.phase) return;
+		lastFocusedPhaseRef.current = ui.phase;
+		window.requestAnimationFrame(() => dialogRef.current?.focus());
+	}, [phase]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: ui is a stable ahooks reactive proxy; app version is loaded once.
   useEffect(() => {

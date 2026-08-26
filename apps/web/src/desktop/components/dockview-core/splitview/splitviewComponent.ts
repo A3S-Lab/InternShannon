@@ -396,7 +396,9 @@ export class SplitviewComponent
 
 		this.layout(width, height);
 
-		queue.forEach((f) => f());
+		queue.forEach((f) => {
+			f();
+		});
 
 		if (typeof activeView === "string") {
 			const panel = this.getPanel(activeView);

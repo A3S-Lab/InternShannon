@@ -6,8 +6,9 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { resolveDefaultDesktopResourcesDir } from './desktop-bundle-paths.mjs';
 
-const DEFAULT_RESOURCES_DIR = 'src-tauri/target/release/bundle/macos/internShannon.app/Contents/Resources';
+const DEFAULT_RESOURCES_DIR = resolveDefaultDesktopResourcesDir();
 const DEFAULT_TIMEOUT_MS = 45_000;
 const LOG_LIMIT = 8_000;
 

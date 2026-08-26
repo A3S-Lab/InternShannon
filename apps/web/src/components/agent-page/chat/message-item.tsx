@@ -1,21 +1,23 @@
 import { useReactive } from "ahooks";
 import dayjs from "dayjs";
 import { BookOpenText, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { useSnapshot } from "valtio";
 import { MemoizedMarkdown } from "@/components/memoized-markdown/MemoizedMarkdown";
+import { toast } from "@/components/ui/sonner";
 import { writeClipboardText } from "@/lib/clipboard";
 import { workspaceAssetPath } from "@/lib/constants";
+import { type KnowledgeSourceReference, parseKnowledgeAssetCitation } from "@/lib/knowledge-citation";
 import { hasTauriCore } from "@/lib/runtime-environment";
-import { parseKnowledgeAssetCitation } from "@/lib/knowledge-citation";
 import { cn } from "@/lib/utils";
 import agentRegistryModel from "@/models/agent-registry.model";
 import globalModel from "@/models/global.model";
 import { AgentAvatar } from "../agent-avatar";
-import { createInlineImageItems } from "./message-item-image-state";
+import { knowledgeSourceAnchorId, saveKnowledgeReturnAnchor } from "./knowledge-return-anchor";
 import { ToolCallBlockViewCompact as ToolCallBlockView } from "./message-blocks";
+import { createInlineImageItems } from "./message-item-image-state";
+import { groupMessageSources } from "./message-source-state";
 import type { RichBlock, RichMessage, TextBlock } from "./types";
 
 // =============================================================================
@@ -145,13 +147,7 @@ function InlineImages({ images }: { images?: { mediaType: string; data: string }
   return (
     <div className="flex flex-wrap gap-2 mt-2">
       {items.map((img) => (
-        <a
-          key={img.key}
-          href={img.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block"
-        >
+        <a key={img.key} href={img.href} target="_blank" rel="noopener noreferrer" className="block">
           <img
             src={img.src}
             alt={img.alt}
@@ -166,34 +162,6 @@ function InlineImages({ images }: { images?: { mediaType: string; data: string }
 // =============================================================================
 // File mention card for @/path/to/file mentions
 // =============================================================================
-
-/** Split text content into alternating plain-text and file-path segments */
-function splitFileMentions(text: string): Array<{ type: "text" | "file" | "citation"; value: string; key: string }> {
-  if (!text) return [];
-  const segments: Array<{ type: "text" | "file" | "citation"; value: string; key: string }> = [];
-  // Match @/absolute/path and traceable asset:// knowledge citations.
-  const re = /@(\/[^\s@]+)|(asset:\/\/[^\s)\]}>"']+)/g;
-  let last = 0;
-  let match = re.exec(text);
-  while (match !== null) {
-    if (match.index > last) {
-      segments.push({
-        type: "text",
-        value: text.slice(last, match.index),
-        key: `text:${last}:${match.index}`,
-      });
-    }
-    const value = match[1] || match[2];
-    const type = match[1] ? "file" : "citation";
-    segments.push({ type, value, key: `${type}:${match.index}:${value}` });
-    last = match.index + match[0].length;
-    match = re.exec(text);
-  }
-  if (last < text.length) {
-    segments.push({ type: "text", value: text.slice(last), key: `text:${last}:${text.length}` });
-  }
-  return segments;
-}
 
 function stableHash(value: string): string {
   let hash = 0;
@@ -560,15 +528,51 @@ function FileMentionCard({ path, isUser = false }: { path: string; isUser?: bool
   );
 }
 
-function KnowledgeCitationCard({ citation }: { citation: string }) {
+function rememberKnowledgeOrigin(
+  event: React.MouseEvent<HTMLButtonElement>,
+  sessionId: string,
+  messageId: string,
+  sourceAnchorId: string,
+) {
+  const scrollRegion = event.currentTarget.closest<HTMLElement>('[role="log"]');
+  const sourceTop = event.currentTarget.getBoundingClientRect().top;
+  const scrollerTop = scrollRegion?.getBoundingClientRect().top;
+  saveKnowledgeReturnAnchor({
+    sessionId,
+    messageId,
+    sourceAnchorId,
+    viewportOffsetPx: sourceTop,
+    scrollerOffsetPx:
+      typeof sourceTop === "number" && typeof scrollerTop === "number" ? sourceTop - scrollerTop : undefined,
+  });
+}
+
+function KnowledgeCitationCard({
+  citation,
+  sessionId,
+  messageId,
+}: {
+  citation: string;
+  sessionId: string;
+  messageId: string;
+}) {
   const navigate = useNavigate();
   const parsed = parseKnowledgeAssetCitation(citation);
-  if (!parsed) return <MemoizedMarkdown id={citation} content={citation} />;
+  if (!parsed) {
+    return <span className="text-[10px] text-muted-foreground">来源链接未验证</span>;
+  }
   const name = parsed.relativePath.split("/").pop() || parsed.relativePath;
+  const sourceAnchorId = knowledgeSourceAnchorId(messageId, citation);
   return (
     <button
       type="button"
-      onClick={() => navigate(`/knowledge?source=${encodeURIComponent(citation)}`)}
+      onClick={(event) => {
+        rememberKnowledgeOrigin(event, sessionId, messageId, sourceAnchorId);
+        navigate(`/knowledge?source=${encodeURIComponent(citation)}&open=${Date.now()}`, {
+          state: { fromChatSource: true },
+        });
+      }}
+      data-knowledge-source-anchor={sourceAnchorId}
       className="my-1 flex max-w-[24rem] items-center gap-2 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.07]"
       title={`打开知识来源：${parsed.relativePath}`}
       aria-label={`打开知识来源 ${name}`}
@@ -583,11 +587,105 @@ function KnowledgeCitationCard({ citation }: { citation: string }) {
   );
 }
 
-/** Render text that may contain @/path file mentions and knowledge citations as inline cards. */
-function TextWithFileMentions({ content, isUser = false }: { content: string; isUser?: boolean }) {
+function KnowledgeSourceCard({
+  source,
+  sessionId,
+  messageId,
+}: {
+  source: KnowledgeSourceReference;
+  sessionId: string;
+  messageId: string;
+}) {
+  const navigate = useNavigate();
+  const sourceAnchorId = knowledgeSourceAnchorId(messageId, source.resource);
+  const locatorText = source.locators.map((locator) => locator.label || locator.value).join("、");
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        rememberKnowledgeOrigin(event, sessionId, messageId, sourceAnchorId);
+        navigate(`/knowledge?source=${encodeURIComponent(source.resource)}&open=${Date.now()}`, {
+          state: { fromChatSource: true },
+        });
+      }}
+      data-knowledge-source-anchor={sourceAnchorId}
+      className="my-1 flex max-w-[24rem] items-center gap-2 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.07]"
+      title={`打开知识来源：${source.relativePath}`}
+      aria-label={`打开知识来源 ${source.title}`}
+    >
+      <BookOpenText className="size-4 shrink-0 text-primary" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium text-foreground">{source.title}</span>
+        <span className="block truncate text-[10px] text-muted-foreground">
+          {locatorText ? `记录 ID / 定位：${locatorText}` : source.relativePath}
+        </span>
+      </span>
+      <span className="shrink-0 text-[10px] font-medium text-primary">打开来源</span>
+    </button>
+  );
+}
+
+function KnowledgeSourcesPanel({
+  sources,
+  sessionId,
+  messageId,
+  focusSourceAnchorId,
+}: {
+  sources: KnowledgeSourceReference[];
+  sessionId: string;
+  messageId: string;
+  focusSourceAnchorId?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const focusedSourceIsCollapsed = Boolean(
+    focusSourceAnchorId &&
+      sources.some(
+        (source, index) => index >= 6 && knowledgeSourceAnchorId(messageId, source.resource) === focusSourceAnchorId,
+      ),
+  );
+  useEffect(() => {
+    if (focusedSourceIsCollapsed) setExpanded(true);
+  }, [focusedSourceIsCollapsed]);
+  if (sources.length === 0) return null;
+  const isExpanded = expanded || focusedSourceIsCollapsed;
+  const visible = isExpanded ? sources : sources.slice(0, 6);
+  return (
+    <div className="mt-2 border-t border-foreground/10 pt-2">
+      <div className="mb-1 flex items-center justify-between gap-2 text-[10px] font-medium text-muted-foreground">
+        <span>来源（{sources.length}）</span>
+        {sources.length > 6 && (
+          <button type="button" className="text-primary hover:underline" onClick={() => setExpanded(!isExpanded)}>
+            {isExpanded ? "收起" : "展开全部"}
+          </button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {visible.map((source) => (
+          <KnowledgeSourceCard key={source.resource} source={source} sessionId={sessionId} messageId={messageId} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Render readable prose first and collect unique knowledge-source cards at the end. */
+function TextWithFileMentions({
+  content,
+  isUser = false,
+  suppressCitationCards = false,
+  sessionId,
+  messageId,
+}: {
+  content: string;
+  isUser?: boolean;
+  suppressCitationCards?: boolean;
+  sessionId: string;
+  messageId: string;
+}) {
   const safeContent = content ?? "";
-  const segments = useMemo(() => splitFileMentions(safeContent), [safeContent]);
-  const hasFileMentions = segments.some((s) => s.type !== "text");
+  const grouped = useMemo(() => groupMessageSources(safeContent), [safeContent]);
+  const hasFileMentions =
+    grouped.citations.length > 0 || grouped.contentSegments.some((segment) => segment.type === "file");
 
   if (!hasFileMentions) {
     return <MemoizedMarkdown id={safeContent.slice(0, 32)} content={safeContent} />;
@@ -595,14 +693,27 @@ function TextWithFileMentions({ content, isUser = false }: { content: string; is
 
   return (
     <div className="space-y-1">
-      {segments.map((seg) =>
+      {grouped.contentSegments.map((seg) =>
         seg.type === "file" ? (
           <FileMentionCard key={seg.key} path={seg.value} isUser={isUser} />
-        ) : seg.type === "citation" ? (
-          <KnowledgeCitationCard key={seg.key} citation={seg.value} />
         ) : seg.value.trim() ? (
           <MemoizedMarkdown key={seg.key} id={seg.key} content={seg.value} />
         ) : null,
+      )}
+      {grouped.citations.length > 0 && !suppressCitationCards && (
+        <div className="mt-2 border-t border-foreground/10 pt-2">
+          <div className="mb-1 text-[10px] font-medium text-muted-foreground">来源</div>
+          <div className="flex flex-wrap gap-1.5">
+            {grouped.citations.map((citation) => (
+              <KnowledgeCitationCard
+                key={citation.key}
+                citation={citation.value}
+                sessionId={sessionId}
+                messageId={messageId}
+              />
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
@@ -617,16 +728,19 @@ const MessageItem = React.memo(function MessageItem({
   sessionId,
   onRetry,
   layout = "default",
+  focusSourceAnchorId,
 }: {
   msg: RichMessage;
   sessionId: string;
   onRetry?: () => void;
   layout?: "default" | "compact-left";
+  focusSourceAnchorId?: string;
 }) {
   const isUser = msg.role === "user";
   const isCompactLeft = layout === "compact-left";
   const { user } = useSnapshot(globalModel.state);
   const agent = agentRegistryModel.getSessionAgent(sessionId);
+  const hasStructuredKnowledgeSources = Boolean(msg.knowledgeSources?.length);
 
   // Extract plain text for copy
   const getPlainText = useCallback(() => {
@@ -758,13 +872,27 @@ const MessageItem = React.memo(function MessageItem({
                               isUser ? "text-foreground" : "text-foreground",
                             )}
                           >
-                            <TextWithFileMentions content={block.content} isUser={isUser} />
+                            <TextWithFileMentions
+                              content={block.content}
+                              isUser={isUser}
+                              suppressCitationCards={hasStructuredKnowledgeSources}
+                              sessionId={sessionId}
+                              messageId={msg.id}
+                            />
                           </div>
                         );
                       default:
                         return null;
                     }
                   })}
+                  {msg.role === "assistant" && msg.knowledgeSources?.length ? (
+                    <KnowledgeSourcesPanel
+                      sources={msg.knowledgeSources}
+                      sessionId={sessionId}
+                      messageId={msg.id}
+                      focusSourceAnchorId={focusSourceAnchorId}
+                    />
+                  ) : null}
                   {isUser && <InlineImages images={msg.images} />}
                 </div>
               </div>

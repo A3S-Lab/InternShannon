@@ -77,7 +77,9 @@ class CommandRegistryImpl {
 		const accessor: ServicesAccessor = {
 			get: (_serviceId: string) => undefined,
 		};
-		this._listeners.forEach((l) => l(id));
+		this._listeners.forEach((listener) => {
+			listener(id);
+		});
 		// Use the most recently registered handler (last in list)
 		const handler = handlers[handlers.length - 1];
 		try {

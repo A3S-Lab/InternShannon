@@ -9,11 +9,11 @@ test("resolves supported image MIME types from file paths", () => {
 });
 
 test("creates object URLs from copied image bytes", async () => {
-  let blob: Blob | null = null;
+  const blobs: Blob[] = [];
   const data = new Uint8Array([1, 2, 3]);
   const url = createImageObjectUrl(data, "image/png", {
     createObjectURL(nextBlob: Blob) {
-      blob = nextBlob;
+      blobs.push(nextBlob);
       return "blob:test-image";
     },
   });
@@ -21,7 +21,9 @@ test("creates object URLs from copied image bytes", async () => {
   data[0] = 9;
 
   assert.equal(url, "blob:test-image");
-  assert.equal(blob?.type, "image/png");
-  assert.equal(blob?.size, 3);
-  assert.deepEqual(Array.from(new Uint8Array(await blob!.arrayBuffer())), [1, 2, 3]);
+  const blob = blobs[0];
+  assert.ok(blob);
+  assert.equal(blob.type, "image/png");
+  assert.equal(blob.size, 3);
+  assert.deepEqual(Array.from(new Uint8Array(await blob.arrayBuffer())), [1, 2, 3]);
 });

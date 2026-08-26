@@ -3,8 +3,13 @@ import { ApiExcludeController } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { SkipApiResponse } from '@/shared/api/openapi';
 import { LocalOnlyGuard } from '@/shared/security/local-only.guard';
+import {
+    KERNEL_SESSION_ID_HEADER,
+    KernelUpstreamFailureSignalService,
+} from '../../application/kernel-upstream-failure-signal.service';
 
 const ZHIPU_CODING_CHAT_COMPLETIONS_URL =
+    process.env.KERNEL_ZHIPU_CODING_UPSTREAM_URL?.trim() ||
     'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions';
 
 @ApiExcludeController()
@@ -12,6 +17,8 @@ const ZHIPU_CODING_CHAT_COMPLETIONS_URL =
 @UseGuards(LocalOnlyGuard)
 export class KernelLlmCompatController {
     private readonly logger = new Logger(KernelLlmCompatController.name);
+
+    constructor(private readonly upstreamFailures: KernelUpstreamFailureSignalService) {}
 
     @All('zhipu-coding/*path')
     @SkipApiResponse()
@@ -46,8 +53,23 @@ export class KernelLlmCompatController {
 
             if (!upstream.ok) {
                 const body = await upstream.text();
+                const failure = this.errorDetails(body);
+                let sessionId = this.headerValue(request, KERNEL_SESSION_ID_HEADER);
+                if (upstream.status === 429 || failure.code === '1305') {
+                    const signal = {
+                        status: upstream.status,
+                        code: failure.code,
+                        message: failure.message,
+                        occurredAt: Date.now(),
+                    };
+                    if (sessionId) {
+                        this.upstreamFailures.record({ ...signal, sessionId });
+                    } else {
+                        sessionId = this.upstreamFailures.recordForUniqueWaitingSession(signal) ?? '';
+                    }
+                }
                 this.logger.warn(
-                    `[zhipu-coding-compat] upstream rejected request: status=${upstream.status} error=${this.errorSummary(body)}`,
+                    `[zhipu-coding-compat] upstream rejected request: sessionId=${sessionId || 'unknown'} status=${upstream.status} error=${failure.summary}`,
                 );
                 response.send(body);
                 return;
@@ -72,14 +94,20 @@ export class KernelLlmCompatController {
         }
     }
 
-    private errorSummary(body: string): string {
+    private headerValue(request: Request, name: string): string {
+        const value = request.headers[name];
+        return (Array.isArray(value) ? value[0] : value || '').trim();
+    }
+
+    private errorDetails(body: string): { code?: string; message: string; summary: string } {
         try {
             const parsed = JSON.parse(body) as { error?: { code?: unknown; message?: unknown } };
-            const code = parsed.error?.code == null ? 'unknown' : String(parsed.error.code);
+            const code = parsed.error?.code == null ? undefined : String(parsed.error.code);
             const message = parsed.error?.message == null ? 'unknown' : String(parsed.error.message);
-            return `${code}: ${message}`.slice(0, 500);
+            return { code, message, summary: `${code || 'unknown'}: ${message}`.slice(0, 500) };
         } catch {
-            return body.slice(0, 500);
+            const message = body.slice(0, 500);
+            return { message, summary: message };
         }
     }
 }

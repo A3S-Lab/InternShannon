@@ -1,58 +1,134 @@
 export interface StatusBarModelOption {
-  value: string;
-  modelId: string;
+	value: string;
+	modelId: string;
+}
+
+export interface StatusBarModelDisplayOption extends StatusBarModelOption {
+	label: string;
+	providerName: string;
+}
+
+export interface StatusBarModelProvider {
+	name?: string;
+	models: ReadonlyArray<{
+		id?: string;
+		name?: string;
+	}>;
 }
 
 export interface RoutedSessionModel {
-  providerName: string;
-  modelId: string;
+	providerName: string;
+	modelId: string;
 }
 
 export interface SessionModelPatch {
-  model?: string;
-  followDefaultModel?: boolean;
+	model?: string;
+	followDefaultModel?: boolean;
 }
 
 function routedModelValue(routed?: RoutedSessionModel): string {
-  if (!routed?.modelId) return "";
-  return routed.providerName ? `${routed.providerName}/${routed.modelId}` : routed.modelId;
+	if (!routed?.modelId) return "";
+	return routed.providerName
+		? `${routed.providerName}/${routed.modelId}`
+		: routed.modelId;
 }
 
-function resolveAvailableModelValue(availableModels: StatusBarModelOption[], modelRef: string): string {
-  if (!modelRef) return "";
-  const exact = availableModels.find((item) => item.value === modelRef);
-  if (exact) return exact.value;
-  const byId = availableModels.filter((item) => item.modelId === modelRef);
-  if (byId.length === 1) return byId[0].value;
-  return modelRef;
+export function buildStatusBarModelOptions(
+	providers: ReadonlyArray<StatusBarModelProvider>,
+): StatusBarModelDisplayOption[] {
+	const seenValues = new Set<string>();
+	const options: StatusBarModelDisplayOption[] = [];
+
+	for (const provider of providers) {
+		const providerName = provider.name?.trim() || "";
+		for (const model of provider.models) {
+			const modelId = model.id?.trim() || "";
+			if (!modelId) continue;
+
+			const value = providerName ? `${providerName}/${modelId}` : modelId;
+			if (seenValues.has(value)) continue;
+			seenValues.add(value);
+			options.push({
+				value,
+				modelId,
+				providerName,
+				label: model.name?.trim() || modelId,
+			});
+		}
+	}
+
+	return options;
+}
+
+export function includeCurrentStatusBarModelOption(
+	availableModels: ReadonlyArray<StatusBarModelDisplayOption>,
+	currentModelValue?: string,
+): StatusBarModelDisplayOption[] {
+	const current = currentModelValue?.trim() || "";
+	if (!current || availableModels.some((item) => item.value === current)) {
+		return [...availableModels];
+	}
+
+	return [
+		{
+			value: current,
+			label: current,
+			providerName: "",
+			modelId: current,
+		},
+		...availableModels,
+	];
+}
+
+function resolveAvailableModelValue(
+	availableModels: StatusBarModelOption[],
+	modelRef: string,
+): string {
+	if (!modelRef) return "";
+	const exact = availableModels.find((item) => item.value === modelRef);
+	if (exact) return exact.value;
+	const byId = availableModels.filter((item) => item.modelId === modelRef);
+	if (byId.length === 1) return byId[0].value;
+	return modelRef;
 }
 
 export function resolveStatusBarModelValue(input: {
-  availableModels: StatusBarModelOption[];
-  sessionModel?: string;
-  followDefaultModel?: boolean;
-  routedModel?: RoutedSessionModel;
+	availableModels: StatusBarModelOption[];
+	sessionModel?: string;
+	followDefaultModel?: boolean;
+	routedModel?: RoutedSessionModel;
 }): string {
-  const { availableModels, followDefaultModel, routedModel } = input;
-  const rawModel = followDefaultModel ? "" : input.sessionModel?.trim() || "";
-  if (rawModel) {
-    return resolveAvailableModelValue(availableModels, rawModel);
-  }
+	const { availableModels, followDefaultModel, routedModel } = input;
+	const rawModel = followDefaultModel ? "" : input.sessionModel?.trim() || "";
+	if (rawModel) {
+		return resolveAvailableModelValue(availableModels, rawModel);
+	}
 
-  const routed = resolveAvailableModelValue(availableModels, routedModelValue(routedModel));
-  if (routed) return routed;
-  return availableModels[0]?.value ?? "";
+	const routed = resolveAvailableModelValue(
+		availableModels,
+		routedModelValue(routedModel),
+	);
+	if (routed) return routed;
+	return "";
 }
 
-export function buildPinnedSessionModelPatch(modelRef: string): SessionModelPatch & { followDefaultModel: false } {
-  const model = modelRef.trim() || undefined;
-  return { model, followDefaultModel: false };
+export function buildPinnedSessionModelPatch(
+	modelRef: string,
+): SessionModelPatch & { followDefaultModel: false } {
+	const model = modelRef.trim() || undefined;
+	return { model, followDefaultModel: false };
 }
 
-export function buildRoutedSessionModelPatch(modelRef: string, followDefaultModel?: boolean): SessionModelPatch {
-  const model = modelRef.trim() || undefined;
-  return {
-    model,
-    ...(typeof followDefaultModel === "boolean" ? { followDefaultModel } : {}),
-  };
+export function buildRoutedSessionModelPatch(
+	modelRef: string,
+	followDefaultModel?: boolean,
+): SessionModelPatch {
+	if (followDefaultModel === true) {
+		return { followDefaultModel: true };
+	}
+	const model = modelRef.trim() || undefined;
+	return {
+		model,
+		...(typeof followDefaultModel === "boolean" ? { followDefaultModel } : {}),
+	};
 }

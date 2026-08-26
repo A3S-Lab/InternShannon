@@ -1,56 +1,29 @@
 // Shared utility functions for chat message rendering (pure JavaScript version)
 
+import { parseAnsiText } from "@/runtime/ansi-text";
+
+function escapeHtml(text: string): string {
+	return text
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
 /**
  * Convert ANSI escape sequences to HTML spans with inline styles
  * Pure JavaScript implementation without WASM
  */
 export function ansiToHtml(text: string): string {
-	if (!text.includes("\x1b[")) return text;
-
-	const colorMap: Record<number, string> = {
-		30: "#000000", 31: "#cd3131", 32: "#0dbc79", 33: "#e5e510",
-		34: "#2472c8", 35: "#bc3fbc", 36: "#11a8cd", 37: "#e5e5e5",
-		90: "#666666", 91: "#f14c4c", 92: "#23d18b", 93: "#f5f543",
-		94: "#3b8eea", 95: "#d670d6", 96: "#29b8db", 97: "#ffffff",
-	};
-
-	let result = "";
-	let currentColor = "";
-	let isBold = false;
-	let i = 0;
-
-	while (i < text.length) {
-		if (text[i] === "\x1b" && text[i + 1] === "[") {
-			const match = text.slice(i).match(/^\x1b\[([0-9;]+)m/);
-			if (match) {
-				const codes = match[1].split(";").map(Number);
-				for (const code of codes) {
-					if (code === 0) {
-						if (currentColor || isBold) result += "</span>";
-						currentColor = "";
-						isBold = false;
-					} else if (code === 1) {
-						isBold = true;
-					} else if (code >= 30 && code <= 37) {
-						if (currentColor) result += "</span>";
-						currentColor = colorMap[code] || "";
-						result += `<span style="color:${currentColor}${isBold ? ";font-weight:bold" : ""}">`;
-					} else if (code >= 90 && code <= 97) {
-						if (currentColor) result += "</span>";
-						currentColor = colorMap[code] || "";
-						result += `<span style="color:${currentColor}${isBold ? ";font-weight:bold" : ""}">`;
-					}
-				}
-				i += match[0].length;
-				continue;
-			}
-		}
-		result += text[i];
-		i++;
-	}
-
-	if (currentColor || isBold) result += "</span>";
-	return result;
+	return parseAnsiText(text)
+		.map((segment) => {
+			const escaped = escapeHtml(segment.text);
+			return segment.className
+				? `<span class="${segment.className}">${escaped}</span>`
+				: escaped;
+		})
+		.join("");
 }
 
 export function langFromPath(filePath?: string): string {

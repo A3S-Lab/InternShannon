@@ -4,9 +4,14 @@
   "private": true,
   "description": "Desktop and sidecar workspace",
   "engines": {
-    "node": ">=22.18.0"
+    "node": "22.18.0"
   },
+  "packageManager": "pnpm@11.19.0",
   "scripts": {
+    "rc:a3s:restore": "node packaging/rc/scripts/restore-controlled-a3s.mjs",
+    "rc:a3s:stage-dependency": "node packaging/rc/scripts/stage-controlled-a3s-dependency.mjs",
+    "rc:a3s:install:frozen": "node packaging/rc/scripts/install-controlled-a3s-dependencies.mjs",
+    "rc:a3s:verify-install": "node packaging/rc/scripts/verify-controlled-a3s-install.mjs",
     "build": "pnpm --filter @internshannon/sidecar build",
     "desktop:doctor": "pnpm --filter @internshannon/desktop doctor",
     "desktop:stage-sidecar": "pnpm --filter @internshannon/desktop stage:sidecar",

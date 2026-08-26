@@ -9,6 +9,7 @@ import { cloneJsonCompat } from "@/lib/runtime-environment";
 import { invokeDesktopOptional } from "@/lib/tauri-runtime";
 import { workspaceApi } from "@/lib/workspace-api";
 import { getAgentRuntimeOptional } from "@/runtime";
+import { resolveModelLimit } from "../lib/llm-model-limits.ts";
 import {
   backendAppearanceToFrontend,
   backendEditorToFrontend,
@@ -26,14 +27,16 @@ import {
   normalizeLegacyModelRef,
   normalizeSecretForBackend,
 } from "./settings-backend-mappers";
-import { normalizeBackendModelConfig, splitProviderModelRef } from "./settings-model-config-normalization";
+import { normalizeBackendModelConfig, serializeDefaultModelRef } from "./settings-model-config-normalization";
 import {
   createRuntimeModelConfigSnapshot,
+  resolveExactRuntimeModel,
+  resolvePinnedRuntimeModel,
   resolveRuntimeApiKey,
   resolveRuntimeBaseUrl,
+  resolveSessionRuntimeModel,
 } from "./settings-runtime-model-config-state";
 import { resolveMigratedDesktopWorkspaceRoot } from "./workspace-root-migration";
-import { resolveModelLimit } from "../lib/llm-model-limits.ts";
 
 export { normalizeLegacyModelRef } from "./settings-backend-mappers";
 
@@ -340,7 +343,7 @@ const DEFAULTS: SettingsState = {
     maxStreamRetries: undefined,
   },
   appearance: {
-    theme: "system",
+    theme: "light",
     sideBarPosition: "left",
     statusBar: true,
     activityBar: true,
@@ -445,15 +448,15 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
 
 // Seed lifecycle: backend is source of truth.
 let _seedResolved = false;
-let _seedResolve: () => void;
-const _seedPromise = new Promise<void>((r) => {
+let _seedResolve: (loaded: boolean) => void;
+const _seedPromise = new Promise<boolean>((r) => {
   _seedResolve = r;
 });
 
-function resolveSeedOnce() {
+function resolveSeedOnce(loaded: boolean) {
   if (_seedResolved) return;
   _seedResolved = true;
-  _seedResolve();
+  _seedResolve(loaded);
 }
 
 function extractDiagnosticReportPath(error: unknown): string | null {
@@ -497,8 +500,8 @@ function toPlainJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-/** Wait until seedFromBackend has finished (resolves immediately if already done) */
-function waitForSeed(): Promise<void> {
+/** Wait until the first seedFromBackend attempt finishes and report whether backend settings loaded. */
+function waitForSeed(): Promise<boolean> {
   return _seedPromise;
 }
 
@@ -637,7 +640,7 @@ function setSearchConfig(patch: Partial<SearchConfig>) {
 /**
  * Seed settings from the backend config on startup.
  * Backend is the source of truth — always loads from backend.
- * Falls back to defaults if backend is unavailable.
+ * Keeps the existing in-memory values if backend settings are unavailable.
  *
  * Uses ConfigModule /api/config/* endpoints for AI settings, with agent-api
  * as fallback for knowledge bases (not in ConfigModule).
@@ -645,111 +648,111 @@ function setSearchConfig(patch: Partial<SearchConfig>) {
 async function seedFromBackend(options?: { retries?: number; retryDelayMs?: number }): Promise<boolean> {
   const retries = options?.retries ?? 0;
   const retryDelayMs = options?.retryDelayMs ?? 400;
+  let remainingRetries = retries;
+  let loaded = false;
 
   try {
-    await hydrateGatewayUrlFromRuntime();
-    await waitForBackendReady({
-      timeoutMs: Math.max(retries, 1) * retryDelayMs + SEED_CONFIG_FETCH_TIMEOUT_MS,
-    });
-
-    // Load all settings from ConfigModule
-    try {
-      const appSettings = await withTimeout(
-        configApi.getSettings(),
-        SEED_CONFIG_FETCH_TIMEOUT_MS,
-        "Loading settings from backend timed out",
-      );
-
-      // Apply LLM settings (llm is the current backend schema; ai is legacy desktop config).
-      const llmSettings = backendLlmSettings(appSettings);
-      if (llmSettings) {
-        applyBackendModelConfig({
-          providers: llmSettings.providers ?? [],
-          defaultModel: llmSettings.defaultModel,
+    while (true) {
+      try {
+        await hydrateGatewayUrlFromRuntime();
+        await waitForBackendReady({
+          timeoutMs: Math.max(remainingRetries, 1) * retryDelayMs + SEED_CONFIG_FETCH_TIMEOUT_MS,
         });
-        state.llmRuntime.mcpServers = normalizeMcpServerConfigs(llmSettings.mcpServers);
-        state.llmRuntime.maxToolRounds =
-          typeof llmSettings.maxToolRounds === "number" ? llmSettings.maxToolRounds : undefined;
-        state.llmRuntime.thinkingBudget =
-          typeof llmSettings.thinkingBudget === "number" ? llmSettings.thinkingBudget : undefined;
-        state.llmRuntime.toolTimeoutMs =
-          typeof llmSettings.toolTimeoutMs === "number" ? llmSettings.toolTimeoutMs : undefined;
-        state.llmRuntime.queueTimeoutMs =
-          typeof llmSettings.queueTimeoutMs === "number" ? llmSettings.queueTimeoutMs : undefined;
-        state.llmRuntime.maxExecutionTimeMs =
-          typeof llmSettings.maxExecutionTimeMs === "number" ? llmSettings.maxExecutionTimeMs : undefined;
-        state.llmRuntime.streamStallWarningMs =
-          typeof llmSettings.streamStallWarningMs === "number" ? llmSettings.streamStallWarningMs : undefined;
-        state.llmRuntime.streamStallHardMs =
-          typeof llmSettings.streamStallHardMs === "number" ? llmSettings.streamStallHardMs : undefined;
-        state.llmRuntime.streamStallActiveToolHardMs =
-          typeof llmSettings.streamStallActiveToolHardMs === "number"
-            ? llmSettings.streamStallActiveToolHardMs
-            : undefined;
-        state.llmRuntime.maxConsecutiveToolErrors =
-          typeof llmSettings.maxConsecutiveToolErrors === "number" ? llmSettings.maxConsecutiveToolErrors : undefined;
-        state.llmRuntime.maxStreamRetries =
-          typeof llmSettings.maxStreamRetries === "number" ? llmSettings.maxStreamRetries : undefined;
-      }
 
-      // Apply editor settings
-      if (appSettings.editor) {
-        Object.assign(state.editorSettings, backendEditorToFrontend(appSettings.editor));
-      }
+        // Load all settings from ConfigModule. A successful health probe alone
+        // is not enough to treat the desktop configuration as initialized.
+        const appSettings = await withTimeout(
+          configApi.getSettings(),
+          SEED_CONFIG_FETCH_TIMEOUT_MS,
+          "Loading settings from backend timed out",
+        );
 
-      // Apply general settings (workspacePath, appName)
-      if (appSettings.general) {
-        if (appSettings.general.appName) {
-          state.appName = normalizeDisplayAppName(appSettings.general.appName);
+        // Apply LLM settings (llm is the current backend schema; ai is legacy desktop config).
+        const llmSettings = backendLlmSettings(appSettings);
+        if (llmSettings) {
+          applyBackendModelConfig({
+            providers: llmSettings.providers ?? [],
+            defaultModel: llmSettings.defaultModel,
+          });
+          state.llmRuntime.mcpServers = normalizeMcpServerConfigs(llmSettings.mcpServers);
+          state.llmRuntime.maxToolRounds =
+            typeof llmSettings.maxToolRounds === "number" ? llmSettings.maxToolRounds : undefined;
+          state.llmRuntime.thinkingBudget =
+            typeof llmSettings.thinkingBudget === "number" ? llmSettings.thinkingBudget : undefined;
+          state.llmRuntime.toolTimeoutMs =
+            typeof llmSettings.toolTimeoutMs === "number" ? llmSettings.toolTimeoutMs : undefined;
+          state.llmRuntime.queueTimeoutMs =
+            typeof llmSettings.queueTimeoutMs === "number" ? llmSettings.queueTimeoutMs : undefined;
+          state.llmRuntime.maxExecutionTimeMs =
+            typeof llmSettings.maxExecutionTimeMs === "number" ? llmSettings.maxExecutionTimeMs : undefined;
+          state.llmRuntime.streamStallWarningMs =
+            typeof llmSettings.streamStallWarningMs === "number" ? llmSettings.streamStallWarningMs : undefined;
+          state.llmRuntime.streamStallHardMs =
+            typeof llmSettings.streamStallHardMs === "number" ? llmSettings.streamStallHardMs : undefined;
+          state.llmRuntime.streamStallActiveToolHardMs =
+            typeof llmSettings.streamStallActiveToolHardMs === "number"
+              ? llmSettings.streamStallActiveToolHardMs
+              : undefined;
+          state.llmRuntime.maxConsecutiveToolErrors =
+            typeof llmSettings.maxConsecutiveToolErrors === "number" ? llmSettings.maxConsecutiveToolErrors : undefined;
+          state.llmRuntime.maxStreamRetries =
+            typeof llmSettings.maxStreamRetries === "number" ? llmSettings.maxStreamRetries : undefined;
         }
-        if (appSettings.general.workspacePath) {
-          state.agentDefaults.workspaceRoot = appSettings.general.workspacePath;
+
+        // Apply editor settings
+        if (appSettings.editor) {
+          Object.assign(state.editorSettings, backendEditorToFrontend(appSettings.editor));
         }
-      }
 
-      // Apply appearance settings
-      if (appSettings.appearance) {
-        Object.assign(state.appearance, backendAppearanceToFrontend(appSettings.appearance));
-      }
+        // Apply general settings (workspacePath, appName)
+        if (appSettings.general) {
+          if (appSettings.general.appName) {
+            state.appName = normalizeDisplayAppName(appSettings.general.appName);
+          }
+          if (appSettings.general.workspacePath) {
+            state.agentDefaults.workspaceRoot = appSettings.general.workspacePath;
+          }
+        }
 
-      // Apply security settings
-      if (appSettings.security) {
-        Object.assign(state.security, backendSecurityToFrontend(appSettings.security));
-      }
+        // Apply appearance settings
+        if (appSettings.appearance) {
+          Object.assign(state.appearance, backendAppearanceToFrontend(appSettings.appearance));
+        }
 
-      // Apply network settings
-      if (appSettings.network) {
-        Object.assign(state.network, backendNetworkToFrontend(appSettings.network));
-      }
+        // Apply security settings
+        if (appSettings.security) {
+          Object.assign(state.security, backendSecurityToFrontend(appSettings.security));
+        }
 
-      // Apply search settings
-      if (appSettings.search) {
-        Object.assign(state.search, backendSearchToFrontend(appSettings.search, DEFAULTS.search));
-      }
+        // Apply network settings
+        if (appSettings.network) {
+          Object.assign(state.network, backendNetworkToFrontend(appSettings.network));
+        }
 
-      // Apply storage settings
-      if (appSettings.storage) {
-        Object.assign(state.storage, backendStorageToFrontend(appSettings.storage));
-      }
+        // Apply search settings
+        if (appSettings.search) {
+          Object.assign(state.search, backendSearchToFrontend(appSettings.search, DEFAULTS.search));
+        }
 
-      await migrateLegacyDesktopWorkspaceRootFromDefault();
-    } catch (e) {
-      console.warn("Failed to load settings from ConfigModule, using defaults:", e);
+        // Apply storage settings
+        if (appSettings.storage) {
+          Object.assign(state.storage, backendStorageToFrontend(appSettings.storage));
+        }
+
+        await migrateLegacyDesktopWorkspaceRootFromDefault();
+        loaded = true;
+        return true;
+      } catch (error) {
+        if (remainingRetries <= 0) {
+          console.warn("Failed to load settings from ConfigModule after retries:", error);
+          return false;
+        }
+        remainingRetries -= 1;
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
     }
-
-    return true;
-  } catch {
-    if (retries > 0) {
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-      return seedFromBackend({
-        retries: retries - 1,
-        retryDelayMs,
-      });
-    }
-    // Backend unavailable — keep default values
-    return false;
   } finally {
-    resolveSeedOnce();
+    resolveSeedOnce(loaded);
   }
 }
 
@@ -770,7 +773,7 @@ async function syncToBackend(): Promise<void> {
         workspacePath: state.agentDefaults.workspaceRoot,
       },
       llm: {
-        defaultModel: `${state.defaultProvider}/${state.defaultModel}`,
+        defaultModel: serializeDefaultModelRef(state.defaultProvider, state.defaultModel) as string,
         providers: state.providers.map((p) => ({
           name: p.name,
           apiKey: p.apiKey || undefined,
@@ -841,7 +844,9 @@ async function rebuildModelConfigCache(): Promise<void> {
 
 /** Resolve the effective API key for a model (model-level > provider-level) */
 export function resolveApiKey(providerName: string, modelId: string): string {
-  return normalizeSecretForBackend(resolveRuntimeApiKey({ providers: getRuntimeProviders() }, providerName, modelId)) || "";
+  return (
+    normalizeSecretForBackend(resolveRuntimeApiKey({ providers: getRuntimeProviders() }, providerName, modelId)) || ""
+  );
 }
 
 /** Resolve the effective base URL for a model (model-level > provider-level) */
@@ -886,56 +891,12 @@ export function getPreferredSessionModel(): {
   modelId: string;
 } {
   const providers = getRuntimeProviders();
-  const defaultProvider = getRuntimeDefaultProvider();
-  const defaultModel = getRuntimeDefaultModel();
-  const currentProvider = providers.find((p) => p.name === defaultProvider && p.models.length > 0);
-  const currentModelId =
-    currentProvider?.models.find((m) => m.id === defaultModel)?.id || currentProvider?.models[0]?.id || "";
-
-  if (currentProvider && currentProvider.name !== "") {
-    const hasCreds = !!currentProvider.apiKey || currentProvider.models.some((m) => !!m.apiKey);
-    if (hasCreds) {
-      return {
-        providerName: currentProvider.name,
-        modelId: currentModelId,
-      };
+  return (
+    resolveExactRuntimeModel({ providers }, getRuntimeDefaultProvider(), getRuntimeDefaultModel()) ?? {
+      providerName: "",
+      modelId: "",
     }
-  }
-
-  const nonLocal = providers.filter((p) => p.name !== "" && p.models.length > 0);
-  const withCreds = nonLocal.find((p) => !!p.apiKey || p.models.some((m) => !!m.apiKey));
-  if (withCreds) {
-    return {
-      providerName: withCreds.name,
-      modelId: withCreds.models[0].id,
-    };
-  }
-
-  if (nonLocal.length > 0) {
-    // currentProvider is  and no non-local provider has credentials.
-    // Stay on  so the user's explicit default is respected.
-    // (If  is unavailable the user should configure a remote provider.)
-    if (currentProvider) {
-      return { providerName: currentProvider.name, modelId: currentModelId };
-    }
-    return {
-      providerName: nonLocal[0].name,
-      modelId: nonLocal[0].models[0].id,
-    };
-  }
-
-  if (currentProvider) {
-    return {
-      providerName: currentProvider.name,
-      modelId: currentModelId,
-    };
-  }
-
-  const fallback = providers.find((p) => p.models.length > 0);
-  return {
-    providerName: fallback?.name || "",
-    modelId: fallback?.models[0]?.id || "",
-  };
+  );
 }
 
 export function getSystemSessionDefaults(): {
@@ -1011,39 +972,14 @@ function getConfiguredSessionModel(sessionModel?: string): {
 } | null {
   const rawModel = normalizeLegacyModelRef(sessionModel);
   if (!rawModel) return null;
+  return resolvePinnedRuntimeModel({ providers: getRuntimeProviders() }, rawModel);
+}
 
-  const preferred = getPreferredSessionModel();
-
-  if (rawModel.includes("/")) {
-    const parsed = splitProviderModelRef(rawModel);
-    if (!parsed) return null;
-    const { providerName, modelId } = parsed;
-    const provider = getRuntimeProviders().find((p) => p.name === providerName);
-    if (!provider?.models.some((model) => model.id === modelId)) {
-      return null;
-    }
-    return { providerName, modelId };
-  }
-
-  const matchedProviders = getRuntimeProviders().filter((provider) =>
-    provider.models.some((model) => model.id === rawModel),
-  );
-  if (matchedProviders.length !== 1) return null;
-
-  // Bare model IDs are legacy session state. They were often written from the
-  // then-current default model, so treating them as permanently pinned causes
-  // old sessions to stay stuck on stale defaults such as Kimi after the backend
-  // default has changed to MiniMax/GLM. Only keep respecting the bare ID when
-  // it still matches the current preferred default; otherwise fall back to the
-  // current backend-default routing.
-  if (preferred.modelId && rawModel !== preferred.modelId) {
-    return null;
-  }
-
-  return {
-    providerName: matchedProviders[0].name,
-    modelId: rawModel,
-  };
+export function resolveConfiguredSessionModel(sessionModel?: string): {
+  providerName: string;
+  modelId: string;
+} | null {
+  return getConfiguredSessionModel(sessionModel);
 }
 
 export function getSessionRoutingModel(
@@ -1053,14 +989,17 @@ export function getSessionRoutingModel(
   providerName: string;
   modelId: string;
 } {
-  if (followDefaultModel) {
-    return getPreferredSessionModel();
-  }
-  const configuredSessionModel = getConfiguredSessionModel(sessionModel);
-  if (configuredSessionModel) {
-    return configuredSessionModel;
-  }
-  return getPreferredSessionModel();
+  return (
+    resolveSessionRuntimeModel(
+      createRuntimeModelConfigSnapshot({
+        providers: getRuntimeProviders(),
+        defaultProvider: getRuntimeDefaultProvider(),
+        defaultModel: getRuntimeDefaultModel(),
+      }),
+      normalizeLegacyModelRef(sessionModel),
+      followDefaultModel,
+    ) ?? { providerName: "", modelId: "" }
+  );
 }
 
 /** Get all models across all providers as flat list */

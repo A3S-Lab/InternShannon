@@ -1,37 +1,37 @@
 import {
-  EDITOR_COMMANDS,
+  AlertTriangle,
+  AlignLeft,
+  Brackets,
+  Code2,
+  Hash,
+  Keyboard,
+  LayoutList,
+  Map as MapIcon,
+  MousePointer,
+  Pilcrow,
+  RotateCcw,
+  ScrollText,
+  Type,
+} from "lucide-react";
+import { useState } from "react";
+import { useSnapshot } from "valtio";
+import { Switch } from "@/components/ui/switch";
+import {
   actionCategories,
   actionsByCategory,
   captureKeyCombo,
   defaultKeybindings,
+  EDITOR_COMMANDS,
   formatKeyCombo,
 } from "@/desktop/components/code-editor/keybindings";
 import { normalizeKeyCombo } from "@/lib/key-combo";
 import settingsModel, {
-  type WordWrapSetting,
-  type CursorStyle,
   type CursorBlinking,
+  type CursorStyle,
   type RenderWhitespace,
+  type WordWrapSetting,
 } from "@/models/settings.model";
-import { Switch } from "@/components/ui/switch";
-import {
-  Code2,
-  Keyboard,
-  Map as MapIcon,
-  Pilcrow,
-  RotateCcw,
-  Type,
-  AlignLeft,
-  Hash,
-  MousePointer,
-  LayoutList,
-  Brackets,
-  ScrollText,
-  AlertTriangle,
-} from "lucide-react";
-import { useState } from "react";
-import { useSnapshot } from "valtio";
-import { SettingsSection, SettingsCard } from "./shared";
+import { SettingsCard, SettingsSection } from "./shared";
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return <Switch checked={checked} onCheckedChange={onChange} />;
@@ -114,7 +114,7 @@ function buildShortcutConflicts(keybindings: Record<string, string>) {
   }
 
   const conflictByCommand = new Map<string, string[]>();
-  for (const [shortcut, ids] of shortcutMap) {
+  for (const ids of shortcutMap.values()) {
     if (ids.length <= 1) continue;
     const labels = ids.map((id) => EDITOR_COMMANDS.find((action) => action.id === id)?.label ?? id);
     for (const id of ids) {

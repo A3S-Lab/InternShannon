@@ -8,12 +8,13 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Tag,
   Trash2,
   X,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import {
   AlertDialog,
@@ -95,6 +96,12 @@ function formatSessionTimestamp(raw: number) {
   return ts > 0 ? timeAgo(ts) : "未知时间";
 }
 
+function sessionTags(session: Readonly<AgentProcessInfo>): string[] {
+  const tags = session.metadata?.tags;
+  if (!Array.isArray(tags)) return [];
+  return tags.filter((tag): tag is string => typeof tag === "string" && Boolean(tag.trim())).map((tag) => tag.trim());
+}
+
 export function AgentSessionSidebar({
   apiUrl,
   configUrl,
@@ -109,14 +116,17 @@ export function AgentSessionSidebar({
   const agentSnap = useSnapshot(agentModel.state);
   const registrySnap = useSnapshot(agentRegistryModel.state);
   const [query, setQuery] = useState("");
+  const [selectedTag, setSelectedTag] = useState("");
   const [creating, setCreating] = useState(false);
   const [busySessionId, setBusySessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [taggingSessionId, setTaggingSessionId] = useState<string | null>(null);
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [renameError, setRenameError] = useState<SessionSidebarRenameErrorState | null>(null);
   const [deleteError, setDeleteError] = useState<SessionSidebarDeleteErrorState | null>(null);
   const [nameInput, setNameInput] = useState("");
+  const [tagInput, setTagInput] = useState("");
 
   const agent = useMemo(() => {
     void registrySnap.revision;
@@ -135,10 +145,24 @@ export function AgentSessionSidebar({
     return sortSessionsByRecency(agentSnap.sdkSessions.filter(isPrimaryAgentSession));
   }, [agentSnap.sdkSessions, registrySnap.revision]);
 
+  const availableTags = useMemo(
+    () =>
+      Array.from(new Set(sessions.flatMap((session) => sessionTags(session)))).sort((left, right) =>
+        left.localeCompare(right, "zh-CN"),
+      ),
+    [sessions],
+  );
+
+  useEffect(() => {
+    if (selectedTag && !availableTags.includes(selectedTag)) setSelectedTag("");
+  }, [availableTags, selectedTag]);
+
   const filteredSessions = useMemo(() => {
     const trimmedQuery = query.trim().toLowerCase();
-    if (!trimmedQuery) return sessions;
     return sessions.filter((session) => {
+      const tags = sessionTags(session);
+      if (selectedTag && !tags.includes(selectedTag)) return false;
+      if (!trimmedQuery) return true;
       const status = resolveSessionSidebarStatus({
         sessionState: session.state,
         sessionStatus: agentSnap.sessionStatus[session.sessionId],
@@ -149,9 +173,9 @@ export function AgentSessionSidebar({
         sessionNames: agentSnap.sessionNames,
         statusLabel: status.label,
       });
-      return haystack.includes(trimmedQuery);
+      return `${haystack} ${tags.join(" ").toLowerCase()}`.includes(trimmedQuery);
     });
-  }, [agentSnap.connectionStatus, agentSnap.sessionNames, agentSnap.sessionStatus, query, sessions]);
+  }, [agentSnap.connectionStatus, agentSnap.sessionNames, agentSnap.sessionStatus, query, selectedTag, sessions]);
 
   const deleteTarget = useMemo(
     () =>
@@ -188,9 +212,9 @@ export function AgentSessionSidebar({
     () =>
       resolveSessionSidebarEmptyState({
         totalSessions: sessions.length,
-        query,
+        query: query || (selectedTag ? `标签 ${selectedTag}` : ""),
       }),
-    [query, sessions.length],
+    [query, selectedTag, sessions.length],
   );
 
   const selectSession = (sessionId: string) => {
@@ -273,6 +297,31 @@ export function AgentSessionSidebar({
   const cancelRename = () => {
     setEditingSessionId(null);
     setNameInput("");
+  };
+
+  const startTagging = (session: Readonly<AgentProcessInfo>) => {
+    setTagInput(sessionTags(session).join(", "));
+    setTaggingSessionId(session.sessionId);
+  };
+
+  const commitTags = async (sessionId: string) => {
+    const tags = Array.from(
+      new Set(
+        tagInput
+          .split(/[,，]/)
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      ),
+    ).slice(0, 12);
+    try {
+      await agentApi.updateSession(sessionId, { tags }, apiUrl);
+      await refreshSessionsInBackground(apiUrl, { preserveExistingOnEmpty: true });
+      setTaggingSessionId(null);
+      setTagInput("");
+      toast.success(tags.length ? "会话标签已保存" : "会话标签已清空");
+    } catch (error) {
+      toast.error(formatSessionSidebarActionError(error, "保存会话标签失败，请检查本地服务连接"));
+    }
   };
 
   const handleDeleteSession = async (sessionId: string) => {
@@ -405,6 +454,24 @@ export function AgentSessionSidebar({
             className="h-8 rounded-full border-border-light bg-muted/40 pl-8 text-xs text-foreground focus-visible:border-primary/30 focus-visible:bg-white focus-visible:ring-primary/20"
           />
         </div>
+        {availableTags.length ? (
+          <div className="relative mt-2">
+            <Tag className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <select
+              value={selectedTag}
+              onChange={(event) => setSelectedTag(event.target.value)}
+              aria-label="按标签筛选会话"
+              className="h-8 w-full appearance-none rounded-md border border-border-light bg-white pl-8 pr-7 text-xs text-foreground outline-none transition-colors focus:border-primary/30 focus:ring-1 focus:ring-primary/20"
+            >
+              <option value="">全部标签</option>
+              {availableTags.map((tag) => (
+                <option key={tag} value={tag}>
+                  {tag}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         {createErrorPresentation ? (
           <div role="alert" className="mt-2 rounded-[8px] border border-red-500/10 bg-red-500/[0.04] p-2 text-red-700">
             <div className="flex items-start gap-2">
@@ -448,7 +515,10 @@ export function AgentSessionSidebar({
                 {emptyStatePresentation.showClearSearch ? (
                   <button
                     type="button"
-                    onClick={() => setQuery("")}
+                    onClick={() => {
+                      setQuery("");
+                      setSelectedTag("");
+                    }}
                     className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border-light bg-white px-2.5 text-xs font-medium text-foreground shadow-sm transition-colors hover:border-primary/25 hover:bg-primary/5 hover:text-primary"
                   >
                     <X className="size-3.5" />
@@ -473,6 +543,8 @@ export function AgentSessionSidebar({
               const isCreating = session.state === "creating";
               const isBusy = busySessionId === session.sessionId;
               const isEditing = editingSessionId === session.sessionId;
+              const isTagging = taggingSessionId === session.sessionId;
+              const tags = sessionTags(session);
               const sessionRenameError =
                 renameErrorPresentation?.sessionId === session.sessionId ? renameErrorPresentation : null;
               const sessionDeleteError =
@@ -535,6 +607,18 @@ export function AgentSessionSidebar({
                               {renderPreview(session.sessionId)}
                             </span>
                           </div>
+                          {tags.length ? (
+                            <div className="mt-1 flex min-w-0 flex-wrap gap-1">
+                              {tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="max-w-24 truncate rounded bg-slate-100 px-1.5 py-0.5 text-[9px] text-slate-600"
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
                         </button>
                       )}
                     </div>
@@ -560,7 +644,17 @@ export function AgentSessionSidebar({
                         </button>
                       </div>
                     ) : (
-                      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                      <div className="flex shrink-0 items-center gap-0.5 opacity-100">
+                        <button
+                          type="button"
+                          className="flex size-5 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                          onClick={() => startTagging(session)}
+                          disabled={!actions.canRename}
+                          title={actions.disabledReason ?? "设置会话标签"}
+                          aria-label="设置会话标签"
+                        >
+                          <Tag className="size-3" />
+                        </button>
                         <button
                           type="button"
                           className="flex size-5 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
@@ -584,6 +678,42 @@ export function AgentSessionSidebar({
                       </div>
                     )}
                   </div>
+                  {isTagging ? (
+                    <div className="mt-1.5 flex items-center gap-1">
+                      <Input
+                        value={tagInput}
+                        onChange={(event) => setTagInput(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                            event.preventDefault();
+                            void commitTags(session.sessionId);
+                          }
+                          if (event.key === "Escape") setTaggingSessionId(null);
+                        }}
+                        placeholder="标签，用逗号分隔"
+                        className="h-7 min-w-0 flex-1 px-2 text-[11px]"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        className="flex size-6 items-center justify-center rounded text-emerald-600 hover:bg-emerald-50"
+                        onClick={() => void commitTags(session.sessionId)}
+                        aria-label="保存会话标签"
+                        title="保存标签"
+                      >
+                        <Check className="size-3" />
+                      </button>
+                      <button
+                        type="button"
+                        className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted"
+                        onClick={() => setTaggingSessionId(null)}
+                        aria-label="取消设置会话标签"
+                        title="取消"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </div>
+                  ) : null}
                   {sessionActionError ? (
                     <div
                       role="alert"

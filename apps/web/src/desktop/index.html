@@ -132,6 +132,22 @@
     </style>
     <script>
       (() => {
+        function installStyleNoncePropagation() {
+          const styleNonce = document.querySelector("style[nonce]")?.nonce;
+          if (!styleNonce) return;
+
+          const originalCreateElement = Document.prototype.createElement;
+          Document.prototype.createElement = function () {
+            const element = originalCreateElement.apply(this, arguments);
+            if (String(arguments[0]).toLowerCase() === "style") {
+              element.nonce = styleNonce;
+            }
+            return element;
+          };
+        }
+
+        installStyleNoncePropagation();
+
         const boot = {
           stage: "html-loaded",
           ready: false,

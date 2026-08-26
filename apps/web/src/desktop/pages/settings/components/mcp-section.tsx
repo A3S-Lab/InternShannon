@@ -1,7 +1,7 @@
 import { useReactive } from "ahooks";
 import { Pencil, PlugZap, Plus, RefreshCcw, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
-import { toast } from "sonner";
+import { useCallback, useEffect } from "react";
+import { toast } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,7 +101,7 @@ export function McpSection() {
     state.timeoutSecs = "60";
     state.editingName = null;
     state.actionError = "";
-  }, [state]);
+  }, []);
 
   const fillFormFromConfig = useCallback(
     (config: McpServerConfig) => {
@@ -123,7 +123,7 @@ export function McpSection() {
         state.args = "";
       }
     },
-    [state],
+    [],
   );
 
   const importFromLibrary = useCallback(
@@ -142,7 +142,7 @@ export function McpSection() {
       state.envInput = (item.env ?? []).map((k) => `${k}=`).join("\n");
       state.timeoutSecs = "60";
     },
-    [state],
+    [],
   );
 
   const refresh = useCallback(async () => {
@@ -159,22 +159,18 @@ export function McpSection() {
     } finally {
       state.loading = false;
     }
-  }, [state]);
+  }, []);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const formValidation = useMemo(
-    () =>
-      resolveMcpServerFormValidation({
-        name: state.name,
-        transport: state.transport,
-        command: state.command,
-        url: state.url,
-      }),
-    [state.name, state.transport, state.command, state.url],
-  );
+  const formValidation = resolveMcpServerFormValidation({
+    name: state.name,
+    transport: state.transport,
+    command: state.command,
+    url: state.url,
+  });
 
   const handleSave = async () => {
     if (!formValidation.canSave) return;
@@ -276,16 +272,13 @@ export function McpSection() {
     }
   };
 
-  const configByName = useMemo(
-    () => Object.fromEntries(state.globalConfigs.map((cfg) => [cfg.name, cfg])),
-    [state.globalConfigs],
+  const configByName = Object.fromEntries(
+    state.globalConfigs.map((config) => [config.name, config]),
   );
-  const displayNames = useMemo(() => {
-    const names = new Set<string>(state.globalConfigs.map((cfg) => cfg.name));
-    for (const name of Object.keys(state.servers)) names.add(name);
-    return Array.from(names);
-  }, [state.globalConfigs, state.servers]);
-  const filteredNames = useMemo(() => {
+  const names = new Set<string>(state.globalConfigs.map((config) => config.name));
+  for (const name of Object.keys(state.servers)) names.add(name);
+  const displayNames = Array.from(names);
+  const filteredNames = (() => {
     if (state.statusFilter === "all") return displayNames;
     return displayNames.filter((name) => {
       const config = configByName[name];
@@ -293,13 +286,13 @@ export function McpSection() {
       if (state.statusFilter === "enabled") return (config?.enabled ?? true) === true;
       return !!status?.connected;
     });
-  }, [state.statusFilter, displayNames, configByName, state.servers]);
-  const filterCounts = useMemo(() => {
+  })();
+  const filterCounts = (() => {
     const all = displayNames.length;
     const enabled = displayNames.filter((name) => (configByName[name]?.enabled ?? true) === true).length;
     const connected = displayNames.filter((name) => !!state.servers[name]?.connected).length;
     return { all, enabled, connected };
-  }, [displayNames, configByName, state.servers]);
+  })();
 
   return (
     <SettingsSection

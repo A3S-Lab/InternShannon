@@ -1,4 +1,8 @@
 import type { AgentChatMessage, ContentBlock } from "@/lib/types";
+import {
+  normalizeKnowledgeSourceReferences,
+  type KnowledgeSourceReference,
+} from "../../../lib/knowledge-citation.ts";
 import { stripLeakedInternalReasoning } from "./chat-text-sanitize.ts";
 
 // =============================================================================
@@ -57,6 +61,8 @@ export interface RichMessage {
   };
   /** Images attached to user messages */
   images?: { mediaType: string; data: string }[];
+  knowledgeSources?: KnowledgeSourceReference[];
+  knowledgeSourceProtocolVersion?: 1;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -263,6 +269,13 @@ function normalizeRecordMessage(record: Record<string, unknown>, fallbackId: str
     meta: isRecord(record.meta) ? record.meta : undefined,
     usage: isRecord(record.usage) ? record.usage : undefined,
     source: optionalString(record.source),
+    knowledgeSources: normalizeKnowledgeSourceReferences(
+      record.knowledgeSources ?? record.knowledge_sources,
+    ),
+    knowledgeSourceProtocolVersion:
+      record.knowledgeSourceProtocolVersion === 1 || record.knowledge_source_protocol_version === 1
+        ? 1
+        : undefined,
   };
 }
 
@@ -295,6 +308,9 @@ function normalizeHistoryEntry(record: Record<string, unknown>, fallbackId: stri
         durationMs: message.durationMs ?? message.duration_ms,
         meta: message.meta,
         usage: message.usage,
+        knowledgeSources: message.knowledgeSources ?? message.knowledge_sources,
+        knowledgeSourceProtocolVersion:
+          message.knowledgeSourceProtocolVersion ?? message.knowledge_source_protocol_version,
       },
       fallbackId,
     );
@@ -498,6 +514,8 @@ export function chatMessageToRich(msg: AgentChatMessage): RichMessage {
     meta: safeMessage.meta,
     usage: normalizeRichUsage(safeMessage.usage),
     images: safeMessage.images,
+    knowledgeSources: safeMessage.knowledgeSources,
+    knowledgeSourceProtocolVersion: safeMessage.knowledgeSourceProtocolVersion,
     blocks,
   };
 }

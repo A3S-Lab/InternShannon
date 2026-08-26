@@ -191,7 +191,12 @@ export function ModalProvider({ children, defaultType }: ModalProviderProps) {
         </AlertDialog>
       )}
       {state.type === "dialog" && (
-        <Dialog open={state.open} onOpenChange={(open) => (state.open = open)}>
+		<Dialog
+			open={state.open}
+			onOpenChange={(open) => {
+				state.open = open;
+			}}
+		>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{state.modalProps.title}</DialogTitle>

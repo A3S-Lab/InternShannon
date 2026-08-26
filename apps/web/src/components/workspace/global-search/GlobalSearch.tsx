@@ -1,13 +1,5 @@
-import {
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Replace,
-  Search,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Replace, Search, X } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -20,19 +12,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { toast } from "@/components/ui/sonner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { type SearchResult, workspaceApi } from "@/lib/workspace-api";
-import {
-  getWorkspaceRelativePath,
-  joinWorkspacePath,
-  normalizeWorkspacePath,
-} from "@/lib/workspace-path";
+import { getWorkspaceRelativePath, joinWorkspacePath, normalizeWorkspacePath } from "@/lib/workspace-path";
 
 interface GlobalSearchProps {
   className?: string;
@@ -41,6 +25,8 @@ interface GlobalSearchProps {
   rootPath?: string;
   variant?: "default" | "vscode";
 }
+
+type CheckboxState = boolean | "indeterminate";
 
 type ReplaceScope = {
   filePaths?: string[];
@@ -64,11 +50,7 @@ function getSearchPathParts(path: string, rootPath?: string) {
 function getSearchOpenPath(path: string, rootPath?: string) {
   const normalizedPath = normalizeWorkspacePath(path);
   const normalizedRoot = normalizeWorkspacePath(rootPath);
-  if (
-    !normalizedRoot ||
-    normalizedPath === normalizedRoot ||
-    normalizedPath.startsWith(`${normalizedRoot}/`)
-  ) {
+  if (!normalizedRoot || normalizedPath === normalizedRoot || normalizedPath.startsWith(`${normalizedRoot}/`)) {
     return normalizedPath;
   }
   return joinWorkspacePath(normalizedRoot, normalizedPath);
@@ -102,13 +84,7 @@ function buildSearchKey({
   });
 }
 
-export function GlobalSearch({
-  className,
-  onClose,
-  onFileClick,
-  rootPath,
-  variant = "default",
-}: GlobalSearchProps) {
+export function GlobalSearch({ className, onClose, onFileClick, rootPath, variant = "default" }: GlobalSearchProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [replaceQuery, setReplaceQuery] = useState("");
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -123,15 +99,10 @@ export function GlobalSearch({
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [searchedKey, setSearchedKey] = useState<string | null>(null);
-  const [pendingReplace, setPendingReplace] = useState<ReplaceScope | null>(
-    null
-  );
+  const [pendingReplace, setPendingReplace] = useState<ReplaceScope | null>(null);
   const searchRequestIdRef = useRef(0);
   const isVsCode = variant === "vscode";
-  const totalMatches = useMemo(
-    () => results.reduce((total, result) => total + result.matches.length, 0),
-    [results]
-  );
+  const totalMatches = useMemo(() => results.reduce((total, result) => total + result.matches.length, 0), [results]);
   const currentSearchKey = useMemo(
     () =>
       buildSearchKey({
@@ -143,21 +114,10 @@ export function GlobalSearch({
         includePattern,
         excludePattern,
       }),
-    [
-      rootPath,
-      searchQuery,
-      caseSensitive,
-      matchWholeWord,
-      useRegex,
-      includePattern,
-      excludePattern,
-    ]
+    [rootPath, searchQuery, caseSensitive, matchWholeWord, useRegex, includePattern, excludePattern],
   );
   const searchIsStale = results.length > 0 && searchedKey !== currentSearchKey;
-  const resultByPath = useMemo(
-    () => new Map(results.map((result) => [result.path, result])),
-    [results]
-  );
+  const resultByPath = useMemo(() => new Map(results.map((result) => [result.path, result])), [results]);
   const replacePreview = useMemo(() => {
     if (!pendingReplace) return null;
     const files = pendingReplace.filePaths?.length
@@ -165,25 +125,14 @@ export function GlobalSearch({
           .map((path) => resultByPath.get(path))
           .filter((result): result is SearchResult => !!result)
       : results;
-    const matchCount = files.reduce(
-      (total, result) => total + result.matches.length,
-      0
-    );
+    const matchCount = files.reduce((total, result) => total + result.matches.length, 0);
     return { files, fileCount: files.length, matchCount };
   }, [pendingReplace, resultByPath, results]);
   const selectedMatchCount = useMemo(() => {
     if (selectedFiles.size === 0) return 0;
-    return Array.from(selectedFiles).reduce(
-      (total, path) => total + (resultByPath.get(path)?.matches.length ?? 0),
-      0
-    );
+    return Array.from(selectedFiles).reduce((total, path) => total + (resultByPath.get(path)?.matches.length ?? 0), 0);
   }, [resultByPath, selectedFiles]);
-  const replaceUnavailable =
-    !rootPath ||
-    searching ||
-    replacing ||
-    results.length === 0 ||
-    searchIsStale;
+  const replaceUnavailable = !rootPath || searching || replacing || results.length === 0 || searchIsStale;
 
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim() || !rootPath) return;
@@ -192,18 +141,14 @@ export function GlobalSearch({
     searchRequestIdRef.current = requestId;
     setSearching(true);
     try {
-      const searchResults = await workspaceApi.searchInFiles(
-        rootPath,
-        searchQuery,
-        {
-          caseSensitive,
-          matchWholeWord,
-          useRegex,
-          includePattern: includePattern.trim() || undefined,
-          excludePattern: excludePattern.trim() || undefined,
-          maxResults: 1000,
-        }
-      );
+      const searchResults = await workspaceApi.searchInFiles(rootPath, searchQuery, {
+        caseSensitive,
+        matchWholeWord,
+        useRegex,
+        includePattern: includePattern.trim() || undefined,
+        excludePattern: excludePattern.trim() || undefined,
+        maxResults: 1000,
+      });
       if (requestId !== searchRequestIdRef.current) return;
       setResults(searchResults);
       setExpandedFiles(new Set(searchResults.map((result) => result.path)));
@@ -214,9 +159,7 @@ export function GlobalSearch({
       console.error("Search failed:", error);
       setResults([]);
       setSearchedKey(null);
-      toast.error(
-        `搜索失败: ${error instanceof Error ? error.message : "未知错误"}`
-      );
+      toast.error(`搜索失败: ${error instanceof Error ? error.message : "未知错误"}`);
     } finally {
       if (requestId === searchRequestIdRef.current) {
         setSearching(false);
@@ -243,29 +186,20 @@ export function GlobalSearch({
 
       setReplacing(true);
       try {
-        const result = await workspaceApi.replaceInFiles(
-          rootPath,
-          searchQuery,
-          replaceQuery,
-          {
-            caseSensitive,
-            matchWholeWord,
-            useRegex,
-            includePattern: includePattern.trim() || undefined,
-            excludePattern: excludePattern.trim() || undefined,
-            filePaths: scope.filePaths,
-          }
-        );
+        const result = await workspaceApi.replaceInFiles(rootPath, searchQuery, replaceQuery, {
+          caseSensitive,
+          matchWholeWord,
+          useRegex,
+          includePattern: includePattern.trim() || undefined,
+          excludePattern: excludePattern.trim() || undefined,
+          filePaths: scope.filePaths,
+        });
         setPendingReplace(null);
-        toast.success(
-          `替换完成: ${result.filesModified} 个文件，共 ${result.totalReplacements} 处替换`
-        );
+        toast.success(`替换完成: ${result.filesModified} 个文件，共 ${result.totalReplacements} 处替换`);
         await handleSearch();
       } catch (error) {
         console.error("Replace failed:", error);
-        toast.error(
-          `替换失败: ${error instanceof Error ? error.message : "未知错误"}`
-        );
+        toast.error(`替换失败: ${error instanceof Error ? error.message : "未知错误"}`);
       } finally {
         setReplacing(false);
       }
@@ -281,7 +215,7 @@ export function GlobalSearch({
       excludePattern,
       handleSearch,
       searchIsStale,
-    ]
+    ],
   );
 
   const requestReplace = useCallback(
@@ -305,7 +239,7 @@ export function GlobalSearch({
       }
       setPendingReplace(scope);
     },
-    [rootPath, searchIsStale, searchQuery, searching, results.length]
+    [rootPath, searchIsStale, searchQuery, searching, results.length],
   );
 
   const handleReplaceInFile = useCallback(
@@ -313,7 +247,7 @@ export function GlobalSearch({
       const { fileName } = getSearchPathParts(filePath, rootPath);
       requestReplace({ filePaths: [filePath], label: `替换 ${fileName}` });
     },
-    [requestReplace, rootPath]
+    [requestReplace, rootPath],
   );
 
   const handleReplaceAll = useCallback(() => {
@@ -333,43 +267,31 @@ export function GlobalSearch({
 
   const toggleAllSelected = useCallback(
     (checked: boolean) => {
-      setSelectedFiles(
-        checked ? new Set(results.map((result) => result.path)) : new Set()
-      );
+      setSelectedFiles(checked ? new Set(results.map((result) => result.path)) : new Set());
     },
-    [results]
+    [results],
   );
 
   const replaceConfirmDialog = (
-    <Dialog
-      open={!!pendingReplace}
-      onOpenChange={(open) => !open && !replacing && setPendingReplace(null)}
-    >
+    <Dialog open={!!pendingReplace} onOpenChange={(open) => !open && !replacing && setPendingReplace(null)}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>确认批量替换</DialogTitle>
-          <DialogDescription>
-            此操作会直接写入工作区文件。请确认搜索结果仍然符合预期。
-          </DialogDescription>
+          <DialogDescription>此操作会直接写入工作区文件。请确认搜索结果仍然符合预期。</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
           <div className="rounded-[6px] border border-border bg-muted/20 p-3">
             <div className="grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1.5">
               <span className="text-muted-foreground">搜索</span>
-              <span className="min-w-0 break-words font-mono text-xs">
-                {searchQuery || "-"}
-              </span>
+              <span className="min-w-0 break-words font-mono text-xs">{searchQuery || "-"}</span>
               <span className="text-muted-foreground">替换为</span>
-              <span className="min-w-0 break-words font-mono text-xs">
-                {replaceQuery || "(空字符串)"}
-              </span>
+              <span className="min-w-0 break-words font-mono text-xs">{replaceQuery || "(空字符串)"}</span>
               <span className="text-muted-foreground">范围</span>
               <span>{pendingReplace?.label ?? "-"}</span>
             </div>
           </div>
           <div className="rounded-[6px] border border-amber-200 bg-amber-50 p-3 text-amber-800">
-            将修改 {replacePreview?.fileCount ?? 0} 个文件中的{" "}
-            {replacePreview?.matchCount ?? 0} 处匹配。
+            将修改 {replacePreview?.fileCount ?? 0} 个文件中的 {replacePreview?.matchCount ?? 0} 处匹配。
           </div>
           {searchIsStale && (
             <div className="rounded-[6px] border border-destructive/25 bg-destructive/10 p-3 text-destructive">
@@ -390,9 +312,7 @@ export function GlobalSearch({
                   >
                     {getWorkspaceRelativePath(rootPath, result.path)}
                   </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {result.matches.length} 处
-                  </span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{result.matches.length} 处</span>
                 </div>
               ))}
               {replacePreview.files.length > 20 && (
@@ -404,25 +324,14 @@ export function GlobalSearch({
           )}
         </div>
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setPendingReplace(null)}
-            disabled={replacing}
-          >
+          <Button type="button" variant="outline" onClick={() => setPendingReplace(null)} disabled={replacing}>
             取消
           </Button>
           <Button
             type="button"
             variant="destructive"
             onClick={() => pendingReplace && void handleReplace(pendingReplace)}
-            disabled={
-              replacing ||
-              searching ||
-              searchIsStale ||
-              !replacePreview ||
-              replacePreview.matchCount === 0
-            }
+            disabled={replacing || searching || searchIsStale || !replacePreview || replacePreview.matchCount === 0}
           >
             {replacing ? "替换中…" : "确认替换"}
           </Button>
@@ -447,18 +356,13 @@ export function GlobalSearch({
     (path: string, line?: number) => {
       onFileClick?.(getSearchOpenPath(path, rootPath), line);
     },
-    [onFileClick, rootPath]
+    [onFileClick, rootPath],
   );
 
   if (isVsCode) {
     return (
       <>
-        <div
-          className={cn(
-            "file-tree-vscode-search flex h-full flex-col",
-            className
-          )}
-        >
+        <div className={cn("file-tree-vscode-search flex h-full flex-col", className)}>
           <div className="file-tree-vscode-search-controls">
             <div className="file-tree-vscode-search-row">
               <button
@@ -468,9 +372,7 @@ export function GlobalSearch({
                 aria-expanded={showReplace}
                 onClick={() => setShowReplace((value) => !value)}
               >
-                <ChevronRight
-                  className={cn("size-3.5", showReplace && "rotate-90")}
-                />
+                <ChevronRight className={cn("size-3.5", showReplace && "rotate-90")} />
               </button>
               <div className="file-tree-vscode-search-inputbox">
                 <input
@@ -489,10 +391,7 @@ export function GlobalSearch({
                 <div className="file-tree-vscode-search-input-actions">
                   <button
                     type="button"
-                    className={cn(
-                      "file-tree-vscode-search-option",
-                      caseSensitive && "is-active"
-                    )}
+                    className={cn("file-tree-vscode-search-option", caseSensitive && "is-active")}
                     aria-pressed={caseSensitive}
                     title="区分大小写"
                     onClick={() => setCaseSensitive((value) => !value)}
@@ -501,10 +400,7 @@ export function GlobalSearch({
                   </button>
                   <button
                     type="button"
-                    className={cn(
-                      "file-tree-vscode-search-option",
-                      matchWholeWord && "is-active"
-                    )}
+                    className={cn("file-tree-vscode-search-option", matchWholeWord && "is-active")}
                     aria-pressed={matchWholeWord}
                     title="全字匹配"
                     onClick={() => setMatchWholeWord((value) => !value)}
@@ -513,10 +409,7 @@ export function GlobalSearch({
                   </button>
                   <button
                     type="button"
-                    className={cn(
-                      "file-tree-vscode-search-option",
-                      useRegex && "is-active"
-                    )}
+                    className={cn("file-tree-vscode-search-option", useRegex && "is-active")}
                     aria-pressed={useRegex}
                     title="使用正则表达式"
                     onClick={() => setUseRegex((value) => !value)}
@@ -567,9 +460,7 @@ export function GlobalSearch({
                   type="button"
                   className="file-tree-vscode-search-command"
                   aria-label="全部替换"
-                  title={
-                    searchIsStale ? "搜索条件已变更，请先重新搜索" : "全部替换"
-                  }
+                  title={searchIsStale ? "搜索条件已变更，请先重新搜索" : "全部替换"}
                   disabled={replaceUnavailable}
                   onClick={handleReplaceAll}
                 >
@@ -578,9 +469,7 @@ export function GlobalSearch({
               </div>
             )}
             {searchIsStale && (
-              <div className="file-tree-vscode-search-state py-1 text-left">
-                搜索条件已变更，请重新搜索后替换。
-              </div>
+              <div className="file-tree-vscode-search-state py-1 text-left">搜索条件已变更，请重新搜索后替换。</div>
             )}
             <div className="file-tree-vscode-search-row file-tree-vscode-search-pattern-row">
               <span className="file-tree-vscode-search-toggle-spacer" />
@@ -617,13 +506,9 @@ export function GlobalSearch({
           </div>
 
           <div className="file-tree-vscode-search-results">
-            {searching && (
-              <div className="file-tree-vscode-search-state">搜索中...</div>
-            )}
+            {searching && <div className="file-tree-vscode-search-state">搜索中...</div>}
 
-            {!searching && !rootPath && (
-              <div className="file-tree-vscode-search-state">未选择工作区</div>
-            )}
+            {!searching && !rootPath && <div className="file-tree-vscode-search-state">未选择工作区</div>}
 
             {!searching && rootPath && results.length === 0 && searchQuery && (
               <div className="file-tree-vscode-search-state">未找到结果</div>
@@ -640,16 +525,10 @@ export function GlobalSearch({
                 </div>
                 {results.map((result) => {
                   const isExpanded = expandedFiles.has(result.path);
-                  const { fileName, folderPath } = getSearchPathParts(
-                    result.path,
-                    rootPath
-                  );
+                  const { fileName, folderPath } = getSearchPathParts(result.path, rootPath);
 
                   return (
-                    <div
-                      key={result.path}
-                      className="file-tree-vscode-search-result-file"
-                    >
+                    <div key={result.path} className="file-tree-vscode-search-result-file">
                       <div className="file-tree-vscode-search-file-row">
                         <button
                           type="button"
@@ -663,28 +542,16 @@ export function GlobalSearch({
                             <ChevronRight className="size-3.5 shrink-0" />
                           )}
                           <FileText className="size-3.5 shrink-0" />
-                          <span className="file-tree-vscode-search-file-name">
-                            {fileName}
-                          </span>
-                          {folderPath && (
-                            <span className="file-tree-vscode-search-file-path">
-                              {folderPath}
-                            </span>
-                          )}
-                          <span className="file-tree-vscode-search-file-count">
-                            {result.matches.length}
-                          </span>
+                          <span className="file-tree-vscode-search-file-name">{fileName}</span>
+                          {folderPath && <span className="file-tree-vscode-search-file-path">{folderPath}</span>}
+                          <span className="file-tree-vscode-search-file-count">{result.matches.length}</span>
                         </button>
                         {showReplace && (
                           <button
                             type="button"
                             className="file-tree-vscode-search-replace-file"
                             aria-label={`替换 ${fileName}`}
-                            title={
-                              searchIsStale
-                                ? "搜索条件已变更，请先重新搜索"
-                                : "替换此文件"
-                            }
+                            title={searchIsStale ? "搜索条件已变更，请先重新搜索" : "替换此文件"}
                             disabled={replaceUnavailable}
                             onClick={() => handleReplaceInFile(result.path)}
                           >
@@ -699,21 +566,14 @@ export function GlobalSearch({
                             <button
                               key={`${result.path}:${match.line}:${match.matchStart}:${match.matchEnd}:${match.text}`}
                               type="button"
-                              onClick={() =>
-                                handleResultClick(result.path, match.line)
-                              }
+                              onClick={() => handleResultClick(result.path, match.line)}
                               className="file-tree-vscode-search-match-row"
                             >
-                              <span className="file-tree-vscode-search-match-line">
-                                {match.line}
-                              </span>
+                              <span className="file-tree-vscode-search-match-line">{match.line}</span>
                               <span className="file-tree-vscode-search-match-text">
                                 {match.text.substring(0, match.matchStart)}
                                 <span className="file-tree-vscode-search-match-hit">
-                                  {match.text.substring(
-                                    match.matchStart,
-                                    match.matchEnd
-                                  )}
+                                  {match.text.substring(match.matchStart, match.matchEnd)}
                                 </span>
                                 {match.text.substring(match.matchEnd)}
                               </span>
@@ -761,12 +621,7 @@ export function GlobalSearch({
               <Search className="size-3.5" />
             </Button>
             {onClose && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onClose}
-                className="h-8"
-              >
+              <Button size="sm" variant="ghost" onClick={onClose} className="h-8">
                 <X className="size-3.5" />
               </Button>
             )}
@@ -831,12 +686,9 @@ export function GlobalSearch({
               <Checkbox
                 id="case-sensitive"
                 checked={caseSensitive}
-                onCheckedChange={(checked) => setCaseSensitive(!!checked)}
+                onCheckedChange={(checked: CheckboxState) => setCaseSensitive(Boolean(checked))}
               />
-              <Label
-                htmlFor="case-sensitive"
-                className="text-xs cursor-pointer"
-              >
+              <Label htmlFor="case-sensitive" className="text-xs cursor-pointer">
                 区分大小写
               </Label>
             </div>
@@ -844,12 +696,9 @@ export function GlobalSearch({
               <Checkbox
                 id="match-whole-word"
                 checked={matchWholeWord}
-                onCheckedChange={(checked) => setMatchWholeWord(!!checked)}
+                onCheckedChange={(checked: CheckboxState) => setMatchWholeWord(Boolean(checked))}
               />
-              <Label
-                htmlFor="match-whole-word"
-                className="text-xs cursor-pointer"
-              >
+              <Label htmlFor="match-whole-word" className="text-xs cursor-pointer">
                 整词匹配
               </Label>
             </div>
@@ -857,18 +706,13 @@ export function GlobalSearch({
               <Checkbox
                 id="use-regex"
                 checked={useRegex}
-                onCheckedChange={(checked) => setUseRegex(!!checked)}
+                onCheckedChange={(checked: CheckboxState) => setUseRegex(Boolean(checked))}
               />
               <Label htmlFor="use-regex" className="text-xs cursor-pointer">
                 正则表达式
               </Label>
             </div>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowReplace(!showReplace)}
-              className="h-6 text-xs"
-            >
+            <Button size="sm" variant="ghost" onClick={() => setShowReplace(!showReplace)} className="h-6 text-xs">
               {showReplace ? "隐藏替换" : "显示替换"}
             </Button>
           </div>
@@ -882,14 +726,8 @@ export function GlobalSearch({
           <div className="flex min-h-9 items-center gap-2 border-b border-border/50 bg-muted/20 px-3 text-xs text-muted-foreground">
             <Checkbox
               aria-label="选择全部搜索结果文件"
-              checked={
-                selectedFiles.size === results.length
-                  ? true
-                  : selectedFiles.size > 0
-                  ? "indeterminate"
-                  : false
-              }
-              onCheckedChange={(checked) => toggleAllSelected(checked === true)}
+              checked={selectedFiles.size === results.length ? true : selectedFiles.size > 0 ? "indeterminate" : false}
+              onCheckedChange={(checked: CheckboxState) => toggleAllSelected(checked === true)}
             />
             <span className="min-w-0 flex-1 truncate">
               已选 {selectedFiles.size} 个文件，{selectedMatchCount} 处匹配
@@ -939,17 +777,14 @@ export function GlobalSearch({
               {results.map((result) => {
                 const isExpanded = expandedFiles.has(result.path);
                 const isSelected = selectedFiles.has(result.path);
-                const relativePath = getWorkspaceRelativePath(
-                  rootPath,
-                  result.path
-                );
+                const relativePath = getWorkspaceRelativePath(rootPath, result.path);
                 return (
                   <div key={result.path} className="border-b border-border/30">
                     <div className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 transition-colors">
                       {showReplace && (
                         <Checkbox
                           checked={isSelected}
-                          onCheckedChange={(checked) => {
+                          onCheckedChange={(checked: CheckboxState) => {
                             setSelectedFiles((prev) => {
                               const next = new Set(prev);
                               if (checked) {
@@ -973,15 +808,10 @@ export function GlobalSearch({
                           <ChevronRight className="size-3.5 shrink-0" />
                         )}
                         <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-                        <span
-                          className="flex-1 truncate text-sm"
-                          title={relativePath}
-                        >
+                        <span className="flex-1 truncate text-sm" title={relativePath}>
                           {relativePath}
                         </span>
-                        <span className="text-xs text-muted-foreground">
-                          {result.matches.length} 个匹配
-                        </span>
+                        <span className="text-xs text-muted-foreground">{result.matches.length} 个匹配</span>
                       </button>
                       {showReplace && (
                         <TooltipProvider>
@@ -1012,21 +842,14 @@ export function GlobalSearch({
                           <button
                             key={`${result.path}:${match.line}:${match.matchStart}:${match.matchEnd}:${match.text}`}
                             type="button"
-                            onClick={() =>
-                              handleResultClick(result.path, match.line)
-                            }
+                            onClick={() => handleResultClick(result.path, match.line)}
                             className="flex w-full items-start gap-2 px-5 py-1.5 text-left transition-colors hover:bg-muted/50"
                           >
-                            <span className="text-xs text-muted-foreground w-12 shrink-0 text-right">
-                              {match.line}
-                            </span>
+                            <span className="text-xs text-muted-foreground w-12 shrink-0 text-right">{match.line}</span>
                             <span className="flex-1 text-xs font-mono">
                               {match.text.substring(0, match.matchStart)}
                               <span className="bg-yellow-500/30 text-foreground">
-                                {match.text.substring(
-                                  match.matchStart,
-                                  match.matchEnd
-                                )}
+                                {match.text.substring(match.matchStart, match.matchEnd)}
                               </span>
                               {match.text.substring(match.matchEnd)}
                             </span>

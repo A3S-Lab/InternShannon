@@ -3,7 +3,7 @@
  */
 import { useReactive } from "ahooks";
 import { lazy, Suspense, useEffect, useRef, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import {
   AlertCircle,
   Copy,
@@ -459,7 +459,9 @@ export function MermaidViewerPanel({
     state.error = null;
     workspaceApi
       .readFile(params.path)
-      .then((c) => (state.content = c))
+      .then((content) => {
+        state.content = content;
+      })
       .catch((error) => {
         state.content = "";
         state.error =

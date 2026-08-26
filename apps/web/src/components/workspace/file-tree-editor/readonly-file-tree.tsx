@@ -2,7 +2,12 @@
  * ReadonlyFileTree - A read-only file tree for non-editing contexts
  */
 import { useReactive } from "ahooks";
-import { useEffect, useId, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  useEffect,
+  useId,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type FsNode, fetchTree } from "./FileTreeEditor";
@@ -49,7 +54,7 @@ function ReadonlyTreeNode({
       .finally(() => {
         state.childLoading = false;
       });
-  }, [node.is_dir, node.path, state, depth]);
+  }, [node.is_dir, node.path]);
 
   const activateNode = () => {
     if (!node.is_dir) {
@@ -128,7 +133,11 @@ function ReadonlyTreeNode({
         </span>
       </button>
       {state.open && (
-        <div id={groupId} role="group">
+        <fieldset
+          id={groupId}
+          className="m-0 min-w-0 border-0 p-0"
+          aria-label={`${node.name} 的子项`}
+        >
           {state.childError && (
             <div
               className="flex items-center gap-1.5 py-1 pr-2 text-[12px] text-destructive"
@@ -159,7 +168,7 @@ function ReadonlyTreeNode({
               onSelect={onSelect}
             />
           ))}
-        </div>
+        </fieldset>
       )}
     </div>
   );
@@ -191,7 +200,7 @@ export function ReadonlyFileTree({
       .finally(() => {
         state.loading = false;
       });
-  }, [rootPath, state]);
+  }, [rootPath]);
 
   if (!rootPath) {
     return (

@@ -104,6 +104,7 @@ export function AgentUI({
 	// the WindowProxy is stable across srcDoc navigations, so generation — not
 	// contentWindow identity — is what tells a stale call from a live one.
 	const docGen = useRef(0);
+	const lastResetDocument = useRef<string | null>(null);
 
 	// Latest-handlers refs so the message listener never goes stale across renders.
 	const handlers = useRef({ capabilities, onCall, onReady, onError });
@@ -116,6 +117,8 @@ export function AgentUI({
 
 	// Reset lifecycle whenever the document changes.
 	useEffect(() => {
+		if (lastResetDocument.current === srcDoc) return;
+		lastResetDocument.current = srcDoc;
 		setStatus("loading");
 		setError(null);
 		setHeight(0);

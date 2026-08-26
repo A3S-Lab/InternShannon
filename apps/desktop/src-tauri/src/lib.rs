@@ -2,6 +2,7 @@ mod browser;
 mod config;
 mod server;
 
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use chrono::Local;
 use notify::RecommendedWatcher; // Required for Debouncer type inference
 use serde::{Deserialize, Serialize};
@@ -9,16 +10,12 @@ use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc, Mutex,
-};
+use std::sync::{Arc, Mutex};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::Emitter;
 use tauri::Manager;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
-use tauri_plugin_updater::UpdaterExt;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[cfg(target_os = "windows")]
@@ -28,11 +25,6 @@ use std::os::windows::process::CommandExt;
 
 const MIN_WINDOW_WIDTH: f64 = 800.0;
 const MIN_WINDOW_HEIGHT: f64 = 600.0;
-const DEFAULT_RELEASE_URL: &str = "https://github.com/A3S-Lab/internShannon/releases";
-const DEFAULT_UPDATER_ENDPOINT: &str =
-    "https://github.com/A3S-Lab/internShannon/releases/latest/download/latest.json";
-const DEFAULT_UPDATER_PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkxNUQ4QjEzRDlEMTE1NEEKUldSS0ZkSFpFNHRka2ZhZVJPUU53RnBFb3VDODFEaFVtTUswa0NnK1ZBajJlc2FLTGR3dFlmZkUK";
-const UPDATER_PROGRESS_EVENT: &str = "internshannon://updater-progress";
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
@@ -45,26 +37,6 @@ fn startup_window_size(screen_width: f64, screen_height: f64) -> (f64, f64) {
     let width = target_width.clamp(MIN_WINDOW_WIDTH, max_width).round();
     let height = target_height.clamp(MIN_WINDOW_HEIGHT, max_height).round();
     (width, height)
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AppUpdateInfo {
-    current_version: String,
-    latest_version: String,
-    has_update: bool,
-    release_notes: Option<String>,
-    release_url: Option<String>,
-    asset_name: Option<String>,
-    downloaded_path: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct AppUpdateProgress {
-    phase: &'static str,
-    downloaded_bytes: u64,
-    total_bytes: Option<u64>,
 }
 
 #[derive(Debug, Default)]
@@ -240,6 +212,38 @@ fn default_gateway_port() -> u16 {
     29653
 }
 
+const GATEWAY_FALLBACK_PORT_COUNT: u16 = 20;
+
+fn select_available_gateway_port(
+    preferred_port: u16,
+    mut port_in_use: impl FnMut(u16) -> bool,
+) -> Result<(u16, bool), String> {
+    if !port_in_use(preferred_port) {
+        return Ok((preferred_port, false));
+    }
+
+    for offset in 1..=GATEWAY_FALLBACK_PORT_COUNT {
+        let Some(candidate) = preferred_port.checked_add(offset) else {
+            break;
+        };
+        if !port_in_use(candidate) {
+            return Ok((candidate, true));
+        }
+    }
+
+    Err(format!(
+        "No free loopback gateway port was found in {}-{}",
+        preferred_port,
+        preferred_port.saturating_add(GATEWAY_FALLBACK_PORT_COUNT)
+    ))
+}
+
+fn gateway_owner_is_internshannon_sidecar(owner_command: Option<&str>) -> bool {
+    owner_command
+        .map(server::is_internshannon_sidecar_command)
+        .unwrap_or(false)
+}
+
 fn show_blocking_message_dialog<R: tauri::Runtime>(
     app: &impl Manager<R>,
     title: &str,
@@ -272,228 +276,33 @@ fn ensure_default_gateway_port_available<R: tauri::Runtime>(
     _app: &impl Manager<R>,
 ) -> Result<(String, u16, bool, Option<u32>, Option<String>), String> {
     let host = default_gateway_host();
-    let port = default_gateway_port();
+    let preferred_port = default_gateway_port();
+    let (port, preferred_port_in_use) =
+        select_available_gateway_port(preferred_port, |candidate| inspect_port_owner(candidate).0)?;
 
-    let (port_in_use, owner_pid, owner_name) = inspect_port_owner(port);
-    if !port_in_use {
+    if !preferred_port_in_use {
         return Ok((host, port, false, None, None));
     }
 
-    // Port is in use - likely because NestJS sidecar is already running.
-    // Just log a warning and continue. The sidecar spawn code will detect
-    // the port is in use and skip spawning.
+    let (_, owner_pid, owner_name) = inspect_port_owner(preferred_port);
     let owner_label = match (owner_name.as_deref(), owner_pid) {
         (Some(name), Some(pid)) => format!("{name} (PID {pid})"),
         (None, Some(pid)) => format!("PID {pid}"),
         (Some(name), None) => name.to_string(),
         (None, None) => "unknown-process".to_string(),
     };
+    let owner_command = owner_pid.and_then(server::process_command);
+    if gateway_owner_is_internshannon_sidecar(owner_command.as_deref()) {
+        return Err(format!(
+            "Another 书小安 desktop sidecar is already running on the default gateway port {preferred_port} ({owner_label}). Close the older app before starting this build so both versions cannot write the same session store."
+        ));
+    }
     tracing::warn!(
-        "Gateway port {port} is already in use by {}. \
-         Sidecar may already be running - will skip sidecar spawn.",
-        owner_label
+        "Preferred gateway port {preferred_port} is already in use by {owner_label}; \
+         starting an isolated sidecar on port {port} instead"
     );
 
     Ok((host, port, true, owner_pid, owner_name))
-}
-
-fn updater_pubkey() -> Option<String> {
-    std::env::var("INTERN_SHANNON_UPDATER_PUBKEY")
-        .ok()
-        .or_else(|| option_env!("INTERN_SHANNON_UPDATER_PUBKEY").map(ToString::to_string))
-        .or_else(|| Some(DEFAULT_UPDATER_PUBKEY.to_string()))
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-}
-
-fn parse_endpoint_list(raw: &str) -> Vec<String> {
-    raw.split(|ch| ch == ',' || ch == '\n' || ch == ';')
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string)
-        .collect()
-}
-
-fn updater_endpoints() -> Result<Vec<tauri::Url>, String> {
-    let configured = std::env::var("INTERN_SHANNON_UPDATER_ENDPOINTS")
-        .ok()
-        .or_else(|| option_env!("INTERN_SHANNON_UPDATER_ENDPOINTS").map(ToString::to_string))
-        .unwrap_or_default();
-
-    let endpoints = if configured.trim().is_empty() {
-        vec![DEFAULT_UPDATER_ENDPOINT.to_string()]
-    } else {
-        parse_endpoint_list(&configured)
-    };
-
-    endpoints
-        .into_iter()
-        .map(|value| {
-            tauri::Url::parse(&value)
-                .map_err(|error| format!("Invalid updater endpoint '{value}': {error}"))
-        })
-        .collect()
-}
-
-#[tauri::command]
-async fn check_app_update(app: tauri::AppHandle) -> Result<AppUpdateInfo, String> {
-    let current_version = current_app_version();
-    let pubkey = updater_pubkey().ok_or_else(|| {
-        "Tauri updater 尚未配置：缺少 INTERN_SHANNON_UPDATER_PUBKEY。".to_string()
-    })?;
-    let updater = app
-        .updater_builder()
-        .pubkey(pubkey)
-        .endpoints(updater_endpoints()?)
-        .map_err(|e| format!("Failed to configure updater endpoints: {e}"))?
-        .build()
-        .map_err(|e| format!("Failed to initialize updater: {e}"))?;
-
-    let update = match updater.check().await {
-        Ok(update) => update,
-        Err(e) => {
-            // Only surface errors that indicate a genuine security or
-            // configuration problem (bad signature, invalid pubkey).
-            // Everything else — missing release, wrong platform, network
-            // hiccup, JSON parse failure — is treated as "no update yet"
-            // so the UI stays clean for users on unsupported platforms.
-            let msg = e.to_string().to_lowercase();
-            let is_security_error =
-                msg.contains("signature") || msg.contains("invalid key") || msg.contains("pubkey");
-            if is_security_error {
-                return Err(format!("更新签名验证失败：{e}"));
-            }
-            return Ok(AppUpdateInfo {
-                current_version: current_version.clone(),
-                latest_version: current_version,
-                has_update: false,
-                release_notes: None,
-                release_url: Some(DEFAULT_RELEASE_URL.to_string()),
-                asset_name: None,
-                downloaded_path: None,
-            });
-        }
-    };
-
-    if let Some(update) = update {
-        return Ok(AppUpdateInfo {
-            current_version,
-            latest_version: update.version.to_string(),
-            has_update: true,
-            release_notes: update.body.clone(),
-            release_url: Some(DEFAULT_RELEASE_URL.to_string()),
-            asset_name: None,
-            downloaded_path: None,
-        });
-    }
-
-    Ok(AppUpdateInfo {
-        current_version: current_version.clone(),
-        latest_version: current_version,
-        has_update: false,
-        release_notes: None,
-        release_url: Some(DEFAULT_RELEASE_URL.to_string()),
-        asset_name: None,
-        downloaded_path: None,
-    })
-}
-
-#[tauri::command]
-async fn install_app_update(app: tauri::AppHandle) -> Result<AppUpdateInfo, String> {
-    let current_version = current_app_version();
-    let pubkey = updater_pubkey().ok_or_else(|| {
-        "Tauri updater 尚未配置：缺少 INTERN_SHANNON_UPDATER_PUBKEY。".to_string()
-    })?;
-    let updater = app
-        .updater_builder()
-        .pubkey(pubkey)
-        .endpoints(updater_endpoints()?)
-        .map_err(|e| format!("Failed to configure updater endpoints: {e}"))?
-        .build()
-        .map_err(|e| format!("Failed to initialize updater: {e}"))?;
-
-    let Some(update) = (match updater.check().await {
-        Ok(update) => update,
-        Err(e) => {
-            let msg = e.to_string().to_lowercase();
-            let is_security_error =
-                msg.contains("signature") || msg.contains("invalid key") || msg.contains("pubkey");
-            if is_security_error {
-                return Err(format!("更新签名验证失败：{e}"));
-            }
-            None
-        }
-    }) else {
-        return Ok(AppUpdateInfo {
-            current_version: current_version.clone(),
-            latest_version: current_version,
-            has_update: false,
-            release_notes: None,
-            release_url: Some(DEFAULT_RELEASE_URL.to_string()),
-            asset_name: None,
-            downloaded_path: None,
-        });
-    };
-
-    let latest_version = update.version.to_string();
-    let release_notes = update.body.clone();
-    let downloaded_bytes = Arc::new(AtomicU64::new(0));
-    let progress_bytes = Arc::clone(&downloaded_bytes);
-    let install_bytes = Arc::clone(&downloaded_bytes);
-    update
-        .download_and_install(
-            |chunk_length, content_length| {
-                let total = progress_bytes.fetch_add(chunk_length as u64, Ordering::Relaxed)
-                    + chunk_length as u64;
-                let phase = if total == chunk_length as u64 {
-                    "downloading"
-                } else {
-                    "progress"
-                };
-                let _ = app.emit(
-                    UPDATER_PROGRESS_EVENT,
-                    AppUpdateProgress {
-                        phase,
-                        downloaded_bytes: total,
-                        total_bytes: content_length,
-                    },
-                );
-            },
-            || {
-                let total = install_bytes.load(Ordering::Relaxed);
-                let _ = app.emit(
-                    UPDATER_PROGRESS_EVENT,
-                    AppUpdateProgress {
-                        phase: "installing",
-                        downloaded_bytes: total,
-                        total_bytes: Some(total),
-                    },
-                );
-            },
-        )
-        .await
-        .map_err(|e| format!("Failed to download and install update: {e}"))?;
-
-    let downloaded_bytes = downloaded_bytes.load(Ordering::Relaxed);
-    let _ = app.emit(
-        UPDATER_PROGRESS_EVENT,
-        AppUpdateProgress {
-            phase: "finished",
-            downloaded_bytes,
-            total_bytes: Some(downloaded_bytes),
-        },
-    );
-    app.request_restart();
-
-    Ok(AppUpdateInfo {
-        current_version,
-        latest_version,
-        has_update: false,
-        release_notes,
-        release_url: Some(DEFAULT_RELEASE_URL.to_string()),
-        asset_name: None,
-        downloaded_path: None,
-    })
 }
 
 #[tauri::command]
@@ -636,19 +445,19 @@ fn executable_exists(path: &Path) -> bool {
 }
 
 fn browser_version(path: &Path) -> Option<String> {
-    let output = std::process::Command::new(path)
-        .arg("--version")
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
+    for argument in ["--version", "version"] {
+        let Ok(output) = std::process::Command::new(path).arg(argument).output() else {
+            continue;
+        };
+        if !output.status.success() {
+            continue;
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !stdout.is_empty() {
+            return Some(stdout);
+        }
     }
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if stdout.is_empty() {
-        None
-    } else {
-        Some(stdout)
-    }
+    None
 }
 
 fn browser_manifest() -> Result<BrowserBinaryManifest, String> {
@@ -1086,7 +895,7 @@ fn build_embedded_gateway_failure_dialog(
 ) -> String {
     let stage_label = embedded_gateway_stage_label(failure.stage);
     let mut message = format!(
-        "internShannon本地服务暂时没有准备好。\n\n界面会继续显示启动状态，并在“查看详情”中提供诊断信息。请先点击界面里的“重新检测”；如果仍未恢复，再重启应用。\n\n检测地址: {gateway_url}\n失败阶段: {stage_label}"
+        "书小安本地服务暂时没有准备好。\n\n界面会继续显示启动状态，并在“查看详情”中提供诊断信息。请先点击界面里的“重新检测”；如果仍未恢复，再重启应用。\n\n检测地址: {gateway_url}\n失败阶段: {stage_label}"
     );
 
     if let Some(path) = diagnostic_report_path {
@@ -1243,6 +1052,74 @@ fn open_folder(path: String) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[tauri::command]
+fn reveal_in_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("open")
+        .args(["-R", &path])
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    std::process::Command::new("explorer")
+        .arg(format!("/select,{}", path))
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "linux")]
+    std::process::Command::new("xdg-open")
+        .arg(
+            Path::new(&path)
+                .parent()
+                .unwrap_or_else(|| Path::new(&path)),
+        )
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct KnowledgeSourceFile {
+    name: String,
+    original_path: String,
+    content_base64: String,
+    size: u64,
+}
+
+#[tauri::command]
+fn read_knowledge_source(path: String) -> Result<KnowledgeSourceFile, String> {
+    let source = PathBuf::from(path.trim());
+    if !source.is_absolute() || !source.is_file() {
+        return Err(
+            "The selected knowledge source must be an existing absolute file path".to_string(),
+        );
+    }
+    let name = source
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| "Invalid knowledge source filename".to_string())?
+        .to_string();
+    let bytes = fs::read(&source).map_err(|e| e.to_string())?;
+    Ok(KnowledgeSourceFile {
+        name,
+        original_path: source.to_string_lossy().to_string(),
+        content_base64: BASE64_STANDARD.encode(&bytes),
+        size: bytes.len() as u64,
+    })
+}
+
+#[tauri::command]
+fn save_file_bytes(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    let destination = PathBuf::from(path.trim());
+    if destination.as_os_str().is_empty() || !destination.is_absolute() {
+        return Err("The selected save path must be absolute".to_string());
+    }
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(destination, bytes).map_err(|e| e.to_string())
 }
 
 fn validate_workspace_write_target(path: &Path) -> Result<(), String> {
@@ -1664,9 +1541,23 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .on_menu_event(|app, event| {
+            let payload = match event.id().as_ref() {
+                "edit-undo" => Some("undo"),
+                "edit-redo" => Some("redo"),
+                _ => None,
+            };
+            if let Some(payload) = payload {
+                if let Err(error) = app.emit("menu-event", payload) {
+                    tracing::warn!("Failed to forward native edit menu event: {error}");
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             open_folder,
+            reveal_in_folder,
+            read_knowledge_source,
+            save_file_bytes,
             workspace_write_file,
             open_url_in_browser,
             execute_command,
@@ -1674,8 +1565,6 @@ pub fn run() {
             get_embedded_gateway_status,
             get_log_workspace_status,
             write_client_diagnostic_report,
-            check_app_update,
-            install_app_update,
             get_search_browser_status,
             download_search_browser,
             search_in_workspace,
@@ -1714,7 +1603,7 @@ pub fn run() {
                     Err(error) => {
                         let report_path = write_diagnostic_report(
                             "embedded-gateway-startup-blocked",
-                            "InternShannon startup was aborted before the embedded gateway could bind.",
+                            "书小安 startup was aborted before the embedded gateway could bind.",
                             &error,
                             vec![
                                 (
@@ -1814,7 +1703,7 @@ pub fn run() {
 
             let handle = app.handle();
 
-            let app_menu = SubmenuBuilder::new(handle, "internShannon")
+            let app_menu = SubmenuBuilder::new(handle, "书小安")
                 .item(&PredefinedMenuItem::about(handle, None, None)?)
                 .separator()
                 .item(&PredefinedMenuItem::hide(handle, None)?)
@@ -1824,9 +1713,20 @@ pub fn run() {
                 .item(&PredefinedMenuItem::quit(handle, None)?)
                 .build()?;
 
+            // WebKit's predefined Undo/Redo items operate on the WebView's
+            // native responder chain, not Monaco's text model. Use explicit
+            // menu commands so Cmd+Z/Cmd+Shift+Z are forwarded to the focused
+            // application editor through `menu-event`.
+            let undo_item = MenuItemBuilder::with_id("edit-undo", "Undo")
+                .accelerator("CmdOrCtrl+Z")
+                .build(handle)?;
+            let redo_item = MenuItemBuilder::with_id("edit-redo", "Redo")
+                .accelerator("CmdOrCtrl+Shift+Z")
+                .build(handle)?;
+
             let edit_menu = SubmenuBuilder::new(handle, "Edit")
-                .item(&PredefinedMenuItem::undo(handle, None)?)
-                .item(&PredefinedMenuItem::redo(handle, None)?)
+                .item(&undo_item)
+                .item(&redo_item)
                 .separator()
                 .item(&PredefinedMenuItem::cut(handle, None)?)
                 .item(&PredefinedMenuItem::copy(handle, None)?)
@@ -1858,7 +1758,7 @@ pub fn run() {
                 let _ = window.center();
             }
 
-            // System tray: show window on click, hide to tray on close
+            // System tray: show the window on click and provide an explicit quit action
             let show_item = MenuItemBuilder::with_id("show", "显示窗口").build(app)?;
             let quit_item = MenuItemBuilder::with_id("quit", "退出").build(app)?;
             let tray_menu = MenuBuilder::new(app)
@@ -1871,7 +1771,7 @@ pub fn run() {
             let tray_icon = app.default_window_icon().cloned().expect("no default icon");
 
             let _tray = TrayIconBuilder::with_id("main-tray")
-                .tooltip("internShannon")
+                .tooltip("书小安")
                 .icon(tray_icon)
                 .menu(&tray_menu)
                 .show_menu_on_left_click(false)
@@ -1904,13 +1804,15 @@ pub fn run() {
                 })
                 .build(app)?;
 
-            // Hide to tray instead of closing
+            // The desktop app treats the main window's close button as an explicit
+            // quit action. Keeping the process hidden in the Dock/tray is surprising
+            // here and also leaves the bundled gateway alive after the UI disappears.
             let main_window = app.get_webview_window("main").unwrap();
-            let main_window_clone = main_window.clone();
+            let close_app_handle = app.handle().clone();
             main_window.on_window_event(move |event| {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let _ = main_window_clone.hide();
+                if let tauri::WindowEvent::CloseRequested { .. } = event {
+                    close_app_handle.state::<ManagedSidecarState>().shutdown();
+                    close_app_handle.exit(0);
                 }
             });
 
@@ -1946,7 +1848,13 @@ pub fn run() {
                 }
                 let progress_app_handle = app_handle.clone();
                 let browser_runtime = resolve_sidecar_search_browser_runtime();
-                let startup_result = server::start_sidecar_with_progress(browser_runtime, move |stage, message| {
+                let gateway_port = gateway_state
+                    .status
+                    .lock()
+                    .ok()
+                    .map(|status| status.port)
+                    .unwrap_or_else(default_gateway_port);
+                let startup_result = server::start_sidecar_with_progress(gateway_port, browser_runtime, move |stage, message| {
                     let gateway_state = progress_app_handle.state::<EmbeddedGatewayState>();
                     let status_result = gateway_state.status.lock();
                     if let Ok(mut status) = status_result {
@@ -1963,7 +1871,7 @@ pub fn run() {
                     Err(e) => {
                         let report_path = write_diagnostic_report(
                             "embedded-gateway-start-failed",
-                            "Embedded InternShannon gateway failed to start.",
+                            "Embedded 书小安 gateway failed to start.",
                             &e.to_string(),
                             vec![
                                 ("configured_url".to_string(), get_gateway_url()),
@@ -2004,7 +1912,7 @@ pub fn run() {
                         );
                         let _ = show_blocking_message_dialog(
                             &app_handle,
-                            "internShannon 本地服务暂不可用",
+                            "书小安 本地服务暂不可用",
                             message,
                             MessageDialogKind::Error,
                             MessageDialogButtons::Ok,
@@ -2043,7 +1951,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building InternShannon")
+        .expect("error while building 书小安")
         .run(|app_handle, event| {
             if let tauri::RunEvent::Exit = event {
                 app_handle.state::<ManagedSidecarState>().shutdown();
@@ -2054,8 +1962,10 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::{
-        browser_manifest, browser_platform_key, macos_chromium_browser_candidates, sha256_hex,
-        startup_window_size, verify_lightpanda_file, workspace_write_file,
+        browser_manifest, browser_platform_key, browser_version,
+        gateway_owner_is_internshannon_sidecar, macos_chromium_browser_candidates,
+        select_available_gateway_port, sha256_hex, startup_window_size, verify_lightpanda_file,
+        workspace_write_file,
     };
     use std::fs;
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -2090,6 +2000,36 @@ mod tests {
         let (w, h) = startup_window_size(820.0, 620.0);
         assert_eq!(w, 800.0);
         assert_eq!(h, 600.0);
+    }
+
+    #[test]
+    fn gateway_uses_preferred_port_when_it_is_free() {
+        assert_eq!(
+            select_available_gateway_port(29653, |_| false).expect("select preferred port"),
+            (29653, false)
+        );
+    }
+
+    #[test]
+    fn gateway_uses_first_free_fallback_instead_of_reusing_old_app() {
+        let selected =
+            select_available_gateway_port(29653, |port| matches!(port, 29653 | 29654 | 29655))
+                .expect("select isolated fallback port");
+        assert_eq!(selected, (29656, true));
+    }
+
+    #[test]
+    fn gateway_blocks_another_internshannon_sidecar_from_using_a_shared_store() {
+        assert!(gateway_owner_is_internshannon_sidecar(Some(
+            "/Applications/InternShannon.app/Contents/Resources/node/bin/node /Applications/InternShannon.app/Contents/Resources/main.js"
+        )));
+        assert!(gateway_owner_is_internshannon_sidecar(Some(
+            "/repo/node /repo/apps/sidecar/dist/main.js"
+        )));
+        assert!(!gateway_owner_is_internshannon_sidecar(Some(
+            "/usr/local/bin/node /other/project/main.js"
+        )));
+        assert!(!gateway_owner_is_internshannon_sidecar(None));
     }
 
     #[test]
@@ -2142,11 +2082,11 @@ mod tests {
             .get(browser_platform_key().expect("supported test platform"))
             .expect("manifest platform entry");
 
-        assert!(manifest.snapshot.starts_with("nightly-"));
+        assert!(manifest.snapshot.starts_with("0.3.1@"));
         assert_eq!(platform.sha256.len(), 64);
         assert!(platform
             .url
-            .starts_with("https://github.com/lightpanda-io/browser/releases/"));
+            .starts_with("https://github.com/lightpanda-io/browser/releases/download/0.3.1/"));
     }
 
     #[test]
@@ -2170,6 +2110,29 @@ mod tests {
 
         verify_lightpanda_file(&binary, &expected).expect("accept matching checksum");
         assert!(verify_lightpanda_file(&binary, &sha256_hex(b"different-browser")).is_err());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn browser_version_supports_lightpanda_version_subcommand() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = unique_test_dir("browser-version");
+        fs::create_dir_all(&dir).expect("create browser version dir");
+        let binary = dir.join("lightpanda");
+        fs::write(
+            &binary,
+            b"#!/bin/sh\nif [ \"$1\" = \"version\" ]; then echo 0.3.1; exit 0; fi\nexit 1\n",
+        )
+        .expect("write browser version fixture");
+        let mut permissions = fs::metadata(&binary)
+            .expect("read browser version fixture")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&binary, permissions).expect("make browser fixture executable");
+
+        assert_eq!(browser_version(&binary).as_deref(), Some("0.3.1"));
         let _ = fs::remove_dir_all(&dir);
     }
 }

@@ -173,7 +173,7 @@ export class SplitviewApi implements CommonApi<SerializedSplitview> {
 	 * Layout the panel with a width and height.
 	 */
 	layout(width: number, height: number): void {
-		return this.component.layout(width, height);
+		this.component.layout(width, height);
 	}
 
 	/**
@@ -539,7 +539,7 @@ export class GridviewApi implements CommonApi<SerializedGridviewComponent> {
 	 * Create a component from a serialized object.
 	 */
 	fromJSON(data: SerializedGridviewComponent): void {
-		return this.component.fromJSON(data);
+		this.component.fromJSON(data);
 	}
 
 	/**
@@ -824,7 +824,7 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
 	 * Close all groups and panels.
 	 */
 	closeAllGroups(): void {
-		return this.component.closeAllGroups();
+		this.component.closeAllGroups();
 	}
 
 	/**
@@ -848,7 +848,7 @@ export class DockviewApi implements CommonApi<SerializedDockview> {
 		item: IDockviewPanel | DockviewGroupPanel,
 		options?: FloatingGroupOptions,
 	): void {
-		return this.component.addFloatingGroup(item, options);
+		this.component.addFloatingGroup(item, options);
 	}
 
 	/**

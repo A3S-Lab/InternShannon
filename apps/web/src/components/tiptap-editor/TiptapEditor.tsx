@@ -208,10 +208,11 @@ const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(
       return attributes;
     }, [ariaLabel, disabled, placeholder]);
 
+    const workspaceFiles = state.workspaceFiles;
     const resolvedMentionItems = useMemo(() => {
       const baseItems = mentionItems ?? MENTION_ITEMS;
-      return [...baseItems, ...state.workspaceFiles];
-    }, [mentionItems, state.workspaceFiles]);
+      return [...baseItems, ...workspaceFiles];
+    }, [mentionItems, workspaceFiles]);
 
     // Load workspace files when workspaceDir changes
     useEffect(() => {
@@ -225,7 +226,7 @@ const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(
         state.workspaceFiles = [];
         state.expandedFolders = new Set();
       }
-    }, [workspaceDir, state]);
+    }, [workspaceDir]);
 
     // Refresh workspace files - called when @ panel opens
     const refreshWorkspaceFiles = useCallback(async () => {
@@ -265,7 +266,7 @@ const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(
           }
         }
       }
-    }, [state]);
+    }, []);
 
     // Handle folder expansion/collapse
     const handleFolderClick = useCallback(
@@ -302,7 +303,7 @@ const TiptapEditor = forwardRef<TiptapEditorRef, TiptapEditorProps>(
           })();
         }
       },
-      [state],
+      [],
     );
 
     // Use a ref to store the latest handleFolderClick so the suggestion

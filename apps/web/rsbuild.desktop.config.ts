@@ -19,7 +19,7 @@ const runtimeMode =
     ? "tauri"
     : process.env.PUBLIC_DESKTOP_RUNTIME || "web";
 const gatewayUrl = process.env.PUBLIC_DESKTOP_GATEWAY_URL || "http://127.0.0.1:29653";
-const appName = process.env.PUBLIC_DESKTOP_APP_NAME || "InternShannon";
+const appName = process.env.PUBLIC_DESKTOP_APP_NAME || "书小安";
 const storagePrefix = process.env.PUBLIC_DESKTOP_STORAGE_PREFIX || "internshannon";
 const suppressedProxyErrorMarkers = ["[HPM] Error occurred while proxying request", "[ECONNREFUSED]"];
 
@@ -49,7 +49,7 @@ const sidecarProxy = (target: string, options: { ws?: boolean } = {}) => ({
 
 const workspacePort = Number(process.env.PUBLIC_DESKTOP_DEV_PORT || 5000);
 const assetBaseUrl = process.env.PUBLIC_DESKTOP_ASSET_BASE_URL || "/workspace";
-const gatewayUrlForProxy = gatewayUrl;
+const gatewayUrlForProxy = process.env.PUBLIC_DESKTOP_PROXY_TARGET || gatewayUrl;
 
 export default defineConfig(() => {
   const agentationEnabled = isAgentationEnabled(process.env.PUBLIC_ENABLE_AGENTATION);
@@ -125,11 +125,11 @@ export default defineConfig(() => {
       port: workspacePort,
       strictPort: true,
       proxy: {
-        "/api/v1": sidecarProxy(gatewayUrl),
-        "/openapi.json": sidecarProxy(gatewayUrl),
-        "/open/openapi.json": sidecarProxy(gatewayUrl),
-        "/git": sidecarProxy(gatewayUrl),
-        "/v2": sidecarProxy(gatewayUrl),
+        "/api/v1": sidecarProxy(gatewayUrlForProxy),
+        "/openapi.json": sidecarProxy(gatewayUrlForProxy),
+        "/open/openapi.json": sidecarProxy(gatewayUrlForProxy),
+        "/git": sidecarProxy(gatewayUrlForProxy),
+        "/v2": sidecarProxy(gatewayUrlForProxy),
         "/socket.io": sidecarProxy(gatewayUrlForProxy, { ws: true }),
       },
     },

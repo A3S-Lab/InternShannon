@@ -21,11 +21,12 @@ export function PlatformBrandEffect({
   fallbackLogoUrl?: string;
 }) {
   const brand = useSnapshot(platformBrandModel.state);
+	void brand.appName;
+	void brand.logoUrl;
+	const appName = platformBrandModel.effectiveName();
+	const logoUrl = platformBrandModel.effectiveLogoUrl(fallbackLogoUrl);
 
   useEffect(() => {
-    const appName = platformBrandModel.effectiveName();
-    const logoUrl = platformBrandModel.effectiveLogoUrl(fallbackLogoUrl);
-
     document.title = titleSuffix ? `${appName} ${titleSuffix}` : appName;
     for (const rel of ["icon", "shortcut icon"]) {
       const icon = ensureIconLink(rel);
@@ -34,7 +35,7 @@ export function PlatformBrandEffect({
         ? "image/svg+xml"
         : "image/png";
     }
-  }, [brand.appName, brand.logoUrl, fallbackLogoUrl, titleSuffix]);
+  }, [appName, logoUrl, titleSuffix]);
 
   return null;
 }

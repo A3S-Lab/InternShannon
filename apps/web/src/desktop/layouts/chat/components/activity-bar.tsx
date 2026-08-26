@@ -141,6 +141,12 @@ export default function ActivityBar() {
         pathname: location.pathname,
         routeMap,
         staticKeys: STATIC_KEYS,
+        knowledgeReturnRequestId:
+          typeof location.state === "object" &&
+          location.state !== null &&
+          typeof (location.state as { knowledgeReturnRequestId?: unknown }).knowledgeReturnRequestId === "string"
+            ? (location.state as { knowledgeReturnRequestId: string }).knowledgeReturnRequestId
+            : undefined,
       });
 
       if (decision.kind === "clear") {
@@ -154,7 +160,7 @@ export default function ActivityBar() {
     } catch {
       // Storage unavailable
     }
-  }, [location.pathname, nav, routeMap]);
+  }, [location.pathname, location.state, nav, routeMap]);
 
   useEffect(() => {
     if (!shouldPersistActivityKey(location.pathname, activeKey, routeMap)) return;

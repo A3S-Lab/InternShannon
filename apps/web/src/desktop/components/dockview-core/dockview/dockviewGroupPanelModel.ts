@@ -926,7 +926,9 @@ export class DockviewGroupPanelModel
 	private updateContainer(): void {
 		toggleClass(this.container, "dv-empty", this.isEmpty);
 
-		this.panels.forEach((panel) => panel.runEvents());
+		this.panels.forEach((panel) => {
+			panel.runEvents();
+		});
 
 		if (this.isEmpty && !this.watermark) {
 			const watermark = this.accessor.createWatermarkComponent();

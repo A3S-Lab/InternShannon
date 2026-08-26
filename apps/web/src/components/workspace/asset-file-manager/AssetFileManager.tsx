@@ -21,10 +21,13 @@ export type AssetFileManagerProps = Pick<
   | "staticFiles"
   | "enableLocalSnapshots"
   | "enableRichMarkdown"
+  | "manualSaveOnly"
   | "showStatusBar"
   | "onStateChange"
   | "onAfterSave"
   | "commandScope"
+  | "openFileRequest"
+  | "nativeRevealPaths"
   | "persistSession"
   | "className"
 >;

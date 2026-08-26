@@ -168,6 +168,8 @@ test("normalizes unknown action errors with a fallback message", () => {
 
 test("normalizes malformed status bar session controls before render", () => {
   assert.equal(resolveSessionPermissionMode("plan"), "plan");
+  assert.equal(resolveSessionPermissionMode("acceptEdits"), "acceptEdits");
+  assert.equal(resolveSessionPermissionMode("readOnly"), "readOnly");
   assert.equal(resolveSessionPermissionMode({ mode: "danger" }), "default");
   assert.equal(resolveSessionPermissionMode("legacy-invalid-mode"), "default");
 

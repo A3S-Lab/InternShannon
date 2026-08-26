@@ -49,9 +49,10 @@ export class PathSecurityValidator {
      * @returns true if path is within root
      */
     static isWithinRoot(pathStr: string, root: string): boolean {
-        const normalizedPath = path.normalize(pathStr);
-        const normalizedRoot = path.normalize(root);
-        return normalizedPath === normalizedRoot || normalizedPath.startsWith(normalizedRoot + path.sep);
+        const normalizedPath = path.resolve(pathStr);
+        const normalizedRoot = path.resolve(root);
+        const relative = path.relative(normalizedRoot, normalizedPath);
+        return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
     }
 
     /**
@@ -74,14 +75,19 @@ export class PathSecurityValidator {
      * @throws Error if resolved path escapes root
      */
     static resolveAndValidate(baseRoot: string, relativePath: string): string {
+        if (path.isAbsolute(relativePath) || path.win32.isAbsolute(relativePath) || path.posix.isAbsolute(relativePath)) {
+            throw new Error('Invalid path: expected a relative path');
+        }
+
         // Normalize and remove leading path traversal attempts
         const normalized = path.normalize(relativePath).replace(/^(\.\.(\/|\\|$))+/, '');
 
         // Resolve against base root
-        const absolutePath = path.join(baseRoot, normalized);
+        const normalizedRoot = path.resolve(baseRoot);
+        const absolutePath = path.resolve(normalizedRoot, normalized || '.');
 
         // Security check: ensure resolved path is still within root
-        if (!absolutePath.startsWith(baseRoot)) {
+        if (!this.isWithinRoot(absolutePath, normalizedRoot)) {
             throw new Error('Invalid path: path traversal detected');
         }
 

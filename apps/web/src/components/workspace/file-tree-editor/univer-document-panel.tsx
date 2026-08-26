@@ -1,32 +1,29 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileText } from "lucide-react";
 import {
   CommandType,
-  DocumentDataModel,
-  ICommandService,
+  type DocumentDataModel,
   type ICommandInfo,
+  ICommandService,
   type IDocumentData,
-  LogLevel,
   LocaleType,
+  LogLevel,
   Univer,
   UniverInstanceType,
 } from "@univerjs/core";
 import { UniverDocsCorePreset } from "@univerjs/preset-docs-core";
 import docsZhCN from "@univerjs/preset-docs-core/locales/zh-CN";
+import { FileText } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@univerjs/preset-docs-core/lib/index.css";
-import type { IDockviewPanelProps } from "@/desktop/components/dockview";
-import { toast } from "sonner";
-import { workspaceApi } from "@/lib/workspace-api";
-import {
-  FILE_EDITOR_SAVE_ALL_EVENT,
-  type FileEditorSaveAllDetail,
-} from "./events";
 import {
   docxBytesToUniverDocumentSnapshot,
   getOfficeExtension,
   getOfficeFileName,
   univerDocumentSnapshotToPreservedDocxBytes,
 } from "@a3s-lab/ooxml";
+import { toast } from "@/components/ui/sonner";
+import type { IDockviewPanelProps } from "@/desktop/components/dockview";
+import { workspaceApi } from "@/lib/workspace-api";
+import { FILE_EDITOR_SAVE_ALL_EVENT, type FileEditorSaveAllDetail } from "./events";
 import { OfficePanelShell, type OfficePanelStatus } from "./office-panel-shell";
 import { disposeUniverAfterReactCommit } from "./univer-runtime-lifecycle";
 
@@ -58,13 +55,11 @@ function createDocsUniver(container: HTMLElement) {
     container,
     header: false,
     toolbar: true,
-    footer: {},
+    footer: true,
   });
 
   for (const entry of docsPreset.plugins) {
-    const [PluginCtor, config] = Array.isArray(entry)
-      ? entry
-      : [entry, undefined];
+    const [PluginCtor, config] = Array.isArray(entry) ? entry : [entry, undefined];
     univer.registerPlugin(PluginCtor as never, config as never);
   }
 
@@ -74,33 +69,22 @@ function createDocsUniver(container: HTMLElement) {
   };
 }
 
-async function bytesToDocumentSnapshot(
-  path: string,
-  data: Uint8Array
-): Promise<IDocumentData> {
+async function bytesToDocumentSnapshot(path: string, data: Uint8Array): Promise<IDocumentData> {
   const ext = getOfficeExtension(path);
   if (ext !== "docx") {
-    throw new Error(
-      "Univer 当前只直接接入 .docx 文档；旧版 .doc 需要后续接入 Office 二进制导入器。"
-    );
+    throw new Error("Univer 当前只直接接入 .docx 文档；旧版 .doc 需要后续接入 Office 二进制导入器。");
   }
 
   return docxBytesToUniverDocumentSnapshot(data, { filename: path });
 }
 
 function isDocumentMutation(command: ICommandInfo, documentId: string) {
-  const params = command.params as
-    | { unitId?: string; documentId?: string }
-    | undefined;
-  if (params?.unitId !== documentId && params?.documentId !== documentId)
-    return false;
+  const params = command.params as { unitId?: string; documentId?: string } | undefined;
+  if (params?.unitId !== documentId && params?.documentId !== documentId) return false;
   return command.type === CommandType.MUTATION;
 }
 
-export function UniverDocumentPanel({
-  params,
-  api,
-}: IDockviewPanelProps<UniverDocumentPanelParams>) {
+export function UniverDocumentPanel({ params, api }: IDockviewPanelProps<UniverDocumentPanelParams>) {
   const path = params?.path ?? "";
   const fileName = useMemo(() => getOfficeFileName(path), [path]);
   const ext = useMemo(() => getOfficeExtension(path), [path]);
@@ -120,10 +104,7 @@ export function UniverDocumentPanel({
       if (!path) return;
       dirtyRef.current = nextDirty;
       setStatus(nextDirty ? "dirty" : "ready");
-      const nextTitle =
-        paramsRef.current?.workbenchVariant === "vscode" || !nextDirty
-          ? fileName
-          : `${fileName} *`;
+      const nextTitle = paramsRef.current?.workbenchVariant === "vscode" || !nextDirty ? fileName : `${fileName} *`;
       api.setTitle(nextTitle);
       api.updateParameters({
         ...api.getParameters(),
@@ -131,9 +112,12 @@ export function UniverDocumentPanel({
       });
       paramsRef.current?.onDirtyChange?.(path, nextDirty);
     },
-    [api, fileName, path]
+    [api, fileName, path],
   );
 
+  // Preserve the existing retry-triggered callback invalidation; changing the
+  // retry lifecycle is outside this type-only repair.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: retryCount intentionally invalidates the callback
   const handleSave = useCallback(async () => {
     if (readOnly || !path || !runtimeRef.current) return;
     try {
@@ -182,20 +166,13 @@ export function UniverDocumentPanel({
       .then(({ data, snapshot }) => {
         if (disposed) return;
         const { univer, commandService } = createDocsUniver(container);
-        const document = univer.createUnit<IDocumentData, DocumentDataModel>(
-          UniverInstanceType.UNIVER_DOC,
-          snapshot
-        );
+        const document = univer.createUnit<IDocumentData, DocumentDataModel>(UniverInstanceType.UNIVER_DOC, snapshot);
         if (readOnly) {
           document.setDisabled(true);
         }
         const documentId = document.getUnitId();
         const commandDisposable = commandService.onCommandExecuted((command) => {
-          if (
-            !readOnly &&
-            !dirtyRef.current &&
-            isDocumentMutation(command, documentId)
-          ) {
+          if (!readOnly && !dirtyRef.current && isDocumentMutation(command, documentId)) {
             markDirty(true);
           }
         });
@@ -226,16 +203,14 @@ export function UniverDocumentPanel({
 
   useEffect(() => {
     const handleSaveAll = (event: Event) => {
-      const scope = (event as CustomEvent<FileEditorSaveAllDetail>).detail
-        ?.scope;
+      const scope = (event as CustomEvent<FileEditorSaveAllDetail>).detail?.scope;
       if (scope && scope !== params?.commandScope) return;
       if (dirtyRef.current) {
         void handleSave();
       }
     };
     document.addEventListener(FILE_EDITOR_SAVE_ALL_EVENT, handleSaveAll);
-    return () =>
-      document.removeEventListener(FILE_EDITOR_SAVE_ALL_EVENT, handleSaveAll);
+    return () => document.removeEventListener(FILE_EDITOR_SAVE_ALL_EVENT, handleSaveAll);
   }, [handleSave, params?.commandScope]);
 
   return (
@@ -258,9 +233,7 @@ export function UniverDocumentPanel({
         }
         setRetryCount((value) => value + 1);
       }}
-      retryLabel={
-        runtimeRef.current && dirtyRef.current ? "重试保存" : "重新加载"
-      }
+      retryLabel={runtimeRef.current && dirtyRef.current ? "重试保存" : "重新加载"}
     >
       <div ref={containerRef} className="h-full w-full" role="application" aria-label="文档编辑器工具栏与正文" />
     </OfficePanelShell>

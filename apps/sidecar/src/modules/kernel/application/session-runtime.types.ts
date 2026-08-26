@@ -1,4 +1,4 @@
-import type { Session } from '@a3s-lab/code';
+import type { Session } from "@a3s-lab/code";
 
 // Session runtime contract types moved to the domain layer so domain/AgentSpec
 // no longer imports from application. Re-exported here for existing consumers.
@@ -10,9 +10,9 @@ export type {
     RuntimeSearchConfig,
     RuntimeWorkerAgentSpec,
     SessionRuntimeOverrides,
-} from '../domain/services/session-runtime.contract';
+} from "../domain/services/session-runtime.contract";
 
-import type { SessionRuntimeOverrides } from '../domain/services/session-runtime.contract';
+import type { SessionRuntimeOverrides } from "../domain/services/session-runtime.contract";
 
 export interface SubscribePayload {
     sessionId: string;
@@ -46,6 +46,12 @@ export interface ActiveSession {
      * the concrete model, so failure reports can name it instead of "default".
      */
     resolvedModel?: string;
+    /**
+     * Effective context window resolved from the same application model config
+     * that produced {@link resolvedModel}. Passed to the SDK and reused for UI
+     * occupancy reporting so auto-compaction and display share one denominator.
+     */
+    maxContextTokens?: number;
     /**
      * True when {@link resolvedModel} had no usable API key (config + env fallback)
      * at creation. Lets the later empty-response failure be reported as an
@@ -94,8 +100,23 @@ export const DEFAULT_MAX_PARSE_RETRIES = 2;
  */
 export const DEFAULT_MAX_TOOL_ROUNDS = 50;
 
-/** Max consecutive LLM API failures before the SDK circuit breaker aborts the run. */
-export const DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 2;
+/**
+ * Abort after the first terminal provider failure. The controlled SDK already
+ * performs its streaming-to-non-stream compatibility fallback inside one
+ * attempt; repeating that whole pair only amplifies deterministic 4xx errors.
+ * Callers can still opt into a larger threshold explicitly.
+ */
+export const DEFAULT_CIRCUIT_BREAKER_THRESHOLD = 1;
+
+/** SDK-owned automatic compaction starts after this context utilization ratio. */
+export const DEFAULT_AUTO_COMPACT_THRESHOLD = 0.8;
+
+/**
+ * Per-request ceiling inside the SDK, including the non-streaming summary call
+ * used by automatic compaction. The runner watchdog must remain above this
+ * value so the SDK can finish or report its own timeout first.
+ */
+export const DEFAULT_LLM_API_TIMEOUT_MS = 120_000;
 
 /**
  * Runner-side watchdog soft threshold. If the SDK emits no events for this
@@ -113,11 +134,12 @@ export const DEFAULT_STREAM_STALL_WARNING_MS = 15_000;
  * cases where the SDK's own timeouts don't fire (native deadlock, DNS-blocking
  * syscalls, etc).
  *
- * Kept at 90s because a wedged model stream is usually catastrophic — fail
- * fast and let the caller retry. Long tool runs use
+ * Kept above {@link DEFAULT_LLM_API_TIMEOUT_MS} because SDK compaction performs
+ * a non-streaming summary request and emits no progress event until it returns.
+ * Long tool runs use
  * {@link DEFAULT_STREAM_STALL_ACTIVE_TOOL_HARD_MS} instead.
  */
-export const DEFAULT_STREAM_STALL_HARD_MS = 90_000;
+export const DEFAULT_STREAM_STALL_HARD_MS = 150_000;
 
 /**
  * Runner-side watchdog hard threshold while the model is still streaming tool
@@ -180,15 +202,15 @@ export interface RuntimeMcpInitError {
 }
 
 export type AssistantContentBlock =
-    | { type: 'text'; text: string }
+    | { type: "text"; text: string }
     | {
-          type: 'tool_use';
+          type: "tool_use";
           id: string;
           name: string;
           input: Record<string, unknown>;
       }
     | {
-          type: 'tool_result';
+          type: "tool_result";
           toolUseId: string;
           content: string;
           isError?: boolean;

@@ -38,7 +38,7 @@ export function normalizeToolErrorActivity(
 }
 
 function localizeToolErrorReason(reason: string, toolName?: string): { detail: string; diagnosticDetail?: string } {
-  if (/[^\x00-\x7F]/.test(reason)) return { detail: reason };
+  if (/[^\p{ASCII}]/u.test(reason)) return { detail: reason };
   const normalized = reason.toLowerCase();
   let detail: string;
   if (/permission denied|not permitted|access denied/.test(normalized)) {

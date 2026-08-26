@@ -92,6 +92,7 @@ export function PdfViewerPanel({
   const fileName = params?.path?.split("/").pop() ?? "PDF 文档";
 
   useEffect(() => {
+    void retryCount;
     const path = params?.path;
     if (!path) {
       setState({ src: null, loading: false, error: "未选择 PDF 文件" });

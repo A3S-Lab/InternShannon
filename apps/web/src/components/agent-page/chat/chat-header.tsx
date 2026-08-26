@@ -15,7 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import {
   AlertDialog,
@@ -55,6 +55,7 @@ import {
 } from "../agent-session-create-state";
 import {
   resolveFirstSelectableSessionId,
+  isSessionSidebarActive,
   resolveSessionDeleteTarget,
   resolveSessionPickerSearchKeyAction,
   resolveSessionSidebarActions,
@@ -163,9 +164,15 @@ export function ChatHeader({
   const sessionSummary = useMemo(
     () => ({
       total: agentSessions.length,
-      active: agentSessions.filter((item) => item.state !== "exited").length,
+      active: agentSessions.filter((item) =>
+        isSessionSidebarActive({
+          sessionState: item.state,
+          sessionStatus: sessionStatus[item.sessionId],
+          connectionStatus: connectionStatus[item.sessionId],
+        }),
+      ).length,
     }),
-    [agentSessions],
+    [agentSessions, connectionStatus, sessionStatus],
   );
   const firstSelectableFilteredSessionId = useMemo(
     () => resolveFirstSelectableSessionId(filteredAgentSessions),

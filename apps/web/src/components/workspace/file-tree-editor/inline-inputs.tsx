@@ -42,7 +42,7 @@ export function InlineRenameInput({
       dotIndex > 0 ? dotIndex + 1 : 0,
       state.value.length
     );
-  }, [dotIndex, state]);
+  }, [dotIndex]);
 
   useEffect(() => {
     inputRef.current?.focus();

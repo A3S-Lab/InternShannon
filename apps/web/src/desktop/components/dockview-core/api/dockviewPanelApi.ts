@@ -23,9 +23,7 @@ export interface ActiveGroupEvent {
 	readonly isActive: boolean;
 }
 
-export interface GroupChangedEvent {
-	// empty
-}
+export type GroupChangedEvent = Record<string, never>;
 
 export type DockviewPanelMoveParams = DockviewGroupMoveParams;
 

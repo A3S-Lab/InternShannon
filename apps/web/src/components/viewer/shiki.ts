@@ -3,6 +3,11 @@
  */
 import { createHighlighter, type Highlighter } from "shiki";
 
+type HighlightLanguage = Exclude<
+	Parameters<Highlighter["codeToTokens"]>[1]["lang"],
+	undefined
+>;
+
 let _highlighter: Highlighter | null = null;
 let _highlighterPromise: Promise<Highlighter> | null = null;
 
@@ -36,4 +41,17 @@ export function getHighlighter(): Promise<Highlighter> {
 		return h;
 	});
 	return _highlighterPromise;
+}
+
+export function resolveHighlightLanguage(
+	highlighter: Highlighter,
+	language: string,
+): HighlightLanguage {
+	const normalized = language.trim().toLowerCase() || "text";
+	if (normalized === "text" || normalized === "txt" || normalized === "plaintext") {
+		return "text";
+	}
+	return highlighter.getLoadedLanguages().includes(normalized)
+		? (normalized as HighlightLanguage)
+		: "text";
 }

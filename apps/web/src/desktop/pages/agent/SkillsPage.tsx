@@ -1,34 +1,24 @@
-import {
-  AlertTriangle,
-  FolderOpen,
-  Loader2,
-  RefreshCw,
-  Settings2,
-  UsersRound,
-} from "lucide-react";
+import { AlertTriangle, FolderOpen, Loader2, RefreshCw, Settings2, UsersRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useSnapshot } from "valtio";
 
 import { AgentAvatar } from "@/components/agent-page/agent-avatar";
 import AgentConfigPanel from "@/components/agent-page/agent-config-panel";
-import {
-  AssetFileManager,
-  type AssetFileManagerStateSnapshot,
-} from "@/components/workspace/asset-file-manager";
 import { Button } from "@/components/ui/button";
+import { AssetFileManager, type AssetFileManagerStateSnapshot } from "@/components/workspace/asset-file-manager";
+import { SectionHeader, SidebarLayout, type SidebarSection } from "@/desktop/layouts/sidebar-layout";
 import { DEFAULT_AGENT_ID, getAgentById, normalizeAgentId } from "@/lib/builtins";
 import { LOCAL_DESKTOP_SKILL_USER_SCOPE } from "@/lib/skill-dirs";
 import { cn } from "@/lib/utils";
 import { workspaceApi } from "@/lib/workspace-api";
 import { getSharedSkillsPath, getUserSkillsPath } from "@/lib/workspace-utils";
 import agentRegistryModel from "@/models/agent-registry.model";
-import { SectionHeader, SidebarLayout, type SidebarSection } from "@/desktop/layouts/sidebar-layout";
 import type { SkillsPageSection, SkillsPageStatus } from "./skills-page-state";
 import {
-  SKILL_PANEL_ENABLE_RICH_MARKDOWN,
   getSkillsPageSectionFromSearch,
   resolveSkillsPageStatus,
+  SKILL_PANEL_ENABLE_RICH_MARKDOWN,
 } from "./skills-page-state";
 
 interface SkillsWorkspaceState {
@@ -84,6 +74,9 @@ function useSkillsWorkspace(agentId: string, reloadKey: number) {
     error: null,
   });
 
+  // agentId and reloadKey are intentional reload triggers even though the
+  // asynchronous loader does not read their values directly.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: dependencies intentionally trigger a workspace reload
   useEffect(() => {
     let cancelled = false;
     setWorkspaceState((current) => ({ ...current, loading: true, error: null }));
@@ -126,7 +119,11 @@ function useSkillsWorkspace(agentId: string, reloadKey: number) {
   const currentAgent = useMemo(() => {
     void registryRevision;
     const currentAgentId = normalizeAgentId(agentId) ?? DEFAULT_AGENT_ID;
-    return agentRegistryModel.getAllAgents().find((agent) => agent.id === currentAgentId) ?? getAgentById(currentAgentId) ?? null;
+    return (
+      agentRegistryModel.getAllAgents().find((agent) => agent.id === currentAgentId) ??
+      getAgentById(currentAgentId) ??
+      null
+    );
   }, [agentId, registryRevision]);
 
   return {
@@ -213,7 +210,7 @@ function SkillWorkspacePanel({
       <div className="min-h-0 flex-1">
         <AssetFileManager
           key={commandScope}
-          rootPath={rootPath}
+          rootPath={rootPath ?? null}
           newFileTemplate={skillTemplate}
           className="h-full"
           commandScope={commandScope}

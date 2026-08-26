@@ -5,45 +5,49 @@ import {
     FileSessionStore,
     type Session,
     type SessionOptions,
-} from '@a3s-lab/code';
-import { Inject, Injectable, Logger, type OnModuleInit, Optional } from '@nestjs/common';
-import { promises as fs } from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-import { MetricsService } from '@/shared/observability/metrics';
-import { IKernelService, KERNEL_SERVICE } from '../domain/services/kernel-service.interface';
-import { AgentRegistry } from './agents/agent-registry';
-import { INTERNAL_CAPABILITIES_MCP_SERVER_NAME } from './capabilities-runtime.constants';
+} from "@a3s-lab/code";
+import { ConflictException, Inject, Injectable, Logger, type OnModuleInit, Optional } from "@nestjs/common";
+import { promises as fs } from "fs";
+import * as os from "os";
+import * as path from "path";
+import { redactSecretValuesInText } from "@/shared/common/security/secret-redaction";
+import { MetricsService } from "@/shared/observability/metrics";
+import { IKernelService, KERNEL_SERVICE } from "../domain/services/kernel-service.interface";
+import { AgentRegistry } from "./agents/agent-registry";
+import { INTERNAL_CAPABILITIES_MCP_SERVER_NAME } from "./capabilities-runtime.constants";
 import {
     classifyWebSearchReadiness,
     verifyBrowserBinary,
     webSearchBrowserBlockReason,
-} from './kernel-browser-binary-check';
+} from "./kernel-browser-binary-check";
 import {
     confirmationPolicyForMode,
     permissionPolicyForMode,
     planningModeForRuntime,
     planReadonlyToolBlockReason,
-} from './kernel-session-policies';
-import { KernelSessionRuntimeStateService } from './kernel-session-runtime-state.service';
+} from "./kernel-session-policies";
+import { KernelSessionRuntimeStateService } from "./kernel-session-runtime-state.service";
 import {
     type ActiveSession,
+    DEFAULT_AUTO_COMPACT_THRESHOLD,
+    DEFAULT_CIRCUIT_BREAKER_THRESHOLD,
+    DEFAULT_LLM_API_TIMEOUT_MS,
     DEFAULT_MAX_EXECUTION_TIME_MS,
     DEFAULT_MAX_PARSE_RETRIES,
     DEFAULT_MAX_TOOL_ROUNDS,
-    DEFAULT_CIRCUIT_BREAKER_THRESHOLD,
     DEFAULT_TOOL_TIMEOUT_MS,
     type RuntimeMcpInitError,
     type RuntimeMcpServerConfig,
     type SessionRuntimeOverrides,
-} from './session-runtime.types';
-import { isRemoteWorkspacePath, normalizeLocalWorkspacePath } from './workspace-path-kind';
+} from "./session-runtime.types";
+import { isRemoteWorkspacePath, normalizeLocalWorkspacePath } from "./workspace-path-kind";
 
 export interface KernelSessionRuntimeFactoryInput {
     sessionId: string;
     agentId?: string;
     cwd?: string;
     overrides?: SessionRuntimeOverrides;
+    operationId?: string;
     emit: (message: unknown) => void;
 }
 
@@ -64,12 +68,12 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
     async onModuleInit(): Promise<void> {
         const browserStatus = verifyBrowserBinary();
         const readiness = classifyWebSearchReadiness(process.env, browserStatus);
-        if (readiness.reason === 'binary_missing' && browserStatus.reason) {
+        if (readiness.reason === "binary_missing" && browserStatus.reason) {
             this.logger.error(browserStatus.reason);
-        } else if (readiness.reason === 'no_pin') {
-            this.logger.warn(browserStatus.reason || 'web_search disabled: no pinned browser runtime');
+        } else if (readiness.reason === "no_pin") {
+            this.logger.warn(browserStatus.reason || "web_search disabled: no pinned browser runtime");
         }
-        this.metrics?.setGauge('kernel_web_search_ready', readiness.ready ? 1 : 0, { reason: readiness.reason });
+        this.metrics?.setGauge("kernel_web_search_ready", readiness.ready ? 1 : 0, { reason: readiness.reason });
     }
 
     async getOrCreateSession(input: KernelSessionRuntimeFactoryInput): Promise<ActiveSession | null> {
@@ -100,7 +104,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
 
         await this.kernelService.awaitWorkspaceReady?.(sessionId);
 
-        const resolvedAgentId = input.agentId || kernelSession.agentId || 'default';
+        const resolvedAgentId = input.agentId || kernelSession.agentId || "default";
         // For the default kernel assistant (agentId 'default'; legacy 'super-admin'
         // aliases to 'default'), the desktop assistant config is AUTHORITATIVE: it is
         // merged LAST so any meaningfully-set field (systemPrompt / skills / mcpServers /
@@ -111,7 +115,8 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         // Effective precedence (top wins):
         //   systemRuntimeDefaults < session-metadata < per-session patch < GLOBAL-assistant
         // and default.agent.runtimeDefaults() fills only the still-unset gaps below.
-        const isDefaultAgent = resolvedAgentId === 'default' || this.agentRegistry.resolve(resolvedAgentId)?.id === 'default';
+        const isDefaultAgent =
+            resolvedAgentId === "default" || this.agentRegistry.resolve(resolvedAgentId)?.id === "default";
         const runtimeOverrides = runtimeConfig.mergeRuntimeOverrides(
             runtimeConfig.systemRuntimeDefaults(),
             runtimeConfig.sessionMetadataOverrides(kernelSession),
@@ -126,13 +131,43 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         const existing = this.runtimeState.getActiveSession(sessionId);
         if (existing) {
             if (existing.runtimeKey === runtimeKey) {
-                this.runtimeState.touchActivity(sessionId);
-                return existing;
+                if (!existing.session.isClosed()) {
+                    this.runtimeState.touchActivity(sessionId);
+                    return existing;
+                }
+                const activeOperation = this.runtimeState.activeOperation(sessionId);
+                if (
+                    activeOperation &&
+                    (activeOperation.operationId !== input.operationId ||
+                        (activeOperation.phase !== "queued" && activeOperation.phase !== "preparing"))
+                ) {
+                    throw new ConflictException({
+                        code: "session_busy",
+                        message: "A closed session runtime cannot be replaced while an operation is already running.",
+                    });
+                }
+                this.runtimeState.deleteActiveSession(sessionId, {
+                    preserveOperation: true,
+                    preserveRuntimeOverrides: true,
+                });
+                this.runtimeState.recordCloseMetric("closed_runtime_recovery");
+                this.logger.warn(`Recreating closed session runtime ${sessionId} with the unchanged runtime key`);
+            } else {
+                const activeOperation = this.runtimeState.activeOperation(sessionId);
+                if (activeOperation && activeOperation.operationId !== input.operationId) {
+                    throw new ConflictException({
+                        code: "session_busy",
+                        message: "Session runtime configuration cannot change while another operation is active.",
+                    });
+                }
+                existing.session.close();
+                this.runtimeState.deleteActiveSession(sessionId, {
+                    preserveOperation: true,
+                    preserveRuntimeOverrides: true,
+                });
+                this.runtimeState.recordCloseMetric("runtime_key_change");
+                this.logger.log(`Recreating session ${sessionId} after runtime config changed`);
             }
-            existing.session.close();
-            this.runtimeState.deleteActiveSession(sessionId);
-            this.runtimeState.recordCloseMetric('runtime_key_change');
-            this.logger.log(`Recreating session ${sessionId} after runtime config changed`);
         }
 
         const profileMcpServers = this.agentRegistry.resolveMcpServers(resolvedAgentId);
@@ -144,22 +179,24 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         ]);
         const runtimeSkillDirs = finalOverrides.skillDirs;
         const nativeConfirmationEnabled =
-            finalOverrides.permissionMode !== 'auto' && finalOverrides.permissionMode !== 'plan';
+            finalOverrides.permissionMode !== "auto" && finalOverrides.permissionMode !== "plan";
 
         const localRuntimeStores = {
-            sessionStore: new FileSessionStore(path.join(workspace, '.sessions')),
-            memoryStore: new FileMemoryStore(path.join(workspace, '.memory')),
+            sessionStore: new FileSessionStore(path.join(workspace, ".sessions")),
+            memoryStore: new FileMemoryStore(path.join(workspace, ".memory")),
             autoSave: true,
         };
 
         const resolvedModel = runtimeConfig.resolveDefaultModel(finalOverrides);
+        const runtimeModel = runtimeConfig.resolveRuntimeModel(finalOverrides);
+        const maxContextTokens = runtimeConfig.resolveModelContextLimit(finalOverrides);
         const modelApiKeyMissing = runtimeConfig.resolvedModelApiKeyMissing(resolvedModel);
         const basePermissionPolicy = permissionPolicyForMode(finalOverrides.permissionMode, nativeConfirmationEnabled);
         const confirmationPolicy = confirmationPolicyForMode(finalOverrides.permissionMode, nativeConfirmationEnabled);
 
         const sessionOptions: SessionOptions = {
             sessionId,
-            model: resolvedModel,
+            model: runtimeModel,
             ...localRuntimeStores,
             permissionPolicy: basePermissionPolicy,
             confirmationPolicy,
@@ -171,8 +208,9 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
             maxToolRounds: finalOverrides.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS,
             maxParseRetries: this.clampNonNegativeInteger(finalOverrides.maxParseRetries) ?? DEFAULT_MAX_PARSE_RETRIES,
             toolTimeoutMs: this.clampPositiveMs(finalOverrides.toolTimeoutMs) ?? DEFAULT_TOOL_TIMEOUT_MS,
-            // Local (a1040668): config-driven via session metadata / settings; defaults to
-            // DEFAULT_CIRCUIT_BREAKER_THRESHOLD (=2), matching origin's previous literal.
+            // Config-driven via session metadata / settings. The default is one
+            // SDK attempt because that attempt already includes the controlled
+            // SDK's streaming-to-non-stream compatibility fallback.
             circuitBreakerThreshold:
                 this.clampPositiveInteger(finalOverrides.circuitBreakerThreshold) ?? DEFAULT_CIRCUIT_BREAKER_THRESHOLD,
             // Origin (fc3ea7cc, session exception handling / diagnostic loop): default continuation +
@@ -181,7 +219,9 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
             continuationEnabled: finalOverrides.continuationEnabled ?? true,
             maxContinuationTurns: finalOverrides.maxContinuationTurns ?? 2,
             autoCompact: finalOverrides.autoCompact ?? true,
-            autoCompactThreshold: finalOverrides.autoCompactThreshold ?? 0.8,
+            autoCompactThreshold: this.resolveAutoCompactThreshold(finalOverrides.autoCompactThreshold),
+            maxContextTokens,
+            llmApiTimeoutMs: DEFAULT_LLM_API_TIMEOUT_MS,
             temperature: finalOverrides.temperature,
             thinkingBudget: finalOverrides.thinkingBudget,
             maxExecutionTimeMs:
@@ -218,9 +258,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         };
 
         const session = this.createOrResumeSdkSession(agent, workspace, sessionId, sessionOptions);
-        const internalMcpServers = this.shouldEnableCapabilities(finalOverrides)
-            ? [this.capabilitiesMcpServer()]
-            : [];
+        const internalMcpServers = this.shouldEnableCapabilities(finalOverrides) ? [this.capabilitiesMcpServer()] : [];
         const allMcpServers = this.uniqueMcpServers([
             ...internalMcpServers,
             ...(finalOverrides.mcpServers ?? []),
@@ -231,7 +269,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         this.registerWorkers(session, resolvedAgentId);
         this.registerWebSearchBrowserHook(session);
 
-        if (finalOverrides.permissionMode === 'plan') {
+        if (finalOverrides.permissionMode === "plan") {
             this.registerPlanReadonlyHooks(session);
         }
 
@@ -245,6 +283,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
             runtimeKey,
             runtimeOverrides: finalOverrides,
             resolvedModel,
+            maxContextTokens,
             modelApiKeyMissing,
             mcpInitErrors,
             nativeConfirmationEnabled,
@@ -255,6 +294,12 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
 
         this.runtimeState.setActiveSession(sessionId, activeSession);
         return activeSession;
+    }
+
+    private resolveAutoCompactThreshold(value: number | undefined): number {
+        return typeof value === "number" && Number.isFinite(value) && value > 0 && value < 1
+            ? value
+            : DEFAULT_AUTO_COMPACT_THRESHOLD;
     }
 
     private createOrResumeSdkSession(
@@ -279,27 +324,27 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
     }
 
     private clampPositiveMs(value: number | undefined): number | undefined {
-        if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
+        if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return undefined;
         return Math.floor(value);
     }
 
     private clampPositiveInteger(value: number | undefined): number | undefined {
-        if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
+        if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return undefined;
         return Math.floor(value);
     }
 
     private clampNonNegativeInteger(value: number | undefined): number | undefined {
-        if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return undefined;
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return undefined;
         return Math.floor(value);
     }
 
     private async createAgent(agentConfig: string): Promise<Agent> {
         try {
             const agent = await Agent.create(agentConfig);
-            this.metrics?.incCounter('kernel_runtime_agent_created_total');
+            this.metrics?.incCounter("kernel_runtime_agent_created_total");
             return agent;
         } catch (error) {
-            this.logger.error(`Failed to create Agent: ${error}`);
+            this.logger.error(`Failed to create Agent: ${redactSecretValuesInText(String(error))}`);
             throw error;
         }
     }
@@ -310,7 +355,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
 
     async resolveRuntimeWorkspace(sessionId: string, workspace?: string): Promise<string> {
         const candidate = workspace?.trim();
-        const fallback = path.join(os.homedir(), '.internshannon', 'workspace');
+        const fallback = path.join(os.homedir(), ".internshannon", "workspace");
         const localCandidate = candidate || fallback;
         if (this.isRemoteWorkspacePath(localCandidate)) {
             throw new Error(`Desktop runtime workspace must be a local path (got ${JSON.stringify(localCandidate)})`);
@@ -328,20 +373,20 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         session: Session,
         servers?: RuntimeMcpServerConfig[],
     ): Promise<RuntimeMcpInitError[]> {
-        const enabled = (servers ?? []).filter(s => s.enabled !== false);
+        const enabled = (servers ?? []).filter((s) => s.enabled !== false);
         if (enabled.length === 0) return [];
 
         const results = await Promise.allSettled(
             enabled.map(async (server): Promise<RuntimeMcpInitError | null> => {
                 try {
-                    const transport = server.transport.type ?? 'stdio';
+                    const transport = server.transport.type ?? "stdio";
                     const timeoutMs =
                         server.timeoutMs ??
                         (server.tool_timeout_secs ? Math.max(1, server.tool_timeout_secs) * 1000 : undefined);
-                    if (transport === 'stdio' && !server.transport.command) {
-                        throw new Error('stdio MCP server requires transport.command');
+                    if (transport === "stdio" && !server.transport.command) {
+                        throw new Error("stdio MCP server requires transport.command");
                     }
-                    if ((transport === 'http' || transport === 'streamable-http') && !server.transport.url) {
+                    if ((transport === "http" || transport === "streamable-http") && !server.transport.url) {
                         throw new Error(`${transport} MCP server requires transport.url`);
                     }
                     const toolCount = await session.addMcpServer(
@@ -369,21 +414,21 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
         );
 
         return results
-            .map(r => (r.status === 'fulfilled' ? r.value : { name: 'unknown', error: String(r.reason) }))
+            .map((r) => (r.status === "fulfilled" ? r.value : { name: "unknown", error: String(r.reason) }))
             .filter((e): e is RuntimeMcpInitError => e !== null);
     }
 
     private shouldEnableCapabilities(overrides: SessionRuntimeOverrides): boolean {
-        return overrides.allowCapabilities === true || (overrides.skills ?? []).includes('capabilities');
+        return overrides.allowCapabilities === true || (overrides.skills ?? []).includes("capabilities");
     }
 
     private capabilitiesMcpServer(): RuntimeMcpServerConfig {
-        const port = process.env.APP_PORT || '29653';
+        const port = process.env.APP_PORT || "29653";
         return {
             name: INTERNAL_CAPABILITIES_MCP_SERVER_NAME,
             enabled: true,
             transport: {
-                type: 'streamable-http',
+                type: "streamable-http",
                 url: `http://127.0.0.1:${port}/api/v1/kernel/mcp`,
             },
         };
@@ -417,7 +462,7 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
     ): (event: Record<string, unknown>) => { action: string; reason?: string } | null {
         return (event: Record<string, unknown>) => {
             try {
-                if (!event || typeof event !== 'object') return null;
+                if (!event || typeof event !== "object") return null;
                 return handler(event) ?? null;
             } catch (error) {
                 this.logger.error(
@@ -432,36 +477,36 @@ export class KernelSessionRuntimeFactory implements OnModuleInit {
 
     private registerPlanReadonlyHooks(session: Session): void {
         session.registerHook(
-            'plan-readonly-guard',
-            'pre_tool_use',
+            "plan-readonly-guard",
+            "pre_tool_use",
             undefined,
             { priority: 0, timeoutMs: 5_000 },
-            this.safeHookHandler('plan-readonly-guard', event => {
+            this.safeHookHandler("plan-readonly-guard", (event) => {
                 const reason = planReadonlyToolBlockReason(event);
-                return reason ? { action: 'block', reason } : null;
+                return reason ? { action: "block", reason } : null;
             }),
         );
     }
 
     private registerWebSearchBrowserHook(session: Session): void {
         session.registerHook(
-            'web-search-browser-readiness',
-            'pre_tool_use',
+            "web-search-browser-readiness",
+            "pre_tool_use",
             undefined,
             { priority: 0, timeoutMs: 5_000 },
-            this.safeHookHandler('web-search-browser-readiness', event => {
+            this.safeHookHandler("web-search-browser-readiness", (event) => {
                 const reason = webSearchBrowserBlockReason(event);
-                return reason ? { action: 'block', reason } : null;
+                return reason ? { action: "block", reason } : null;
             }),
         );
     }
 
     private registerWorkers(session: Session, agentId: string): void {
-        const defaultSpec = this.agentRegistry.resolve('default');
+        const defaultSpec = this.agentRegistry.resolve("default");
         if (defaultSpec?.workers) {
             session.registerWorkerAgents(defaultSpec.workers());
         }
-        if (agentId === 'default') return;
+        if (agentId === "default") return;
         const spec = this.agentRegistry.resolve(agentId);
         if (spec?.workers) {
             session.registerWorkerAgents(spec.workers());

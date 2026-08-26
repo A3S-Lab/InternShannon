@@ -16,12 +16,13 @@ import {
   Trash2,
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
-import { toast } from "sonner";
 import AnthropicLogoUrl from "@/assets/images/logos/llm/anthropic.svg";
 import OpenAiLogoUrl from "@/assets/images/logos/llm/openai.svg";
 import ZhipuLogoUrl from "@/assets/images/logos/llm/zhipu.svg";
+import { toast } from "@/components/ui/sonner";
 import { configApi, type ProviderModelCandidate } from "@/lib/api/config";
 import type { ModelConfig, ProviderConfig } from "@/lib/shared";
+import { DEFAULT_MODEL_CONTEXT_LIMIT, DEFAULT_MODEL_OUTPUT_LIMIT } from "../../../lib/llm-model-limits.ts";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,7 +59,23 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "../../ui";
-import { DEFAULT_MODEL_CONTEXT_LIMIT, DEFAULT_MODEL_OUTPUT_LIMIT } from "../../../lib/llm-model-limits.ts";
+import {
+  buildProviderModelImportRows,
+  filterProviderModelImportRows,
+  hydrateSelectedProviderModels,
+  type ProviderConnectionDraft,
+  type ProviderConnectionDraftMap,
+  type ProviderModelImportFilter,
+  type ProviderModelImportRow,
+  providerConnectionPatchFromDraft,
+  pruneProviderConnectionDrafts,
+  readProviderConnectionDraftMemory,
+  resolveEditableModelLimit,
+  resolveModelLimitDraftAfterModelIdChange,
+  resolveProviderConnectionDraft,
+  storeProviderConnectionDraft,
+  writeProviderConnectionDraftMemory,
+} from "./ai-provider-settings-state";
 import {
   ProviderDefaultPill,
   ProviderEmptyState,
@@ -66,25 +83,9 @@ import {
   ProviderStatusPill,
   ProviderTag,
 } from "./provider-settings-layout";
-import {
-  buildProviderModelImportRows,
-  filterProviderModelImportRows,
-  hydrateSelectedProviderModels,
-  providerConnectionPatchFromDraft,
-  pruneProviderConnectionDrafts,
-  readProviderConnectionDraftMemory,
-  resolveProviderConnectionDraft,
-  resolveEditableModelLimit,
-  resolveModelLimitDraftAfterModelIdChange,
-  storeProviderConnectionDraft,
-  type ProviderConnectionDraft,
-  type ProviderModelImportFilter,
-  type ProviderModelImportRow,
-  type ProviderConnectionDraftMap,
-  writeProviderConnectionDraftMemory,
-} from "./ai-provider-settings-state";
 
 const OPENAI_COMPATIBLE_PROVIDER_OPTION = "openai-compatible";
+type CheckboxState = boolean | "indeterminate";
 
 export const PROVIDER_OPTIONS = [
   {
@@ -963,7 +964,7 @@ function ProviderModelImportDialog({
                               checked={row.selected}
                               disabled={exists}
                               aria-label={`选择 ${row.id}`}
-                              onCheckedChange={(checked) => onToggleModel(row.id, checked === true)}
+                              onCheckedChange={(checked: CheckboxState) => onToggleModel(row.id, checked === true)}
                             />
                           </TableCell>
                           <TableCell className="min-w-0 py-2">
@@ -1572,33 +1573,33 @@ function LlmProviderNav({
   return (
     <div className="space-y-1">
       {hideDefaultRoute ? null : (
-      <button
-        type="button"
-        aria-current={selectedMenuId === DEFAULT_MODEL_MENU_ID ? "page" : undefined}
-        onClick={() => onSelectMenu(DEFAULT_MODEL_MENU_ID)}
-        className={cn(
-          "group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors",
-          selectedMenuId === DEFAULT_MODEL_MENU_ID
-            ? "bg-primary/10 text-primary"
-            : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-        )}
-      >
-        <DefaultModelLogo className="size-9 rounded-md" />
-        <span className="min-w-0 flex-1">
-          <span className="truncate text-sm font-medium">默认模型</span>
-          <span
-            className={cn(
-              "mt-0.5 block truncate text-xs",
-              selectedMenuId === DEFAULT_MODEL_MENU_ID
-                ? "text-primary/70"
-                : "text-muted-foreground/80 group-hover:text-muted-foreground",
-            )}
-          >
-            {defProvider && defModel ? `${defProvider.name} / ${defModel.name}` : "选择会话默认模型"}
+        <button
+          type="button"
+          aria-current={selectedMenuId === DEFAULT_MODEL_MENU_ID ? "page" : undefined}
+          onClick={() => onSelectMenu(DEFAULT_MODEL_MENU_ID)}
+          className={cn(
+            "group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left transition-colors",
+            selectedMenuId === DEFAULT_MODEL_MENU_ID
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+          )}
+        >
+          <DefaultModelLogo className="size-9 rounded-md" />
+          <span className="min-w-0 flex-1">
+            <span className="truncate text-sm font-medium">默认模型</span>
+            <span
+              className={cn(
+                "mt-0.5 block truncate text-xs",
+                selectedMenuId === DEFAULT_MODEL_MENU_ID
+                  ? "text-primary/70"
+                  : "text-muted-foreground/80 group-hover:text-muted-foreground",
+              )}
+            >
+              {defProvider && defModel ? `${defProvider.name} / ${defModel.name}` : "选择会话默认模型"}
+            </span>
           </span>
-        </span>
-        <LlmMenuStatusBadge tone={defaultTone}>{defaultLabel}</LlmMenuStatusBadge>
-      </button>
+          <LlmMenuStatusBadge tone={defaultTone}>{defaultLabel}</LlmMenuStatusBadge>
+        </button>
       )}
 
       {providers.map((provider) => {

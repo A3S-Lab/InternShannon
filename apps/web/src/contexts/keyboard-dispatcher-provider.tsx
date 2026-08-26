@@ -25,6 +25,7 @@ import type { Editor } from "@tiptap/react";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useEventListener } from "ahooks";
 import type { Context } from "@/lib/keybinding-registry";
+import { shouldPreventHistoryBackspace } from "./history-navigation-keyguard";
 
 const EDITOR_COMMAND_BY_ID = new Map(EDITOR_COMMANDS.map((command) => [command.id, command]));
 
@@ -472,8 +473,12 @@ export function KeyboardDispatcherProvider({ children }: KeyboardDispatcherProvi
     kbDisposablesRef.current = rules.map((rule) => KeybindingRegistry.registerKeybinding(rule));
 
     return () => {
-      cmdDisposables.forEach((d) => d.dispose());
-      kbDisposablesRef.current.forEach((d) => d.dispose());
+      cmdDisposables.forEach((disposable) => {
+        disposable.dispose();
+      });
+      kbDisposablesRef.current.forEach((disposable) => {
+        disposable.dispose();
+      });
       kbDisposablesRef.current = [];
     };
   }, [buildRules]);
@@ -484,7 +489,9 @@ export function KeyboardDispatcherProvider({ children }: KeyboardDispatcherProvi
 
   useEffect(() => {
     const unsub = subscribe(settingsModel.state, () => {
-      kbDisposablesRef.current.forEach((d) => d.dispose());
+      kbDisposablesRef.current.forEach((disposable) => {
+        disposable.dispose();
+      });
       kbDisposablesRef.current = [];
       const rules = buildRules();
       kbDisposablesRef.current = rules.map((rule) => KeybindingRegistry.registerKeybinding(rule));
@@ -571,7 +578,13 @@ export function KeyboardDispatcherProvider({ children }: KeyboardDispatcherProvi
   useEventListener(
     "keydown",
     (event: KeyboardEvent) => {
-      dispatchRef.current?.(event);
+      const handled = dispatchRef.current?.(event) === true;
+      if (!handled && shouldPreventHistoryBackspace(event)) {
+        // WKWebView treats an unhandled Backspace on the page as history back.
+        // Prevent only that browser default; do not stop propagation so local
+        // shortcut recorders can still observe the key.
+        event.preventDefault();
+      }
     },
     { capture: true },
   );

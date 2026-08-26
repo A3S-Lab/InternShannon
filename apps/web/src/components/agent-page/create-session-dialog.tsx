@@ -1,4 +1,19 @@
-﻿import { AgentAvatar } from "@/components/agent-page/agent-avatar";
+﻿import { useReactive } from "ahooks";
+import {
+	BookmarkPlus,
+	Bot,
+	Loader2,
+	Shield,
+	Shuffle,
+	Sparkles,
+	User,
+	UserPlus,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo } from "react";
+import type { AvatarFullConfig } from "react-nice-avatar";
+import NiceAvatar, { genConfig } from "react-nice-avatar";
+import { useSnapshot } from "valtio";
+import { AgentAvatar } from "@/components/agent-page/agent-avatar";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -17,15 +32,18 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/components/ui/sonner";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { agentApi } from "@/lib/agent-api";
+import type { AgentProfile } from "@/lib/agent-profile.types";
 import { buildAgentRuntimeConfig } from "@/lib/agent-runtime-config";
 import {
 	createAgentSession,
 	refreshSessionsInBackground,
 } from "@/lib/session-bootstrap";
 import { cn } from "@/lib/utils";
+import { joinWorkspacePath } from "@/lib/workspace-path";
 import {
 	ensureWorkspaceReadiness,
 	formatWorkspaceValidationError,
@@ -33,29 +51,16 @@ import {
 	prepareSessionWorkspacePath,
 	resolveAgentWorkingDirectory,
 } from "@/lib/workspace-utils";
-import { joinWorkspacePath } from "@/lib/workspace-path";
 import agentRegistryModel from "@/models/agent-registry.model";
 import settingsModel, {
-	getPreferredSessionModel,
 	getAllModels,
+	getPreferredSessionModel,
+	resolveConfiguredSessionModel,
 } from "@/models/settings.model";
-import type { AgentProfile } from "@/lib/agent-profile.types";
 import {
-	BookmarkPlus,
-	Bot,
-	Loader2,
-	Shield,
-	Shuffle,
-	Sparkles,
-	User,
-	UserPlus,
-} from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
-import { useReactive } from "ahooks";
-import NiceAvatar, { genConfig } from "react-nice-avatar";
-import type { AvatarFullConfig } from "react-nice-avatar";
-import { toast } from "sonner";
-import { useSnapshot } from "valtio";
+	formatResolvedRuntimeModel,
+	SESSION_MODEL_CONFIGURATION_ERROR,
+} from "@/models/settings-runtime-model-config-state";
 
 // =============================================================================
 // Types
@@ -111,6 +116,8 @@ export default function CreateSessionDialog({
 
 	// Tab state
 	const preferredSessionModel = getPreferredSessionModel();
+	const preferredSessionModelRef =
+		formatResolvedRuntimeModel(preferredSessionModel) || "";
 	const state = useReactive({
 		// Local agent selection state.
 		selectedAgentId: null as string | null,
@@ -118,8 +125,7 @@ export default function CreateSessionDialog({
 		avatarConfig: defaults?.avatar || (genConfig() as AvatarFullConfig),
 		sessionName: defaults?.sessionName || "",
 		systemPrompt: defaults?.systemPrompt || "",
-		model:
-			normalizeModelInput(defaults?.model) || preferredSessionModel.modelId,
+		model: normalizeModelInput(defaults?.model) || preferredSessionModelRef,
 		permissionMode: defaults?.permissionMode || "default",
 		cwd: "",
 		saveAsAgent: false,
@@ -131,25 +137,33 @@ export default function CreateSessionDialog({
 		// Model metadata
 		modelOptions: [] as ModelOption[],
 	});
+	const modelOptionsLength = state.modelOptions.length;
 	useEffect(() => {
 		if (!open) return;
-		if (state.modelOptions.length === 0) {
+		if (modelOptionsLength === 0) {
 			agentApi
 				.listModelOptions()
 				.then((r) => {
 					if (Array.isArray(r)) state.modelOptions = r;
 				})
-				.catch(() => { });
+				.catch(() => {});
 		}
-	}, [open, state.modelOptions.length]);
+	}, [modelOptionsLength, open]);
 
+	const avatarConfig = state.avatarConfig;
 	const currentAvatarConfig = useMemo(
-		() => genConfig(state.avatarConfig),
-		[state.avatarConfig],
+		() => genConfig(avatarConfig),
+		[avatarConfig],
 	);
 
 	// 鈹€鈹€ Agent data 鈹€鈹€
-	const allAgents = useMemo(() => agentRegistryModel.getAllAgents(), [agentRegistryRevision]);
+	const allAgents = useMemo(
+		() => {
+			void agentRegistryRevision;
+			return agentRegistryModel.getAllAgents();
+		},
+		[agentRegistryRevision],
+	);
 	const localAgents = useMemo(
 		() =>
 			allAgents
@@ -157,17 +171,18 @@ export default function CreateSessionDialog({
 				.sort((a, b) => a.name.localeCompare(b.name)),
 		[allAgents],
 	);
+	const selectedAgentId = state.selectedAgentId;
 	const selectedLocalAgent = useMemo(
 		() =>
-			state.selectedAgentId
-				? allAgents.find((p) => p.id === state.selectedAgentId) ?? null
+			selectedAgentId
+				? (allAgents.find((p) => p.id === selectedAgentId) ?? null)
 				: null,
-		[state.selectedAgentId, allAgents],
+		[selectedAgentId, allAgents],
 	);
 	const lockedAgent = useMemo(
 		() =>
 			defaults?.agentId
-				? allAgents.find((p) => p.id === defaults.agentId) ?? null
+				? (allAgents.find((p) => p.id === defaults.agentId) ?? null)
 				: null,
 		[defaults?.agentId, allAgents],
 	);
@@ -188,17 +203,19 @@ export default function CreateSessionDialog({
 		() =>
 			selectableModelSources.map((option) => ({
 				...option,
-				value: option.id,
+				value: option.provider ? `${option.provider}/${option.id}` : option.id,
 			})),
 		[selectableModelSources],
 	);
-	const selectedAgentForCustom = agentLocked
-		? lockedAgent
-		: selectedLocalAgent;
+	const selectedAgentForCustom = agentLocked ? lockedAgent : selectedLocalAgent;
 
 	const syncModelCredentials = useCallback(
 		(value: string) => {
-			const selected = selectableModelSources.find((item) => item.id === value);
+			const selected = selectableModelSources.find(
+				(item) =>
+					item.id === value ||
+					(item.provider ? `${item.provider}/${item.id}` : item.id) === value,
+			);
 			const providerFromId =
 				value.includes("/") && !selected
 					? value.slice(0, value.indexOf("/")).trim()
@@ -212,7 +229,7 @@ export default function CreateSessionDialog({
 		if (!defaults) return;
 
 		const nextModel =
-			normalizeModelInput(defaults.model) || preferredSessionModel.modelId;
+			normalizeModelInput(defaults.model) || preferredSessionModelRef;
 
 		state.avatarConfig = defaults.avatar;
 		state.sessionName = defaults.sessionName;
@@ -220,7 +237,7 @@ export default function CreateSessionDialog({
 		state.model = nextModel;
 		state.permissionMode = defaults.permissionMode || "default";
 		syncModelCredentials(nextModel);
-	}, [defaults, preferredSessionModel.modelId, syncModelCredentials]);
+	}, [defaults, preferredSessionModelRef, syncModelCredentials]);
 
 	const handleModelChange = useCallback(
 		(value: string) => {
@@ -259,12 +276,13 @@ export default function CreateSessionDialog({
 			}
 			state.error = null;
 		},
-		[state.permissionMode, syncModelCredentials],
+		[syncModelCredentials],
 	);
 
 	const handleSelectLocalAgent = useCallback(
 		async (agent: AgentProfile) => {
-			state.selectedAgentId = state.selectedAgentId === agent.id ? null : agent.id;
+			state.selectedAgentId =
+				state.selectedAgentId === agent.id ? null : agent.id;
 			if (state.selectedAgentId) {
 				await populateCustomFormFromAgent(agent);
 			}
@@ -277,11 +295,11 @@ export default function CreateSessionDialog({
 		state.avatarConfig = genConfig();
 		state.sessionName = "";
 		state.systemPrompt = "";
-		state.model = preferred.modelId;
+		state.model = formatResolvedRuntimeModel(preferred) || "";
 		state.permissionMode = "default";
-		void getEffectiveWorkspaceRoot().then(
-			(root) => (state.cwd = joinWorkspacePath(root, "sessions", "...")),
-		);
+		void getEffectiveWorkspaceRoot().then((root) => {
+			state.cwd = joinWorkspacePath(root, "sessions", "...");
+		});
 		state.saveAsAgent = false;
 		state.agentDescription = "";
 		state.error = null;
@@ -289,16 +307,14 @@ export default function CreateSessionDialog({
 	}, []);
 
 	const handleCreate = async () => {
-		let agentId =
-			defaults?.agentId ??
-			(state.selectedAgentId ?? undefined);
+		const agentId = defaults?.agentId ?? state.selectedAgentId ?? undefined;
 		let finalModel = state.model;
 		let finalPermMode = state.permissionMode;
 		let finalPrompt = state.systemPrompt;
 		let finalName = state.sessionName;
 		let finalSkills: string[] | undefined;
 		let finalSkillDirs: string[] | undefined;
-		let targetAgent =
+		const targetAgent =
 			(agentId ? allAgents.find((p) => p.id === agentId) : null) ?? null;
 
 		let finalCwd = "";
@@ -312,14 +328,15 @@ export default function CreateSessionDialog({
 				if (resolvedCwd) {
 					state.cwd = resolvedCwd;
 				}
-				finalModel = targetAgent.defaultModel || finalModel;
+				finalModel = finalModel || targetAgent.defaultModel || "";
 				finalPermMode = targetAgent.defaultPermissionMode || finalPermMode;
 				finalName = finalName || targetAgent.name;
 				const runtimeConfig = await buildAgentRuntimeConfig(targetAgent);
 				finalPrompt =
 					runtimeConfig.systemPrompt || finalPrompt || targetAgent.systemPrompt;
 				finalSkillDirs = runtimeConfig.skillDirs;
-				finalSkills = finalSkills ?? runtimeConfig.skills.map((skill) => skill.name);
+				finalSkills =
+					finalSkills ?? runtimeConfig.skills.map((skill) => skill.name);
 			}
 
 			finalCwd =
@@ -343,6 +360,15 @@ export default function CreateSessionDialog({
 				preflightError,
 			);
 		}
+
+		const resolvedModel = resolveConfiguredSessionModel(finalModel);
+		const resolvedModelRef = formatResolvedRuntimeModel(resolvedModel);
+		if (!resolvedModelRef) {
+			state.error = SESSION_MODEL_CONFIGURATION_ERROR;
+			toast.error(SESSION_MODEL_CONFIGURATION_ERROR);
+			return;
+		}
+		finalModel = resolvedModelRef;
 
 		state.loading = true;
 		state.error = null;
@@ -377,7 +403,7 @@ export default function CreateSessionDialog({
 			if (finalName) {
 				const { default: agentModel } = await import("@/models/agent.model");
 				agentModel.setSessionName(sid, finalName);
-				agentApi.updateSession(sid, { name: finalName }).catch(() => { });
+				agentApi.updateSession(sid, { name: finalName }).catch(() => {});
 			}
 
 			if (agentId) {
@@ -479,8 +505,13 @@ export default function CreateSessionDialog({
 												)}
 												onClick={() => void handleSelectLocalAgent(agent)}
 											>
-												<AgentAvatar agent={agent} className="size-6 shrink-0" />
-												<span className="min-w-0 truncate text-xs font-medium">{agent.name}</span>
+												<AgentAvatar
+													agent={agent}
+													className="size-6 shrink-0"
+												/>
+												<span className="min-w-0 truncate text-xs font-medium">
+													{agent.name}
+												</span>
 											</button>
 										);
 									})}
@@ -562,7 +593,9 @@ export default function CreateSessionDialog({
 												id="session-name"
 												placeholder="给会话起个名字"
 												value={state.sessionName}
-												onChange={(e) => (state.sessionName = e.target.value)}
+												onChange={(e) => {
+													state.sessionName = e.target.value;
+												}}
 												className="h-8"
 											/>
 										</div>
@@ -580,7 +613,9 @@ export default function CreateSessionDialog({
 											id="system-prompt"
 											placeholder="定义智能体的任务边界和行为方式..."
 											value={state.systemPrompt}
-											onChange={(e) => (state.systemPrompt = e.target.value)}
+											onChange={(e) => {
+												state.systemPrompt = e.target.value;
+											}}
 											className="min-h-[72px] resize-y text-xs"
 										/>
 									</div>
@@ -595,7 +630,7 @@ export default function CreateSessionDialog({
 												模型
 											</Label>
 											{selectableModelSources.length > 0 ||
-												availableModels.length > 1 ? (
+											availableModels.length > 1 ? (
 												<Select
 													value={state.model}
 													onValueChange={handleModelChange}
@@ -620,7 +655,9 @@ export default function CreateSessionDialog({
 													id="model"
 													placeholder="claude-sonnet-4-20250514"
 													value={state.model}
-													onChange={(e) => (state.model = e.target.value)}
+													onChange={(e) => {
+														state.model = e.target.value;
+													}}
 													className="h-8 text-xs"
 												/>
 											)}
@@ -635,7 +672,9 @@ export default function CreateSessionDialog({
 											</Label>
 											<Select
 												value={state.permissionMode}
-												onValueChange={(v) => (state.permissionMode = v)}
+											onValueChange={(v) => {
+												state.permissionMode = v;
+											}}
 											>
 												<SelectTrigger id="perm-mode" className="h-8 text-xs">
 													<SelectValue />
@@ -647,10 +686,7 @@ export default function CreateSessionDialog({
 													<SelectItem value="plan" className="text-xs">
 														规划模式
 													</SelectItem>
-													<SelectItem
-														value="auto"
-														className="text-xs"
-													>
+													<SelectItem value="auto" className="text-xs">
 														自动执行
 													</SelectItem>
 												</SelectContent>
@@ -671,7 +707,9 @@ export default function CreateSessionDialog({
 											<input
 												type="checkbox"
 												checked={state.saveAsAgent}
-												onChange={(e) => (state.saveAsAgent = e.target.checked)}
+												onChange={(e) => {
+													state.saveAsAgent = e.target.checked;
+												}}
 												className="rounded border-muted-foreground/30"
 											/>
 											<BookmarkPlus className="size-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
@@ -684,9 +722,9 @@ export default function CreateSessionDialog({
 												<Input
 													placeholder="智能体描述（可选）"
 													value={state.agentDescription}
-													onChange={(e) =>
-														(state.agentDescription = e.target.value)
-													}
+												onChange={(e) => {
+													state.agentDescription = e.target.value;
+												}}
 													className="h-8 text-xs"
 												/>
 											</div>

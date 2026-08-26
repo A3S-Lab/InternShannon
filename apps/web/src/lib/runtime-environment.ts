@@ -69,7 +69,7 @@ export function getRuntimeCapabilities(): RuntimeCapabilities {
     nativeDialog: native,
     nativeFileSystem: native,
     nativeShell: native,
-    nativeUpdater: native,
+    nativeUpdater: false,
     loopbackProxy: native,
   };
 }

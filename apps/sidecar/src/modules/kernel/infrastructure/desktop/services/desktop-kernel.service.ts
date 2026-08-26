@@ -219,6 +219,7 @@ export class DesktopKernelService implements IKernelService {
             'ownerId',
             'creationRequestId',
             'sourceCaseId',
+            'tags',
             'assetId',
             'agentPhase',
             'assetName',

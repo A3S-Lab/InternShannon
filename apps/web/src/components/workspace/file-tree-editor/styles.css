@@ -50,8 +50,11 @@
 
 /* Smooth tab transitions */
 .dv-default-tab {
-  transition: background-color 0.15s ease, border-radius 0.15s ease,
-    box-shadow 0.15s ease, margin 0.15s ease !important;
+  transition:
+    background-color 0.15s ease,
+    border-radius 0.15s ease,
+    box-shadow 0.15s ease,
+    margin 0.15s ease !important;
 }
 
 .file-tree-paneview .dv-pane-container {
@@ -225,7 +228,9 @@
   padding: 5px 10px;
   font-size: 12px;
   color: hsl(var(--foreground) / 0.82);
-  transition: background-color 0.12s ease, border-color 0.12s ease;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
   touch-action: manipulation;
 }
 
@@ -285,7 +290,9 @@
   font-size: 12px;
   color: hsl(var(--foreground));
   outline: none;
-  transition: border-color 0.1s ease, box-shadow 0.1s ease,
+  transition:
+    border-color 0.1s ease,
+    box-shadow 0.1s ease,
     background-color 0.1s ease;
 }
 
@@ -314,7 +321,9 @@
   border-radius: 4px;
   color: hsl(var(--muted-foreground));
   transform: translateY(-50%);
-  transition: background-color 0.1s ease, color 0.1s ease;
+  transition:
+    background-color 0.1s ease,
+    color 0.1s ease;
   touch-action: manipulation;
 }
 
@@ -396,7 +405,10 @@
   padding: 0;
   text-align: left;
   color: hsl(var(--foreground) / 0.76);
-  transition: background-color 0.1s ease, color 0.1s ease, opacity 0.1s ease;
+  transition:
+    background-color 0.1s ease,
+    color 0.1s ease,
+    opacity 0.1s ease;
   touch-action: manipulation;
 }
 
@@ -592,7 +604,9 @@
   border-radius: 4px;
   padding: 0 6px;
   font-size: 11px;
-  transition: background-color 0.1s ease, color 0.1s ease;
+  transition:
+    background-color 0.1s ease,
+    color 0.1s ease;
 }
 
 .file-tree-editor-toolbutton:hover {
@@ -618,7 +632,9 @@
   justify-content: center;
   border-radius: 4px;
   color: hsl(var(--muted-foreground));
-  transition: background-color 0.1s ease, color 0.1s ease;
+  transition:
+    background-color 0.1s ease,
+    color 0.1s ease;
   touch-action: manipulation;
 }
 
@@ -790,11 +806,8 @@
   justify-content: center;
   border: 1px solid hsl(var(--border) / 0.65);
   border-radius: 12px;
-  background: linear-gradient(
-      135deg,
-      hsl(var(--primary) / 0.08),
-      transparent 60%
-    ),
+  background:
+    linear-gradient(135deg, hsl(var(--primary) / 0.08), transparent 60%),
     hsl(var(--muted) / 0.18);
   color: hsl(var(--primary) / 0.9);
 }
@@ -835,7 +848,9 @@
   font-size: 12px;
   color: hsl(var(--foreground) / 0.82);
   box-shadow: 0 1px 1px hsl(var(--foreground) / 0.04);
-  transition: border-color 0.1s ease, background-color 0.1s ease,
+  transition:
+    border-color 0.1s ease,
+    background-color 0.1s ease,
     color 0.1s ease;
 }
 
@@ -903,14 +918,16 @@
 
 .file-tree-git-graph-node.is-expanded {
   transform: scale(1.05);
-  box-shadow: 0 0 0 2px hsl(var(--background)),
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
     0 0 0 4px hsl(var(--primary) / 0.14);
 }
 
 .file-tree-git-graph-node.is-summary {
   height: 10px;
   width: 10px;
-  box-shadow: 0 0 0 2px hsl(var(--background)),
+  box-shadow:
+    0 0 0 2px hsl(var(--background)),
     0 0 0 5px hsl(var(--primary) / 0.12);
 }
 
@@ -1214,7 +1231,9 @@
   color: inherit !important;
   flex-shrink: 0 !important;
   opacity: 0.5 !important;
-  transition: opacity 0.1s ease, background-color 0.1s ease !important;
+  transition:
+    opacity 0.1s ease,
+    background-color 0.1s ease !important;
   padding: 0 !important;
   margin-left: auto !important;
 }
@@ -1358,7 +1377,9 @@
 
 /* Smooth icon color transitions */
 .file-tree-item svg {
-  transition: color 0.1s ease, transform 0.1s ease;
+  transition:
+    color 0.1s ease,
+    transform 0.1s ease;
 }
 
 /* Better spacing for tree content */
@@ -1455,7 +1476,9 @@
   text-align: left;
   font-size: 12px;
   color: inherit;
-  transition: background-color 0.08s ease, color 0.08s ease;
+  transition:
+    background-color 0.08s ease,
+    color 0.08s ease;
 }
 
 .file-tree-context-menu-item:hover,
@@ -1676,7 +1699,9 @@
   border: 0;
   background: transparent;
   color: var(--shuan-vscode-activity-fg);
-  transition: color 0.12s ease, background-color 0.12s ease;
+  transition:
+    color 0.12s ease,
+    background-color 0.12s ease;
 }
 
 .file-tree-vscode-activity-button:hover,
@@ -1729,8 +1754,8 @@
 }
 
 .file-tree-editor-compact-workbench.file-tree-editor-vscode
-	.file-tree-vscode-sidebar-panel {
-	min-width: 144px;
+  .file-tree-vscode-sidebar-panel {
+  min-width: 144px;
 }
 
 .file-tree-vscode-sidebar-titlebar {
@@ -2078,8 +2103,9 @@
 }
 
 .file-tree-asset-overview-commit code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
 }
 
 .file-tree-source-toolbar {
@@ -2672,8 +2698,9 @@ button.file-tree-vscode-section-header:focus-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: pre;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
 }
 
 .file-tree-vscode-search-match-hit {
@@ -2696,7 +2723,10 @@ button.file-tree-vscode-section-header:focus-visible {
   min-height: 22px;
   border-radius: 0;
   color: var(--shuan-vscode-side-fg);
-  transition: background-color 0.08s ease, color 0.08s ease, opacity 0.08s ease;
+  transition:
+    background-color 0.08s ease,
+    color 0.08s ease,
+    opacity 0.08s ease;
 }
 
 .file-tree-editor-vscode .file-tree-row:hover {
@@ -2905,21 +2935,21 @@ button.file-tree-vscode-section-header:focus-visible {
 }
 
 .file-tree-editor-compact-workbench.file-tree-editor-vscode
-	.file-tree-editor-watermark.is-vscode-watermark {
-	padding: 24px 16px;
+  .file-tree-editor-watermark.is-vscode-watermark {
+  padding: 24px 16px;
 }
 
 .file-tree-editor-compact-workbench.file-tree-editor-vscode
-	.file-tree-editor-vscode-watermark-mark {
-	width: 120px;
-	height: 120px;
+  .file-tree-editor-vscode-watermark-mark {
+  width: 120px;
+  height: 120px;
 }
 
 .file-tree-editor-compact-workbench.file-tree-editor-vscode
-	.file-tree-editor-vscode-watermark-mark
-	svg {
-	width: 108px;
-	height: 108px;
+  .file-tree-editor-vscode-watermark-mark
+  svg {
+  width: 108px;
+  height: 108px;
 }
 
 .file-tree-editor-vscode .file-tree-editor-vscode-watermark-row {
@@ -2930,8 +2960,8 @@ button.file-tree-vscode-section-header:focus-visible {
 }
 
 .file-tree-editor-compact-workbench.file-tree-editor-vscode
-	.file-tree-editor-vscode-watermark-row {
-	gap: 12px;
+  .file-tree-editor-vscode-watermark-row {
+  gap: 12px;
 }
 
 .file-tree-editor-vscode .file-tree-editor-vscode-watermark-row kbd {
@@ -2947,9 +2977,9 @@ button.file-tree-vscode-section-header:focus-visible {
 }
 
 .file-tree-editor-compact-workbench.file-tree-editor-vscode
-	.file-tree-editor-vscode-watermark-row
-	kbd {
-	min-width: 58px;
+  .file-tree-editor-vscode-watermark-row
+  kbd {
+  min-width: 58px;
 }
 
 .file-tree-editor-vscode .file-tree-editor-watermark-title {
@@ -3211,7 +3241,8 @@ button.file-tree-vscode-section-header:focus-visible {
 }
 
 .shuan-design-file-manager .dv-default-tab-content {
-  font-family: "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+  font-family:
+    "DM Sans", "Helvetica Neue", Helvetica, Arial, sans-serif !important;
   color: #45515e !important;
 }
 
@@ -3246,11 +3277,8 @@ button.file-tree-vscode-section-header:focus-visible {
 }
 
 .shuan-design-file-manager .file-tree-editor-watermark {
-  background: radial-gradient(
-      circle at top left,
-      rgb(20 86 240 / 0.08),
-      transparent 34%
-    ),
+  background:
+    radial-gradient(circle at top left, rgb(20 86 240 / 0.08), transparent 34%),
     #ffffff;
   color: #45515e;
 }
@@ -3631,11 +3659,8 @@ button.file-tree-vscode-section-header:focus-visible {
 
 .shuan-design-file-manager.file-tree-editor-vscode
   .file-tree-editor-watermark.is-vscode-watermark {
-  background: radial-gradient(
-      circle at top left,
-      rgb(20 86 240 / 0.08),
-      transparent 34%
-    ),
+  background:
+    radial-gradient(circle at top left, rgb(20 86 240 / 0.08), transparent 34%),
     #ffffff;
 }
 
@@ -3842,4 +3867,206 @@ button.file-tree-vscode-section-header:focus-visible {
 .ft-chromeless .dv-tabs-and-actions-container,
 .ft-chromeless .md-editor-toolbar {
   display: none !important;
+}
+
+/* Monaco normally writes cursor and selection colors through a runtime theme
+   stylesheet. In packaged WKWebView that dynamic sheet can be missing even
+   though Monaco's static layout CSS loaded (the status bar still reports the
+   correct selection/caret). These scoped fallbacks restore visible editing
+   feedback without affecting any other editor surface. */
+.file-tree-editor-root .monaco-editor {
+  --vscode-editor-selectionBackground: rgba(37, 99, 235, 0.28);
+  --vscode-editor-inactiveSelectionBackground: rgba(37, 99, 235, 0.18);
+  --vscode-editor-selectionHighlightBackground: rgba(37, 99, 235, 0.14);
+  --vscode-editorCursor-foreground: #1456f0;
+}
+
+.file-tree-editor-root
+  .monaco-editor
+  .view-overlays
+  .cslr.selected-text,
+.file-tree-editor-root
+  .monaco-editor
+  .view-overlays
+  .focused
+  .cslr.selected-text {
+  background: rgba(37, 99, 235, 0.28) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+
+.file-tree-editor-root .monaco-editor .cursors-layer > .cursor {
+  border-color: #1456f0 !important;
+  border-radius: 0 !important;
+  background-color: #1456f0 !important;
+  box-shadow: 0 0 0 0.5px #ffffff;
+  opacity: 1 !important;
+	width: 2px !important;
+}
+
+/* Model decorations are rendered with the text spans, so they remain visible
+   even when macOS WKWebView drops Monaco's dynamic overlay/token stylesheet. */
+.file-tree-editor-root
+  .monaco-editor
+  .view-lines
+  .file-tree-editor-user-selection {
+  background-color: rgba(37, 99, 235, 0.3) !important;
+  box-shadow: inset 0 0 0 999px rgba(37, 99, 235, 0.02);
+}
+
+.file-tree-editor-root .monaco-editor .file-tree-editor-md-heading {
+  color: #1456f0 !important;
+  font-weight: 700 !important;
+}
+
+.file-tree-editor-root .monaco-editor .file-tree-editor-md-marker {
+  color: #7c3aed !important;
+  font-weight: 700 !important;
+}
+
+.file-tree-editor-root .monaco-editor .file-tree-editor-md-code {
+  color: #047857 !important;
+}
+
+.file-tree-editor-root .monaco-editor .file-tree-editor-md-strong {
+  color: #b45309 !important;
+  font-weight: 700 !important;
+}
+
+.file-tree-editor-root .monaco-editor .file-tree-editor-md-link {
+  color: #0369a1 !important;
+  text-decoration: underline;
+  text-decoration-color: rgba(3, 105, 161, 0.35);
+}
+
+.dark .file-tree-editor-root .monaco-editor {
+  --vscode-editor-selectionBackground: rgba(96, 165, 250, 0.34);
+  --vscode-editor-inactiveSelectionBackground: rgba(96, 165, 250, 0.24);
+  --vscode-editor-selectionHighlightBackground: rgba(96, 165, 250, 0.18);
+  --vscode-editorCursor-foreground: #f8fafc;
+}
+
+.dark
+  .file-tree-editor-root
+  .monaco-editor
+  .view-overlays
+  .cslr.selected-text,
+.dark
+  .file-tree-editor-root
+  .monaco-editor
+  .view-overlays
+  .focused
+  .cslr.selected-text {
+  background: rgba(96, 165, 250, 0.34) !important;
+}
+
+.dark .file-tree-editor-root .monaco-editor .cursors-layer > .cursor {
+  border-color: #f8fafc !important;
+  background-color: #f8fafc !important;
+  box-shadow: 0 0 0 0.5px #111827;
+}
+
+.dark
+  .file-tree-editor-root
+  .monaco-editor
+  .view-lines
+  .file-tree-editor-user-selection {
+  background-color: rgba(96, 165, 250, 0.36) !important;
+}
+
+.dark .file-tree-editor-root .monaco-editor .file-tree-editor-md-heading {
+  color: #7dd3fc !important;
+}
+
+.dark .file-tree-editor-root .monaco-editor .file-tree-editor-md-marker {
+  color: #c4b5fd !important;
+}
+
+.dark .file-tree-editor-root .monaco-editor .file-tree-editor-md-code {
+  color: #6ee7b7 !important;
+}
+
+.dark .file-tree-editor-root .monaco-editor .file-tree-editor-md-strong {
+  color: #fbbf24 !important;
+}
+
+.dark .file-tree-editor-root .monaco-editor .file-tree-editor-md-link {
+  color: #7dd3fc !important;
+}
+
+/* Monaco 0.55 builds the context-menu shell dynamically. In the packaged
+   desktop renderer its runtime menu stylesheet can be attached outside the
+   menu's document scope, leaving a raw bulleted list even though the editor
+   stylesheet itself loaded. Keep the native Monaco menu and provide only the
+   missing structural rules here; colors still come from Monaco theme tokens. */
+.context-view.monaco-menu-container {
+  z-index: 3000;
+}
+
+.monaco-menu,
+.monaco-menu .monaco-action-bar,
+.monaco-menu .monaco-action-bar.vertical {
+  display: block;
+}
+
+.monaco-menu ul,
+.monaco-menu li,
+.monaco-menu .monaco-action-bar.vertical .actions-container {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.monaco-menu .monaco-action-bar.vertical .actions-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-item {
+  display: block;
+  position: relative;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-menu-item {
+  box-sizing: border-box;
+  display: flex;
+  min-width: 180px;
+  min-height: 26px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  cursor: default;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-label:not(.separator) {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monaco-menu .monaco-action-bar.vertical .keybinding,
+.monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+  flex: 0 0 auto;
+  margin-left: auto;
+  opacity: 0.72;
+}
+
+.monaco-menu
+  .monaco-action-bar.vertical
+  .action-item.focused
+  > .action-menu-item,
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover {
+  background: var(--vscode-menu-selectionBackground, rgba(0, 0, 0, 0.08));
+  color: var(--vscode-menu-selectionForeground, inherit);
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-label.separator {
+  display: block;
+  height: 1px;
+  margin: 4px 8px;
+  border-bottom: 1px solid
+    var(--vscode-menu-separatorBackground, rgba(0, 0, 0, 0.12));
 }

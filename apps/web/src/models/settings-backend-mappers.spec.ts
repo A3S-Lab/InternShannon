@@ -140,13 +140,15 @@ test("normalizes malformed appearance, network, and storage settings", () => {
       zoomLevel: "1.25",
     } as never),
     {
-      theme: "system",
+      theme: "light",
       sideBarPosition: "left",
       statusBar: false,
       activityBar: true,
       zoomLevel: 1.25,
     },
   );
+
+  assert.equal(backendAppearanceToFrontend({ theme: "dark" }).theme, "light");
 
   assert.deepEqual(
     backendNetworkToFrontend({

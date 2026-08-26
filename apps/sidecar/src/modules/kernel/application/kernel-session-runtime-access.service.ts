@@ -1,16 +1,18 @@
-import { Injectable, type OnModuleInit } from '@nestjs/common';
-import { KernelSessionRuntimeFactory } from './kernel-session-runtime-factory.service';
+import { Injectable, type OnModuleInit } from "@nestjs/common";
+import { KernelSessionRuntimeFactory } from "./kernel-session-runtime-factory.service";
 import {
+    type KernelSessionOperation,
     KernelSessionRuntimeStateService,
     type SessionCloseReason,
-} from './kernel-session-runtime-state.service';
-import type { ActiveSession, SessionRuntimeOverrides } from './session-runtime.types';
+} from "./kernel-session-runtime-state.service";
+import type { ActiveSession, SessionRuntimeOverrides } from "./session-runtime.types";
 
 export interface KernelSessionRuntimeAccessInput {
     sessionId: string;
     agentId?: string;
     cwd?: string;
     overrides?: SessionRuntimeOverrides;
+    operationId?: string;
     emit: (message: unknown) => void;
 }
 
@@ -25,9 +27,7 @@ export class KernelSessionRuntimeAccessService implements OnModuleInit {
         // Wire the sweeper / shutdown hook back to `closeActive` without
         // forcing the state service to depend on the access service (which
         // would close a DI cycle: state → access → factory → state).
-        this.runtimeState.registerReaper((sessionId, reason) =>
-            this.closeActiveWithReason(sessionId, reason),
-        );
+        this.runtimeState.registerReaper((sessionId, reason) => this.closeActiveWithReason(sessionId, reason));
     }
 
     async refreshRuntimeCatalog(): Promise<void> {
@@ -40,6 +40,14 @@ export class KernelSessionRuntimeAccessService implements OnModuleInit {
 
     runtimeOverrides(sessionId: string): SessionRuntimeOverrides {
         return this.runtimeState.runtimeOverrides(sessionId);
+    }
+
+    isOperationActive(sessionId: string): boolean {
+        return this.runtimeState.isOperationActive(sessionId);
+    }
+
+    activeOperation(sessionId: string): KernelSessionOperation | null {
+        return this.runtimeState.activeOperation(sessionId);
     }
 
     async systemRuntimeDefaults(): Promise<SessionRuntimeOverrides> {
@@ -62,7 +70,7 @@ export class KernelSessionRuntimeAccessService implements OnModuleInit {
     }
 
     closeActive(sessionId: string): boolean {
-        return this.closeActiveWithReason(sessionId, 'explicit');
+        return this.closeActiveWithReason(sessionId, "explicit");
     }
 
     private closeActiveWithReason(sessionId: string, reason: SessionCloseReason): boolean {

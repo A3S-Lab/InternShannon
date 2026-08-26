@@ -378,8 +378,8 @@ async function runProbe(id, sessionId) {
       const platform = await request("/config/categories/platform");
       assert.doesNotMatch(JSON.stringify(platform.data), /https:\/\/unpkg\.com|cdn\.jsdelivr\.net|esm\.sh/);
       const tauri = JSON.parse(readFileSync(`${projectRoot}/apps/desktop/src-tauri/tauri.conf.json`, "utf8"));
-      assert.match(tauri.app.security.csp, /script-src 'self'/);
-      assert.doesNotMatch(tauri.app.security.csp, /unsafe-eval/);
+      assert.match(tauri.app.security.csp, /script-src 'self' 'wasm-unsafe-eval'/);
+      assert.doesNotMatch(tauri.app.security.csp, /(?:^|\s)'unsafe-eval'(?:\s|;|$)/);
       break;
     }
     default:

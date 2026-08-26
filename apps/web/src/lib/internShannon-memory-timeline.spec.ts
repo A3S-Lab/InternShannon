@@ -1,8 +1,16 @@
 import * as assert from "node:assert/strict";
 import { test } from "node:test";
 
-class MemoryStorage {
+class MemoryStorage implements Storage {
   private readonly values = new Map<string, string>();
+
+  get length() {
+    return this.values.size;
+  }
+
+  clear() {
+    this.values.clear();
+  }
 
   getItem(key: string) {
     return this.values.get(key) ?? null;
@@ -15,12 +23,16 @@ class MemoryStorage {
   removeItem(key: string) {
     this.values.delete(key);
   }
+
+  key(index: number) {
+    return Array.from(this.values.keys())[index] ?? null;
+  }
 }
 
 test("keeps replayed InternShannon memory events idempotent in the local timeline", async () => {
   const localStorage = new MemoryStorage();
   const sessionStorage = new MemoryStorage();
-  (globalThis as typeof globalThis & { window?: unknown }).window = {
+  (globalThis as unknown as { window?: unknown }).window = {
     localStorage,
     sessionStorage,
     addEventListener() {},
@@ -60,7 +72,7 @@ test("keeps replayed InternShannon memory events idempotent in the local timelin
 test("keeps edited no-id InternShannon memory events idempotent when the original event replays", async () => {
   const localStorage = new MemoryStorage();
   const sessionStorage = new MemoryStorage();
-  (globalThis as typeof globalThis & { window?: unknown }).window = {
+  (globalThis as unknown as { window?: unknown }).window = {
     localStorage,
     sessionStorage,
     addEventListener() {},
@@ -99,7 +111,7 @@ test("keeps edited no-id InternShannon memory events idempotent when the origina
 test("keeps no-id InternShannon memory events idempotent after trimming local session ids", async () => {
   const localStorage = new MemoryStorage();
   const sessionStorage = new MemoryStorage();
-  (globalThis as typeof globalThis & { window?: unknown }).window = {
+  (globalThis as unknown as { window?: unknown }).window = {
     localStorage,
     sessionStorage,
     addEventListener() {},
@@ -136,7 +148,7 @@ test("keeps no-id InternShannon memory events idempotent after trimming local se
 test("keeps matching no-id InternShannon memory events from different sessions visible", async () => {
   const localStorage = new MemoryStorage();
   const sessionStorage = new MemoryStorage();
-  (globalThis as typeof globalThis & { window?: unknown }).window = {
+  (globalThis as unknown as { window?: unknown }).window = {
     localStorage,
     sessionStorage,
     addEventListener() {},

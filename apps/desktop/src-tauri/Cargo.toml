@@ -2,9 +2,9 @@
 
 [package]
 name = "internshannon-ui"
-version = "0.2.1"
+version = "0.2.3"
 edition = "2021"
-description = "internShannon Desktop UI"
+description = "书小安 Desktop UI"
 authors = ["A3S Lab Team"]
 license = "MIT"
 
@@ -27,7 +27,6 @@ tauri-plugin-dialog = "2.7"
 tauri-plugin-fs = "2.5"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-clipboard-manager = "2"
-tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
@@ -45,3 +44,4 @@ hcl-rs = "0.18"
 regex = "1"
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "json"] }
 sha2 = "0.10"
+base64 = "0.22"

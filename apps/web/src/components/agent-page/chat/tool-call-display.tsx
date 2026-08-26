@@ -24,11 +24,8 @@ import {
 	XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-	ansiToHtml,
-	detectBashBoxEndpointMismatch,
-	langFromPath,
-} from "./chat-utils";
+import { detectBashBoxEndpointMismatch, langFromPath } from "./chat-utils";
+import { parseAnsiText } from "@/runtime/ansi-text";
 import {
 	extractToolPath,
 	getToolInvocationParts,
@@ -122,8 +119,16 @@ const TOOL_DISPLAY: Record<ToolKind, ToolDisplayMeta> = {
 };
 
 function TerminalOutput({ text }: { text: string }) {
-	if (!text.includes("\x1b[")) return <>{text}</>;
-	return <span dangerouslySetInnerHTML={{ __html: ansiToHtml(text) }} />;
+	const segments = parseAnsiText(text);
+	return (
+		<>
+			{segments.map((segment) => (
+				<span key={segment.offset} className={segment.className || undefined}>
+					{segment.text}
+				</span>
+			))}
+		</>
+	);
 }
 
 export function ToolCallDisplay({

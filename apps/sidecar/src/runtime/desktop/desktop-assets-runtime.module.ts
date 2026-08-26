@@ -5,6 +5,7 @@ import { AssetServiceImpl } from '@/modules/assets/application/asset.service';
 import { AssetUrlResolverService } from '@/modules/assets/application/asset-url-resolver.service';
 import { KnowledgeQueryService } from '@/modules/assets/application/knowledge-query.service';
 import { KnowledgeIngestionService } from '@/modules/assets/application/knowledge-ingestion.service';
+import { KnowledgeStructuredQueryService } from '@/modules/assets/application/knowledge-structured-query.service';
 import { KnowledgeAuditService } from '@/modules/assets/application/knowledge-audit.service';
 import { KnowledgeIngestJobService } from '@/modules/assets/application/knowledge-ingest-job.service';
 import { KnowledgeEmbeddingService } from '@/modules/assets/application/knowledge-embedding.service';
@@ -25,6 +26,7 @@ import { DesktopConfigRuntimeModule } from './desktop-config-runtime.module';
         AssetUrlResolverService,
         KnowledgeIngestionService,
         KnowledgeQueryService,
+        KnowledgeStructuredQueryService,
         KnowledgeAuditService,
         KnowledgeIngestJobService,
         KnowledgeEmbeddingService,
@@ -43,6 +45,7 @@ import { DesktopConfigRuntimeModule } from './desktop-config-runtime.module';
         AssetUrlResolverService,
         KnowledgeIngestionService,
         KnowledgeQueryService,
+        KnowledgeStructuredQueryService,
         KnowledgeAuditService,
         KnowledgeIngestJobService,
         KnowledgeEmbeddingService,

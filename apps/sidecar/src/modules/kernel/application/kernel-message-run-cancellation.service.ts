@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { KernelSessionRuntimeStateService } from './kernel-session-runtime-state.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { KernelSessionRuntimeStateService } from "./kernel-session-runtime-state.service";
 
 export interface KernelMessageRunCancellationInput {
     sessionId: string;
@@ -25,29 +25,31 @@ export class KernelMessageRunCancellationService {
     constructor(private readonly runtimeState: KernelSessionRuntimeStateService) {}
 
     async cancel(input: KernelMessageRunCancellationInput): Promise<void> {
+        const runId = this.runtimeState.activeOperation(input.sessionId)?.runId;
         this.runtimeState.markCancelled(input.sessionId);
+        this.runtimeState.updateActiveOperationPhase(input.sessionId, "cancelling");
 
         const activeSession = this.runtimeState.getActiveSession(input.sessionId);
-        const cancelled = activeSession ? activeSession.session.cancel() : false;
+        const cancelled = activeSession ? await activeSession.session.cancelAndSettle() : false;
 
         input.emit({
-            type: 'stream_event',
+            type: "stream_event",
             event: {
-                type: 'main_agent_activity',
+                type: "main_agent_activity",
                 id: `main:${Date.now()}:cancel_requested`,
-                runId: input.sessionId,
-                status: 'cancelled',
-                phase: 'cancel_requested',
-                label: '已请求取消',
-                detail: cancelled ? '取消信号已发送给当前运行时' : '当前没有可取消的运行时任务',
-                source: '用户操作',
+                ...(runId ? { runId } : {}),
+                status: "cancelled",
+                phase: "cancel_requested",
+                label: "已请求取消",
+                detail: cancelled ? "取消信号已发送给当前运行时" : "当前没有可取消的运行时任务",
+                source: "用户操作",
                 activeToolCount: 0,
                 timestamp: Date.now(),
             },
         });
-        input.emit({ type: 'status_change', status: null });
-        input.emit({ type: 'cancelled', cancelled });
-        input.emit({ type: 'cli_connected' });
+        input.emit({ type: "status_change", status: null, ...(runId ? { runId } : {}) });
+        input.emit({ type: "cancelled", cancelled, ...(runId ? { runId } : {}) });
+        input.emit({ type: "cli_connected" });
     }
 
     /**
@@ -79,9 +81,9 @@ export class KernelMessageRunCancellationService {
             return false;
         }
         input.emit?.({
-            type: 'stream_event',
+            type: "stream_event",
             event: {
-                type: 'subagent_task_cancelled',
+                type: "subagent_task_cancelled",
                 sessionId: input.sessionId,
                 taskId: input.taskId,
                 cancelled,
@@ -111,9 +113,9 @@ export class KernelMessageRunCancellationService {
             return false;
         }
         input.emit?.({
-            type: 'stream_event',
+            type: "stream_event",
             event: {
-                type: 'run_cancelled',
+                type: "run_cancelled",
                 sessionId: input.sessionId,
                 runId: input.runId,
                 cancelled,

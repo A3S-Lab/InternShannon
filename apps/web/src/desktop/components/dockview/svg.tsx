@@ -3,7 +3,7 @@ export const CloseButton = () => (
 		height="11"
 		width="11"
 		viewBox="0 0 28 28"
-		aria-hidden={"false"}
+		aria-hidden={true}
 		focusable={false}
 		className="dockview-svg"
 	>
@@ -17,7 +17,7 @@ export const ExpandMore = () => {
 			width="11"
 			height="11"
 			viewBox="0 0 24 15"
-			aria-hidden={"false"}
+			aria-hidden={true}
 			focusable={false}
 			className="dockview-svg"
 		>

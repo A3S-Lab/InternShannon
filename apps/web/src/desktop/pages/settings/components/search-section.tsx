@@ -7,7 +7,7 @@
 import { useReactive } from "ahooks";
 import { AlertCircle, CheckCircle2, Download, FolderOpen, Globe2, RefreshCw, Save, Search, Shield } from "lucide-react";
 import { useCallback, useEffect } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -144,7 +144,7 @@ export function SearchSection() {
     } finally {
       ui.checking = false;
     }
-  }, [config.browserBackend, configuredBrowserPath, ui]);
+  }, [config.browserBackend, configuredBrowserPath]);
 
   useEffect(() => {
     void refreshBrowserStatus();
@@ -152,7 +152,7 @@ export function SearchSection() {
 
   useEffect(() => {
     ui.proxyPoolText = proxyPoolValue;
-  }, [proxyPoolValue, ui]);
+  }, [proxyPoolValue]);
 
   const setConfig = (patch: Partial<SearchConfig>) => {
     settingsModel.setSearchConfig(patch);

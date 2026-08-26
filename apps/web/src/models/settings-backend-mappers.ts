@@ -114,7 +114,7 @@ export function backendEditorToFrontend(be: Partial<BackendEditorSettings> | unk
 
 export function frontendAppearanceToBackend(fe: SettingsState["appearance"]) {
   return {
-    theme: fe.theme,
+    theme: "light" as const,
     sideBarPosition: fe.sideBarPosition,
     statusBar: fe.statusBar,
     activityBar: fe.activityBar,
@@ -131,7 +131,7 @@ export function backendAppearanceToFrontend(be: {
 } | unknown): SettingsState["appearance"] {
   const record = isRecord(be) ? be : {};
   return {
-    theme: normalizeEnum(record.theme, ["light", "dark", "system"], "system"),
+    theme: "light",
     sideBarPosition: normalizeEnum(record.sideBarPosition, ["left", "right"], "left"),
     statusBar: normalizeBoolean(record.statusBar, true),
     activityBar: normalizeBoolean(record.activityBar, true),

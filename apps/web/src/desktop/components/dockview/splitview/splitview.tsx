@@ -34,26 +34,31 @@ export const SplitviewReact = React.forwardRef(
 		const domRef = React.useRef<HTMLDivElement>(null);
 		const splitviewRef = React.useRef<SplitviewApi | null>(null);
 		const [portals, addPortal] = usePortalsLifecycle();
+		const initialPropsRef = React.useRef(props);
+		const initialAddPortalRef = React.useRef(addPortal);
+		const { components } = props;
 
 		React.useImperativeHandle(ref, () => domRef.current!, []);
 
 		React.useEffect(() => {
+			const initialProps = initialPropsRef.current;
+			const initialAddPortal = initialAddPortalRef.current;
 			const api = createSplitview(domRef.current!, {
-				disableAutoResizing: props.disableAutoResizing,
-				orientation: props.orientation ?? Orientation.HORIZONTAL,
-				frameworkComponents: props.components,
+				disableAutoResizing: initialProps.disableAutoResizing,
+				orientation: initialProps.orientation ?? Orientation.HORIZONTAL,
+				frameworkComponents: initialProps.components,
 				frameworkWrapper: {
 					createComponent: (id: string, componentId, component: any) => {
 						return new ReactPanelView(id, componentId, component, {
-							addPortal,
+							addPortal: initialAddPortal,
 						});
 					},
 				},
 				proportionalLayout:
-					typeof props.proportionalLayout === "boolean"
-						? props.proportionalLayout
+					typeof initialProps.proportionalLayout === "boolean"
+						? initialProps.proportionalLayout
 						: true,
-				styles: props.hideBorders
+				styles: initialProps.hideBorders
 					? { separatorBorder: "transparent" }
 					: undefined,
 			});
@@ -61,8 +66,8 @@ export const SplitviewReact = React.forwardRef(
 			const { clientWidth, clientHeight } = domRef.current!;
 			api.layout(clientWidth, clientHeight);
 
-			if (props.onReady) {
-				props.onReady({ api });
+			if (initialProps.onReady) {
+				initialProps.onReady({ api });
 			}
 
 			splitviewRef.current = api;
@@ -77,9 +82,9 @@ export const SplitviewReact = React.forwardRef(
 				return;
 			}
 			splitviewRef.current.updateOptions({
-				frameworkComponents: props.components,
+					frameworkComponents: components,
 			});
-		}, [props.components]);
+		}, [components]);
 
 		return (
 			<div

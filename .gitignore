@@ -22,6 +22,12 @@ apps/desktop/src-tauri/resources/node/*
 apps/desktop/src-tauri/resources/search-browser/*
 !apps/desktop/src-tauri/resources/search-browser/.gitkeep
 
+# Platform-native controlled A3S packages are private RC release assets.
+# Restore them with packaging/rc/scripts/restore-controlled-a3s.mjs.
+vendor/a3s/**/*.tgz
+vendor/a3s/**/*.tgz.sha256
+vendor/a3s/selected/
+
 # Runtime data
 .data/
 .memory/

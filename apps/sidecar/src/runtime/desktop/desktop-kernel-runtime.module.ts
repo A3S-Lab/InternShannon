@@ -21,6 +21,7 @@ import { KernelLifecycleFeedbackService } from '@/modules/kernel/application/ker
 import { KernelMessageRunCancellationService } from '@/modules/kernel/application/kernel-message-run-cancellation.service';
 import { KernelMessageRunIntakeService } from '@/modules/kernel/application/kernel-message-run-intake.service';
 import { KernelMessageRunnerService } from '@/modules/kernel/application/kernel-message-runner.service';
+import { KernelUpstreamFailureSignalService } from '@/modules/kernel/application/kernel-upstream-failure-signal.service';
 import { KernelSessionAccessService } from '@/modules/kernel/application/kernel-session-access.service';
 import { KernelSessionBroadcaster } from '@/modules/kernel/application/kernel-session-broadcaster.service';
 import { KernelSessionConnectionService } from '@/modules/kernel/application/kernel-session-connection.service';
@@ -126,6 +127,7 @@ const DESKTOP_MODEL_CONFIG_INVALIDATION_BRIDGE = Symbol('DESKTOP_MODEL_CONFIG_IN
             useExisting: KernelMessageRunIntakeService,
         },
         KernelMessageRunnerService,
+        KernelUpstreamFailureSignalService,
         KernelSessionAccessService,
         AgentRegistry,
         AgentLifecycleMediator,

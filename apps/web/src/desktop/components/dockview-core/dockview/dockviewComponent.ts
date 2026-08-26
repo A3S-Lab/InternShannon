@@ -1714,7 +1714,7 @@ export class DockviewComponent
 	}
 
 	private getLocationOrientation(location: number[]) {
-		return location.length % 2 == 0 &&
+		return location.length % 2 === 0 &&
 			this.gridview.orientation === Orientation.HORIZONTAL
 			? Orientation.HORIZONTAL
 			: Orientation.VERTICAL;
@@ -2129,13 +2129,13 @@ export class DockviewComponent
 			switch (this.gridview.orientation) {
 				case Orientation.VERTICAL:
 					size =
-						referenceLocation.length % 2 == 0
+						referenceLocation.length % 2 === 0
 							? from.api.width
 							: from.api.height;
 					break;
 				case Orientation.HORIZONTAL:
 					size =
-						referenceLocation.length % 2 == 0
+						referenceLocation.length % 2 === 0
 							? from.api.height
 							: from.api.width;
 					break;
@@ -2339,7 +2339,7 @@ export class DockviewComponent
 
 	private orientationAtLocation(location: number[]) {
 		const rootOrientation = this.gridview.orientation;
-		return location.length % 2 == 1
+		return location.length % 2 === 1
 			? rootOrientation
 			: orthogonal(rootOrientation);
 	}

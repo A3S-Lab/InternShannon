@@ -24,14 +24,11 @@ function QRCode({
 	fgColor = "#000000",
 	onError,
 }: QRCodeProps) {
-	const [imageFailed, setImageFailed] = React.useState(false);
-
-	React.useEffect(() => {
-		setImageFailed(false);
-	}, [src]);
+	const [failedSrc, setFailedSrc] = React.useState<string | null>(null);
+	const imageFailed = Boolean(src && failedSrc === src);
 
 	const handleImageError = () => {
-		setImageFailed(true);
+		setFailedSrc(src ?? null);
 		onError?.("Failed to load QR code image");
 	};
 

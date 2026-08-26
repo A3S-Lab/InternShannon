@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import agentModel from "@/models/agent.model";
 import { useAgentSessionId } from "../agent-session-context";
+import { parseTrustedAgentUiDirective } from "./agent-ui-directive-state";
 
 /**
  * AgentUI — Channel 1 (trusted action components).
@@ -28,27 +29,6 @@ import { useAgentSessionId } from "../agent-session-context";
  *
  * Parse/registry failures degrade to a readable notice, never breaking the chat.
  */
-
-interface AgentUiDirective {
-  component: string;
-  props?: Record<string, unknown>;
-}
-
-function parseDirective(code: string): AgentUiDirective | null {
-  try {
-    const obj = JSON.parse(code) as unknown;
-    if (!obj || typeof obj !== "object") return null;
-    const component = (obj as Record<string, unknown>).component;
-    if (typeof component !== "string" || !component.trim()) return null;
-    const props = (obj as Record<string, unknown>).props;
-    return {
-      component: component.trim(),
-      props: props && typeof props === "object" ? (props as Record<string, unknown>) : {},
-    };
-  } catch {
-    return null;
-  }
-}
 
 const ICONS: Record<string, LucideIcon> = {
   rocket: Rocket,
@@ -140,11 +120,11 @@ const REGISTRY: Record<string, (props: Record<string, unknown>) => ReactElement 
 };
 
 export function AgentUiBlock({ code }: { code: string }) {
-  const directive = parseDirective(code);
+  const directive = parseTrustedAgentUiDirective(code);
   if (!directive) {
     return (
       <div className="not-prose my-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-        无法解析 agent-ui 指令。
+        快捷操作暂不可用，请参考正文继续操作。
       </div>
     );
   }
@@ -156,5 +136,5 @@ export function AgentUiBlock({ code }: { code: string }) {
       </div>
     );
   }
-  return render(directive.props ?? {});
+  return render(directive.props);
 }

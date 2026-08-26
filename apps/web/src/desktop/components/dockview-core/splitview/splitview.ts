@@ -162,7 +162,7 @@ export class Splitview {
 
 		removeClasses(this.element, "dv-horizontal", "dv-vertical");
 		this.element.classList.add(
-			this.orientation == Orientation.HORIZONTAL
+			this.orientation === Orientation.HORIZONTAL
 				? "dv-horizontal"
 				: "dv-vertical",
 		);
@@ -892,24 +892,32 @@ export class Splitview {
 
 	private updateSashEnablement(): void {
 		let previous = false;
-		const collapsesDown = this.viewItems.map(
-			(i) => (previous = i.size - i.minimumSize > 0 || previous),
-		);
+		const collapsesDown = this.viewItems.map((i) => {
+			previous = i.size - i.minimumSize > 0 || previous;
+			return previous;
+		});
 
 		previous = false;
-		const expandsDown = this.viewItems.map(
-			(i) => (previous = i.maximumSize - i.size > 0 || previous),
-		);
+		const expandsDown = this.viewItems.map((i) => {
+			previous = i.maximumSize - i.size > 0 || previous;
+			return previous;
+		});
 
 		const reverseViews = [...this.viewItems].reverse();
 		previous = false;
 		const collapsesUp = reverseViews
-			.map((i) => (previous = i.size - i.minimumSize > 0 || previous))
+			.map((i) => {
+				previous = i.size - i.minimumSize > 0 || previous;
+				return previous;
+			})
 			.reverse();
 
 		previous = false;
 		const expandsUp = reverseViews
-			.map((i) => (previous = i.maximumSize - i.size > 0 || previous))
+			.map((i) => {
+				previous = i.maximumSize - i.size > 0 || previous;
+				return previous;
+			})
 			.reverse();
 
 		let position = 0;

@@ -43,6 +43,7 @@ export function SidebarLayout<T extends string>({
             const isActive = current === section.id;
             return (
               <button
+                type="button"
                 key={section.id}
                 onClick={() => onChange(section.id)}
                 className={cn(

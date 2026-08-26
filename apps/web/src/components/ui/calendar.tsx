@@ -55,6 +55,7 @@ const Calendar = React.forwardRef<HTMLDivElement, CalendarProps>(
 		const [month, setMonth] = React.useState(() => selected ?? new Date());
 		const days = React.useMemo(() => getMonthDays(month), [month]);
 		const today = React.useMemo(() => startOfDay(new Date()), []);
+		let emptySlot = 0;
 
 		React.useEffect(() => {
 			if (selected) {
@@ -112,9 +113,10 @@ const Calendar = React.forwardRef<HTMLDivElement, CalendarProps>(
 					))}
 				</div>
 				<div className="mt-1 grid grid-cols-7 gap-1">
-					{days.map((date, index) => {
+					{days.map((date) => {
 						if (!date) {
-							return <div key={`empty-${index}`} className="h-8" />;
+							emptySlot += 1;
+							return <div key={`empty-${emptySlot}`} className="h-8" />;
 						}
 
 						const isSelected = isSameDay(date, selected);

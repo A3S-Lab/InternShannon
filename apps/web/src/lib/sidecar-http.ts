@@ -1,5 +1,10 @@
 import { getAgentRuntimeOptional } from "@/runtime";
 import constants from "./constants";
+import {
+  type NativeLoopbackHttpResponse,
+  nativeLoopbackInvokeArgs,
+  responseFromNativeLoopback,
+} from "./native-loopback-http";
 import { hasTauriCore } from "./runtime-environment";
 
 const FIXED_GATEWAY_URL = "http://127.0.0.1:29653";
@@ -42,35 +47,6 @@ function isLoopbackUrl(url: string): boolean {
   } catch {
     return false;
   }
-}
-
-function normalizeHeaders(init?: RequestInit): Record<string, string> {
-  const normalized: Record<string, string> = {};
-  const headers = init?.headers;
-  if (!headers) return normalized;
-
-  if (headers instanceof Headers) {
-    headers.forEach((value, key) => {
-      normalized[key] = value;
-    });
-    return normalized;
-  }
-
-  if (Array.isArray(headers)) {
-    for (const [key, value] of headers) {
-      normalized[key] = value;
-    }
-    return normalized;
-  }
-
-  for (const [key, value] of Object.entries(headers)) {
-    if (Array.isArray(value)) {
-      normalized[key] = value.join(", ");
-    } else if (value != null) {
-      normalized[key] = String(value);
-    }
-  }
-  return normalized;
 }
 
 function formatUnknownError(error: unknown): string {
@@ -122,24 +98,11 @@ function withTimeoutSignal(
 
 async function tauriLoopbackFetch(url: string, init?: RequestInit, timeoutMs?: number): Promise<Response> {
   const { invoke } = await import("@tauri-apps/api/core");
-  const result = await invoke<{
-    status: number;
-    headers: Record<string, string>;
-    body: number[];
-  }>("loopback_http_request", {
-    request: {
-      url,
-      method: init?.method ?? "GET",
-      headers: normalizeHeaders(init),
-      body: typeof init?.body === "string" ? init.body : init?.body == null ? null : String(init.body),
-      timeoutMs,
-    },
-  });
-
-  return new Response(new Uint8Array(result.body), {
-    status: result.status,
-    headers: result.headers,
-  });
+  const result = await invoke<NativeLoopbackHttpResponse>(
+    "loopback_http_request",
+    nativeLoopbackInvokeArgs(url, init, timeoutMs),
+  );
+  return responseFromNativeLoopback(result);
 }
 
 async function transportFetch(url: string, init?: RequestInit, timeoutMs?: number): Promise<Response> {

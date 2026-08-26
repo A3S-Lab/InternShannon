@@ -1,0 +1,18 @@
+diff --git a/lib/cjs/index.js b/lib/cjs/index.js
+index 88a28e2..e63ed82 100644
+--- a/lib/cjs/index.js
++++ b/lib/cjs/index.js
+@@ -261 +261,3 @@
+-		const pageOrder = this._getCurrUnitModel().getPageOrder();
++        const model = this._getCurrUnitModel();
++        if (!model) return;
++        const pageOrder = model.getPageOrder();
+diff --git a/lib/es/index.js b/lib/es/index.js
+index 66c1272..a1ac32a 100644
+--- a/lib/es/index.js
++++ b/lib/es/index.js
+@@ -261 +261,3 @@
+-		const pageOrder = this._getCurrUnitModel().getPageOrder();
++        const model = this._getCurrUnitModel();
++        if (!model) return;
++        const pageOrder = model.getPageOrder();

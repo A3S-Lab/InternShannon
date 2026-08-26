@@ -40,6 +40,9 @@ jobs:
       - name: Check sidecar DDD boundaries
         run: pnpm --filter @internshannon/sidecar run ddd:check
 
+      - name: Check single SDK compaction engine architecture
+        run: pnpm --filter @internshannon/sidecar run compact:architecture-check
+
       - name: Test knowledge and OKF workflows
         run: |
           pnpm --filter @internshannon/sidecar exec jest --runInBand \

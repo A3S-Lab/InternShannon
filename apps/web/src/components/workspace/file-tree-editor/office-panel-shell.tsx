@@ -107,9 +107,8 @@ export function OfficePanelShell({
           保存
         </Button>
       </div>
-      <div
+      <section
         className="relative min-h-0 flex-1"
-        role="region"
         aria-label={editorLabel}
       >
         {children}
@@ -145,7 +144,7 @@ export function OfficePanelShell({
             )}
           </div>
         )}
-      </div>
+      </section>
     </section>
   );
 }

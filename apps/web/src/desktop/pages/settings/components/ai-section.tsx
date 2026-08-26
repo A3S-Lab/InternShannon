@@ -1,7 +1,7 @@
 import { useReactive } from "ahooks";
 import { AlertCircle, Bot, CheckCircle2, Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import { AiProviderSettings } from "@/components/chat";
 import { notifyClientError } from "@/lib/client-error";
@@ -44,7 +44,7 @@ function AiSettingsStatusPanel({ feedback }: { feedback: AiSettingsSyncFeedback 
   );
 }
 
-export function AiSection({ embedded: _embedded = false }: { embedded?: boolean } = {}) {
+export function AiSection({ embedded = false }: { embedded?: boolean } = {}) {
   const snap = useSnapshot(settingsModel.state);
   const state = useReactive({
     rebuildingCache: false,
@@ -86,8 +86,8 @@ export function AiSection({ embedded: _embedded = false }: { embedded?: boolean 
 
   useEffect(() => {
     let cancelled = false;
-    settingsModel.waitForSeed().then(() => {
-      if (!cancelled) {
+    settingsModel.waitForSeed().then((loaded) => {
+      if (!cancelled && loaded) {
         skipNextSyncRef.current = true;
         seededRef.current = true;
       }
@@ -98,16 +98,18 @@ export function AiSection({ embedded: _embedded = false }: { embedded?: boolean 
   }, []);
 
   useEffect(() => {
+    if (embedded) return;
     let cancelled = false;
     void settingsModel.seedFromBackend().then((applied) => {
       if (!cancelled && applied) {
         skipNextSyncRef.current = true;
+        seededRef.current = true;
       }
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [embedded]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: autosave is intentionally keyed by Valtio snapshot fields and mutates ahooks reactive state.
   useEffect(() => {
