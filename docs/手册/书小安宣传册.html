@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>书小安 · InternShannon — 产品宣传册</title>
+<style>
+  :root{
+    --text-1:#16181d;
+    --text-2:#4b5158;
+    --text-3:#878e98;
+    --stroke-1:#cfd4da;
+    --stroke-2:#dde1e6;
+    --stroke-3:#e8ebef;
+    --fill-1:#f4f6f8;
+    --fill-2:#fafbfc;
+    --accent:#1f6feb;
+    --accent-soft:#eaf1fd;
+    --danger:#c84a5b;
+    --success:#2f8659;
+    --page:#ffffff;
+  }
+
+  *{box-sizing:border-box;}
+
+  html,body{margin:0;padding:0;background:#eceef1;}
+
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB",
+                "Microsoft YaHei","Source Han Sans SC","Noto Sans CJK SC",
+                "Helvetica Neue",Arial,sans-serif;
+    color:var(--text-1);
+    font-size:14px;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .page{
+    max-width:1120px;
+    margin:32px auto;
+    background:var(--page);
+    padding:44px 46px 56px;
+    border-radius:4px;
+  }
+
+  /* ---------- typography ---------- */
+  h2{
+    font-size:22px;
+    line-height:1.35;
+    font-weight:650;
+    margin:0;
+    color:var(--text-1);
+    letter-spacing:-0.01em;
+  }
+  h3{
+    font-size:16px;
+    line-height:1.4;
+    font-weight:650;
+    margin:0;
+    color:var(--text-1);
+  }
+  p{margin:0;}
+  .sub{color:var(--text-2);font-size:14px;}
+  .tiny{color:var(--text-3);font-size:12px;}
+  .strong{font-weight:600;}
+  .accent{color:var(--accent);}
+
+  .section{margin-top:40px;}
+  .rule{height:1px;background:var(--stroke-3);margin:40px 0;}
+  .stack-2 > * + *{margin-top:2px;}
+  .stack-8 > * + *{margin-top:8px;}
+  .stack-12 > * + *{margin-top:12px;}
+
+  /* ---------- hero ---------- */
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:0.18em;
+    color:var(--text-3);
+    font-weight:500;
+  }
+  .brand{
+    font-size:46px;
+    line-height:1.1;
+    font-weight:650;
+    letter-spacing:-0.02em;
+    margin-top:4px;
+  }
+  .tagline{
+    border-left:3px solid var(--accent);
+    padding:6px 0 6px 18px;
+    margin-top:18px;
+  }
+  .tagline .l1,.tagline .l2{
+    font-size:26px;
+    line-height:1.35;
+    font-weight:600;
+  }
+  .tagline .l2{color:var(--accent);}
+  .lede{
+    margin-top:18px;
+    font-size:15px;
+    line-height:1.8;
+    color:var(--text-2);
+    max-width:760px;
+  }
+
+  /* ---------- pain grid ---------- */
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;}
+  .pain{
+    border:1px solid var(--stroke-3);
+    border-radius:8px;
+    padding:16px 18px;
+  }
+  .pain .time{font-size:12px;font-weight:650;color:var(--accent);}
+  .pain .t{font-weight:600;margin-top:6px;}
+  .pain .b{font-size:13px;color:var(--text-2);margin-top:5px;line-height:1.7;}
+
+  .callout{
+    background:var(--fill-1);
+    border-radius:8px;
+    padding:18px 22px;
+    margin-top:14px;
+    font-size:17px;
+    line-height:1.65;
+  }
+
+  /* ---------- stats ---------- */
+  .grid-5{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:14px;}
+  .stat{
+    border:1px solid var(--stroke-2);
+    border-radius:8px;
+    padding:20px 12px;
+    text-align:center;
+  }
+  .stat .v{
+    font-size:30px;
+    line-height:1.15;
+    font-weight:650;
+    color:var(--accent);
+    white-space:nowrap;
+    letter-spacing:-0.01em;
+  }
+  .stat .l{margin-top:7px;font-size:12px;color:var(--text-2);line-height:1.45;}
+
+  /* ---------- chart ---------- */
+  .chart{margin-top:12px;}
+  .legend{display:flex;gap:18px;align-items:center;margin-bottom:14px;}
+  .legend span{font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:6px;}
+  .sw{width:11px;height:11px;border-radius:2px;display:inline-block;}
+  .sw-a{background:var(--danger);}
+  .sw-b{background:var(--success);}
+
+  .plot-wrap{display:flex;gap:10px;}
+  .y-label{
+    writing-mode:vertical-rl;
+    transform:rotate(180deg);
+    font-size:11px;
+    color:var(--text-3);
+    text-align:center;
+    padding-bottom:26px;
+  }
+  .y-ticks{
+    width:20px;
+    height:210px;
+    position:relative;
+    flex-shrink:0;
+  }
+  .y-ticks span{
+    position:absolute;
+    right:0;
+    font-size:10px;
+    color:var(--text-3);
+    transform:translateY(-50%);
+  }
+  .plot{
+    flex:1;
+    height:210px;
+    position:relative;
+    border-bottom:1px solid var(--stroke-1);
+  }
+  .grid-line{
+    position:absolute;left:0;right:0;
+    border-top:1px dashed var(--stroke-3);
+  }
+  .groups{
+    position:absolute;inset:0;
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-around;
+  }
+  .group{display:flex;gap:10px;align-items:flex-end;height:100%;}
+  .bar{
+    width:46px;
+    position:relative;
+    border-radius:3px 3px 0 0;
+  }
+  .bar.a{background:var(--danger);}
+  .bar.b{background:var(--success);}
+  .bar .val{
+    position:absolute;
+    top:-19px;
+    left:0;right:0;
+    text-align:center;
+    font-size:11px;
+    font-weight:600;
+    color:var(--text-2);
+    white-space:nowrap;
+  }
+  .cats{
+    display:flex;
+    justify-content:space-around;
+    margin-top:9px;
+    padding-left:30px;
+  }
+  .cats div{font-size:12px;color:var(--text-2);text-align:center;}
+
+  /* ---------- capabilities ---------- */
+  .cap{display:flex;gap:20px;align-items:flex-start;padding:17px 0;}
+  .cap + .cap{border-top:1px solid var(--stroke-3);}
+  .badge{
+    width:46px;height:46px;flex-shrink:0;
+    border-radius:8px;
+    background:var(--accent-soft);
+    display:flex;align-items:center;justify-content:center;
+    font-size:21px;font-weight:650;color:var(--accent);
+  }
+  .cap .h{font-size:16px;font-weight:600;}
+  .cap .b{color:var(--text-2);line-height:1.75;margin-top:3px;}
+
+  /* ---------- scenarios ---------- */
+  .card{
+    border:1px solid var(--stroke-2);
+    border-radius:8px;
+    overflow:hidden;
+    margin-top:12px;
+  }
+  .card-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:16px;
+    padding:12px 18px;
+    background:var(--fill-2);
+    border-bottom:1px solid var(--stroke-3);
+  }
+  .card-head .t{font-weight:650;font-size:15px;}
+  .card-head .g{font-size:12px;color:var(--accent);font-weight:600;text-align:right;}
+  .card-body{padding:14px 18px 16px;}
+  .flow{display:flex;gap:12px;align-items:flex-start;}
+  .flow + .flow{margin-top:10px;}
+  .flow .k{
+    min-width:40px;flex-shrink:0;
+    font-size:12px;
+    padding-top:2px;
+  }
+  .flow.old .k{color:var(--text-3);}
+  .flow.new .k{color:var(--accent);font-weight:650;}
+  .flow .v{font-size:13px;line-height:1.75;}
+  .flow.old .v{color:var(--text-2);}
+  .flow.new .v{color:var(--text-1);}
+
+  /* ---------- tables ---------- */
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
+    font-size:13px;
+  }
+  th,td{
+    padding:9px 8px;
+    border-bottom:1px solid var(--stroke-3);
+    text-align:center;
+  }
+  th{
+    font-weight:600;
+    font-size:12px;
+    color:var(--text-2);
+    border-bottom:1px solid var(--stroke-1);
+    background:var(--fill-2);
+  }
+  th:first-child,td:first-child{text-align:left;}
+  tbody tr:nth-child(even){background:var(--fill-2);}
+  td.mark{font-size:14px;color:var(--text-2);}
+  th.own,td.own{background:var(--accent-soft) !important;}
+  td.own{color:var(--accent);font-weight:650;}
+  th.own{color:var(--accent);}
+  table.dense{font-size:11.5px;}
+  table.dense th,table.dense td{padding:7px 3px;}
+  table.dense th:first-child,table.dense td:first-child{
+    padding-left:8px;white-space:nowrap;
+  }
+
+  /* ---------- audience ---------- */
+  .aud{display:flex;gap:16px;align-items:flex-start;padding:13px 0;}
+  .aud + .aud{border-top:1px solid var(--stroke-3);}
+  .dot{
+    width:6px;height:6px;border-radius:3px;
+    background:var(--accent);
+    margin-top:9px;flex-shrink:0;
+  }
+  .aud .who{min-width:220px;flex-shrink:0;font-weight:600;}
+  .aud .why{flex:1;font-size:13px;color:var(--text-2);line-height:1.75;}
+
+  /* ---------- closing ---------- */
+  .closing{
+    border:1px solid var(--stroke-2);
+    border-radius:10px;
+    background:var(--fill-1);
+    padding:34px 36px;
+    margin-top:40px;
+  }
+  .closing .c1,.closing .c2{font-size:24px;line-height:1.45;font-weight:600;}
+  .closing .c2{color:var(--accent);margin-top:12px;}
+  .closing .c3{
+    margin-top:16px;
+    font-size:15px;
+    line-height:1.85;
+    color:var(--text-2);
+    max-width:700px;
+  }
+
+  .footer{
+    margin-top:32px;
+    padding-top:16px;
+    border-top:1px solid var(--stroke-3);
+    font-size:11px;
+    color:var(--text-3);
+    display:flex;
+    justify-content:space-between;
+    gap:16px;
+  }
+
+  /* ---------- print ---------- */
+  @page{ size:A4; margin:13mm 11mm; }
+
+  @media print{
+    html,body{background:#fff;}
+    .page{
+      max-width:none;
+      margin:0;
+      padding:0;
+      border-radius:0;
+    }
+    .pain,.stat,.card,.closing,.chart,.cap,.aud{
+      break-inside:avoid;
+      page-break-inside:avoid;
+    }
+    table{break-inside:auto;}
+    tr{break-inside:avoid;page-break-inside:avoid;}
+    thead{display:table-header-group;}
+    h2,h3{break-after:avoid;page-break-after:avoid;}
+    .section{margin-top:30px;}
+    .brand{font-size:40px;}
+    .tagline .l1,.tagline .l2{font-size:23px;}
+    .stat .v{font-size:26px;}
+    .closing{break-before:auto;}
+    tbody tr:nth-child(even){background:var(--fill-2) !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+
+  @media (max-width:820px){
+    .page{padding:24px 20px 36px;margin:0;}
+    .grid-2{grid-template-columns:1fr;}
+    .grid-5{grid-template-columns:1fr 1fr;}
+    .brand{font-size:36px;}
+    .tagline .l1,.tagline .l2{font-size:21px;}
+    .aud{flex-wrap:wrap;}
+    .aud .who{min-width:0;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ============ HERO ============ -->
+  <header>
+    <div class="eyebrow">INTERNSHANNON</div>
+    <div class="brand">书小安</div>
+    <div class="tagline">
+      <div class="l1">不是又一个聊天助手</div>
+      <div class="l2">是装在你电脑上的知识工作台</div>
+    </div>
+    <p class="lede">
+      资料不用再传一遍，答案能追回原文，Word 和 Excel 就地改完直接存回原文件，智能体动手之前先问你一句。问、找、改、做——四件事，一个窗口。
+    </p>
+  </header>
+
+  <div class="rule"></div>
+
+  <!-- ============ 痛点 ============ -->
+  <section>
+    <h2>你每天在浪费的四段时间</h2>
+    <p class="sub" style="margin-top:3px;">这些都不是「模型不够聪明」造成的，换个更强的模型也解决不了。</p>
+
+    <div class="grid-2">
+      <div class="pain">
+        <div class="time">每天 20 分钟</div>
+        <div class="t">把同一批资料传来传去</div>
+        <div class="b">云盘存一份，助手里传一份，本地下一份。换个对话框，从头再传一遍。</div>
+      </div>
+      <div class="pain">
+        <div class="time">每天 25 分钟</div>
+        <div class="t">为了核实一句话翻遍原文</div>
+        <div class="b">AI 给了结论，却只能说「大概在某个文档里」。你还得自己打开文件搜关键词。</div>
+      </div>
+      <div class="pain">
+        <div class="time">每天 30 分钟</div>
+        <div class="t">改一个表格要绕一大圈</div>
+        <div class="b">下载、打开 Office、修改、保存、上传覆盖。中间走错一步，版本就分叉了。</div>
+      </div>
+      <div class="pain">
+        <div class="time">说不清多少</div>
+        <div class="t">自动执行完才发现改错了</div>
+        <div class="b">智能体动手很快，但你只能事后审查。等发现问题，改动已经发生了。</div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <span class="strong accent">加起来，一天 75 分钟，一年 300 多个小时。</span>
+      这些时间没有产出任何东西，只是在搬运。
+    </div>
+  </section>
+
+  <!-- ============ 数字 ============ -->
+  <section class="section">
+    <h2>用书小安之后</h2>
+    <div class="grid-5">
+      <div class="stat"><div class="v">0</div><div class="l">上传下载次数</div></div>
+      <div class="stat"><div class="v">9 → 3</div><div class="l">完成一件事的步骤</div></div>
+      <div class="stat"><div class="v">6 → 2</div><div class="l">改一个 Office 文件的环节</div></div>
+      <div class="stat"><div class="v">3 → 1</div><div class="l">要开的应用数量</div></div>
+      <div class="stat"><div class="v">100%</div><div class="l">改动前先问你</div></div>
+    </div>
+  </section>
+
+  <!-- ============ 图表 ============ -->
+  <section class="section chart">
+    <h3>同样一件事，要走多少步</h3>
+    <p class="tiny" style="margin-top:3px;">纵轴为你必须亲手操作的步骤数（步）</p>
+
+    <div class="legend" style="margin-top:14px;">
+      <span><i class="sw sw-a"></i>以前</span>
+      <span><i class="sw sw-b"></i>用书小安</span>
+    </div>
+
+    <div class="plot-wrap">
+      <div class="y-label">步骤数（步）</div>
+      <div class="y-ticks">
+        <span style="top:0%">10</span>
+        <span style="top:20%">8</span>
+        <span style="top:40%">6</span>
+        <span style="top:60%">4</span>
+        <span style="top:80%">2</span>
+        <span style="top:100%">0</span>
+      </div>
+      <div class="plot">
+        <div class="grid-line" style="top:0%"></div>
+        <div class="grid-line" style="top:20%"></div>
+        <div class="grid-line" style="top:40%"></div>
+        <div class="grid-line" style="top:60%"></div>
+        <div class="grid-line" style="top:80%"></div>
+        <div class="groups">
+          <div class="group">
+            <div class="bar a" style="height:90%"><span class="val">9 步</span></div>
+            <div class="bar b" style="height:30%"><span class="val">3 步</span></div>
+          </div>
+          <div class="group">
+            <div class="bar a" style="height:60%"><span class="val">6 步</span></div>
+            <div class="bar b" style="height:50%"><span class="val">5 步</span></div>
+          </div>
+          <div class="group">
+            <div class="bar a" style="height:60%"><span class="val">6 步</span></div>
+            <div class="bar b" style="height:40%"><span class="val">4 步</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="cats">
+      <div>客户续费运营</div>
+      <div>文献综述</div>
+      <div>发布事故复盘</div>
+    </div>
+  </section>
+
+  <div class="rule"></div>
+
+  <!-- ============ 四件事 ============ -->
+  <section>
+    <h2>四件事，一个窗口</h2>
+    <p class="sub" style="margin-top:3px;">以前要在四个软件之间来回切换才能完成的链条，现在从头到尾不用离开书小安。</p>
+
+    <div style="margin-top:6px;">
+      <div class="cap">
+        <div class="badge">问</div>
+        <div>
+          <div class="h">基于你自己的资料回答</div>
+          <div class="b">把文档扔进知识库，之后所有提问都建立在你的真实材料上，而不是模型的泛泛记忆。导入一次，长期可用。</div>
+        </div>
+      </div>
+      <div class="cap">
+        <div class="badge">找</div>
+        <div>
+          <div class="h">答案能追回原文</div>
+          <div class="b">每个检索结果都带着它来自哪个文件。点一下，原文就在同一个窗口里打开，不用切出去翻。</div>
+        </div>
+      </div>
+      <div class="cap">
+        <div class="badge">改</div>
+        <div>
+          <div class="h">Word、Excel、PPT 就地改完存回去</div>
+          <div class="b">在书小安里直接打开、修改、保存。写回原文件，图表、图片、格式一样不动。全程不下载、不上传。</div>
+        </div>
+      </div>
+      <div class="cap">
+        <div class="badge">做</div>
+        <div>
+          <div class="h">会动手，但先问你</div>
+          <div class="b">读文件、搜索这类操作自动放行不打断你；要写文件、跑命令时先弹窗征求同意。速度不打折，方向盘在你手上。</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 场景 ============ -->
+  <section class="section">
+    <h2>三个场景，看得见的变化</h2>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="t">客户续费运营</div>
+        <div class="g">9 步压到 3 步，三个应用并成一个</div>
+      </div>
+      <div class="card-body">
+        <div class="flow old">
+          <div class="k">以前</div>
+          <div class="v">开云盘找资料 → 上传到助手 → 提问 → 只拿到文档名，手工核对 → 下载台账 → Office 打开 → 改 → 存 → 传回云盘</div>
+        </div>
+        <div class="flow new">
+          <div class="k">现在</div>
+          <div class="v">资料入库 → 同窗口提问 → 点结果看原文 → 同窗口改台账存回原文件</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="t">文献综述</div>
+        <div class="g">追加资料不用重来，已有的直接复用</div>
+      </div>
+      <div class="card-body">
+        <div class="flow old">
+          <div class="k">以前</div>
+          <div class="v">逐篇上传 5 篇 → 提问 → 没有出处，手工在 PDF 里搜 → 加第 6 篇 → 全部重传重建 → 再提问</div>
+        </div>
+        <div class="flow new">
+          <div class="k">现在</div>
+          <div class="v">6 篇一次入库 → 提问 → 点结果看原文 → 加新的只处理新的 → 再提问</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="t">发布事故复盘</div>
+        <div class="g">少 2 步，产物不用导出合并</div>
+      </div>
+      <div class="card-body">
+        <div class="flow old">
+          <div class="k">以前</div>
+          <div class="v">配平台 → 传日志 → 启动智能体 → 自动执行完事后审查 → 导出产物 → 合并回本地</div>
+        </div>
+        <div class="flow new">
+          <div class="k">现在</div>
+          <div class="v">打开会话 → 提问，它直接读本地日志 → 要写文件时问你一句 → 产物直接落在本地</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 对比 ============ -->
+  <section class="section">
+    <h2>和市面上的方案比</h2>
+    <p class="tiny" style="margin-top:3px;">● 做到了 ｜ ◐ 部分做到 ｜ ○ 做不到或要靠外部拼接</p>
+
+    <div style="margin-top:20px;">
+      <h3>按产品类型看</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>你关心的</th>
+            <th>云端聊天助手</th>
+            <th>云端文档 AI</th>
+            <th>本地编程助手</th>
+            <th>智能体平台</th>
+            <th class="own">书小安</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>资料不用重复上传</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">●</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>文件留在自己电脑上</td><td class="mark">○</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">◐</td><td class="own">●</td></tr>
+          <tr><td>答案能追回原文出处</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">◐</td><td class="own">●</td></tr>
+          <tr><td>Office 就地改完存回原文件</td><td class="mark">○</td><td class="mark">○</td><td class="mark">○</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>动手之前先征求同意</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">●</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>异常情况一律不放行</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>知识、文件、执行同一个窗口</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">◐</td><td class="own">●</td></tr>
+          <tr><td>装上就能用，不用部署</td><td class="mark">●</td><td class="mark">●</td><td class="mark">●</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>知识库自带图谱与健康检查</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">◐</td><td class="own">●</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:26px;">
+      <h3>逐个产品看</h3>
+      <table class="dense">
+        <thead>
+          <tr>
+            <th>能力</th>
+            <th>ChatGPT</th>
+            <th>Claude</th>
+            <th>M365 Copilot</th>
+            <th>Notion AI</th>
+            <th>Cursor</th>
+            <th>AnythingLLM</th>
+            <th>Dify</th>
+            <th class="own">书小安</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>资料不用重复上传</td><td class="mark">●</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">●</td><td class="mark">●</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>直接读写本机文件</td><td class="mark">●</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">○</td><td class="mark">●</td><td class="mark">◐</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>动手前先征求同意</td><td class="mark">●</td><td class="mark">●</td><td class="mark">○</td><td class="mark">○</td><td class="mark">●</td><td class="mark">○</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>异常情况一律不放行</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>混合检索加智能排序</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">●</td><td class="mark">●</td><td class="own">●</td></tr>
+          <tr><td>答案能追回原文出处</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">◐</td><td class="own">●</td></tr>
+          <tr><td>Office 就地改完存回</td><td class="mark">○</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">○</td><td class="mark">○</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>知识图谱与健康检查</td><td class="mark">○</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">◐</td><td class="own">●</td></tr>
+          <tr><td>标准协议接外部工具</td><td class="mark">●</td><td class="mark">●</td><td class="mark">○</td><td class="mark">○</td><td class="mark">●</td><td class="mark">●</td><td class="mark">◐</td><td class="own">●</td></tr>
+          <tr><td>文件留在自己电脑上</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">●</td><td class="mark">●</td><td class="own">●</td></tr>
+          <tr><td>装上就能用，不用部署</td><td class="mark">●</td><td class="mark">●</td><td class="mark">◐</td><td class="mark">●</td><td class="mark">●</td><td class="mark">●</td><td class="mark">○</td><td class="own">●</td></tr>
+          <tr><td>知识、文件、执行同窗</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">◐</td><td class="mark">○</td><td class="mark">○</td><td class="own">●</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 适用人群 ============ -->
+  <section class="section">
+    <h2>谁最该用书小安</h2>
+    <div style="margin-top:6px;">
+      <div class="aud">
+        <div class="dot"></div>
+        <div class="who">资料不能出本机的团队</div>
+        <div class="why">文件读写全程在本地完成，知识库和索引都落在你自己的磁盘上</div>
+      </div>
+      <div class="aud">
+        <div class="dot"></div>
+        <div class="who">天天和 Office、PDF 打交道的岗位</div>
+        <div class="why">五类 Office 格式应用内改完直接存回，PDF 检索能追到原文</div>
+      </div>
+      <div class="aud">
+        <div class="dot"></div>
+        <div class="who">合规、审计、事故复盘</div>
+        <div class="why">每条结论都能追回它来自哪份材料，经得起追问</div>
+      </div>
+      <div class="aud">
+        <div class="dot"></div>
+        <div class="who">想用智能体又不接受黑盒的团队</div>
+        <div class="why">写文件和跑命令逐次确认，异常一律不放行</div>
+      </div>
+      <div class="aud">
+        <div class="dot"></div>
+        <div class="who">已有成熟目录结构的团队</div>
+        <div class="why">工作区就是你的真实文件夹，不用为了用 AI 重新搬家</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 结语 ============ -->
+  <div class="closing">
+    <div class="c1">别的 AI 工具，让你问得更好。</div>
+    <div class="c2">书小安，让你整件事做得更快。</div>
+    <div class="c3">
+      把资料、检索、编辑、执行放进同一个工作台，中间那些搬来搬去的动作就不存在了。装上就能用，不用部署，不用搬家，你的文件还在原来的位置。
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>书小安 · InternShannon ｜ 产品宣传册 ｜ 2026-08</div>
+    <div>各项数字的口径、公式与成立条件，见《书小安客户手册》与《书小安技术手册》</div>
+  </div>
+
+</div>
+</body>
+</html>
