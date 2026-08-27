@@ -147,30 +147,47 @@ export interface UseLockedAgentSessionResult {
  * connects, and resets state when the caller navigates with a new prompt/sessionId.
  */
 export function useLockedAgentSession(opts: UseLockedAgentSessionOptions): UseLockedAgentSessionResult {
-  const initialPrompt = opts.initialPrompt ?? "";
-  const dedupeKeyExtras = opts.dedupeKeyExtras ?? [];
+  const {
+    agentId,
+    resumeSessionId,
+    initialPrompt: initialPromptOption,
+    requestId: requestIdOption,
+    dedupeKeyExtras: dedupeKeyExtrasOption,
+    routeKey,
+    buildCreateRequest,
+    fallbackTitle,
+    errorTitle,
+    hideFromMainList = true,
+    onError,
+  } = opts;
+  const initialPrompt = initialPromptOption ?? "";
+  const dedupeKeyExtras = dedupeKeyExtrasOption ?? [];
   const dedupeExtrasKey = dedupeKeyExtras.map((part) => part ?? "").join("::");
 
-  const [sessionId, setSessionId] = useState<string | null>(opts.resumeSessionId ?? null);
-  const [isCreating, setIsCreating] = useState(!opts.resumeSessionId);
+  const [sessionId, setSessionId] = useState<string | null>(resumeSessionId ?? null);
+  const [isCreating, setIsCreating] = useState(!resumeSessionId);
   const [ref, setRef] = useState<LockedAgentSessionRef | null>(null);
   const routeModeKeyRef = useRef("");
   const sentInitialPromptRef = useRef(false);
+  const buildCreateRequestRef = useRef(buildCreateRequest);
+  const onErrorRef = useRef(onError);
+  buildCreateRequestRef.current = buildCreateRequest;
+  onErrorRef.current = onError;
 
   useEffect(() => {
     const nextKey = [
-      opts.resumeSessionId ?? "",
+      resumeSessionId ?? "",
       initialPrompt,
-      opts.requestId ?? "",
+      requestIdOption ?? "",
       dedupeExtrasKey,
     ].join("::");
     if (routeModeKeyRef.current === nextKey) return;
     routeModeKeyRef.current = nextKey;
     sentInitialPromptRef.current = false;
-    setSessionId(opts.resumeSessionId ?? null);
-    setIsCreating(!opts.resumeSessionId);
+    setSessionId(resumeSessionId ?? null);
+    setIsCreating(!resumeSessionId);
     setRef(null);
-  }, [opts.resumeSessionId, initialPrompt, opts.requestId, dedupeExtrasKey]);
+  }, [dedupeExtrasKey, initialPrompt, requestIdOption, resumeSessionId]);
 
   useEffect(() => {
     if (sessionId) return;
@@ -178,17 +195,17 @@ export function useLockedAgentSession(opts: UseLockedAgentSessionOptions): UseLo
     let cancelled = false;
     setIsCreating(true);
 
-    const requestId = opts.requestId?.trim();
+    const requestId = requestIdOption?.trim();
     const dedupeKey = requestId
       ? `request:${requestId}`
-      : ["route", opts.routeKey ?? "default", initialPrompt.trim(), dedupeExtrasKey].join("::");
+      : ["route", routeKey ?? "default", initialPrompt.trim(), dedupeExtrasKey].join("::");
 
     createLockedAgentSession({
-      agentId: opts.agentId,
-      request: opts.buildCreateRequest(initialPrompt),
+      agentId,
+      request: buildCreateRequestRef.current(initialPrompt),
       dedupeKey,
-      hideFromMainList: opts.hideFromMainList ?? true,
-      fallbackTitle: opts.fallbackTitle,
+      hideFromMainList,
+      fallbackTitle,
     })
       .then((created) => {
         if (cancelled) return;
@@ -199,9 +216,9 @@ export function useLockedAgentSession(opts: UseLockedAgentSessionOptions): UseLo
       .catch((err) => {
         if (cancelled) return;
         setIsCreating(false);
-        const title = opts.errorTitle ?? "创建会话失败";
-        if (opts.onError) {
-          opts.onError(err, title);
+        const title = errorTitle ?? "创建会话失败";
+        if (onErrorRef.current) {
+          onErrorRef.current(err, title);
         } else {
           console.error(`[${title}]`, err);
         }
@@ -210,11 +227,19 @@ export function useLockedAgentSession(opts: UseLockedAgentSessionOptions): UseLo
     return () => {
       cancelled = true;
     };
-    // The bootstrap is intentionally driven by sessionId + the dedupe inputs.
-    // We deliberately exclude `opts.buildCreateRequest` from deps because the
-    // caller usually reconstructs it each render but its output is dedupe-stable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, opts.agentId, opts.requestId, opts.routeKey, initialPrompt, dedupeExtrasKey]);
+    // Reconstructed callbacks are read through refs; scalar request inputs remain
+    // explicit dependencies so route changes cannot reuse a stale bootstrap.
+  }, [
+    agentId,
+    dedupeExtrasKey,
+    errorTitle,
+    fallbackTitle,
+    hideFromMainList,
+    initialPrompt,
+    requestIdOption,
+    routeKey,
+    sessionId,
+  ]);
 
   useEffect(() => {
     if (!sessionId || !initialPrompt || sentInitialPromptRef.current) return;

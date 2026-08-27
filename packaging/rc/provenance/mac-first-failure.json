@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "sealedAt": "2026-08-26T10:28:24+08:00",
+  "classification": "deterministic_product_gate_failure",
+  "campaign": "mac-rc-kc3-packaged-runtime",
+  "providerInvoked": false,
+  "sourceSnapshotSha256": "4d6f9430c92aa492f3b301a410553046ab6ee980c285a047362d234d83728ea3",
+  "controlledSdk": {
+    "package": "@a3s-lab/code",
+    "version": "6.6.1-knowledge-complete.3",
+    "tgzSha256": "1119c3649a6b3308acc9b692f14aedcc77ecc4db76d7c3f28aadd5d25eca29eb"
+  },
+  "passedBeforeFailure": [
+    "frozen source manifest 1350/1350",
+    "offline frozen-lockfile install",
+    "desktop release contracts 33/33",
+    "sidecar tsc --noEmit",
+    "arm64 application compilation",
+    "sidecar resource verifier",
+    "controlled SDK and native binding verifier",
+    "Lightpanda version and SHA-256 verifier",
+    "standalone sidecar health smoke",
+    "unicode provider mock WebSocket knowledge and HITL smoke"
+  ],
+  "firstFailure": {
+    "gate": "smoke-unicode-provider-websocket --verify-compact-suite",
+    "message": "Second rolling summary did not receive the previous summary",
+    "buildLog": "/Users/caozichen/Downloads/书小安/outputs/acceptance/mac-rc-kc3-20260826-095313/logs/mac-arm64-app-rebundle.log",
+    "buildLogSha256": "e42feec5278a28c1256ace1abfd698621708ab0d172dbf132df537e37430b13a"
+  },
+  "targetedReproduction": {
+    "attempts": 1,
+    "sameFailure": true,
+    "log": "/Users/caozichen/Downloads/书小安/outputs/acceptance/mac-rc-kc3-20260826-095313/logs/compact-suite-targeted-reproduction.log",
+    "logSha256": "a9173786b7c64587967ed2a9f7523bf2560b44024445a712a464acdbd22eaf89"
+  },
+  "decision": {
+    "realProviderAllowed": false,
+    "previewPackagingAllowed": true,
+    "sameFailedGateMayBeRerun": false,
+    "requiredRecovery": "Fix rolling compaction persistence across a Sidecar restart in the shared controlled A3S source, issue a new shared darwin-arm64/win32-x64 release identity, then rerun local gates before any Provider campaign."
+  }
+}

@@ -1,6 +1,6 @@
 import { useReactive } from "ahooks";
 import { AlertCircle, CheckCircle2, FolderOpen, HardDrive, Loader2, Save } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

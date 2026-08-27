@@ -3,23 +3,32 @@ import * as mammoth from "mammoth";
 import type { IDocumentData } from "@univerjs/core";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import JSZip = require("jszip");
-import { bytesToArrayBuffer, getOfficeExtension, getOfficeFileName } from "../shared/file";
-import { plainTextToUniverDocumentSnapshot, univerDocumentSnapshotToPlainText } from "../shared/text";
+import {
+	bytesToArrayBuffer,
+	getOfficeExtension,
+	getOfficeFileName,
+} from "../shared/file";
+import {
+	plainTextToUniverDocumentSnapshot,
+	univerDocumentSnapshotToPlainText,
+} from "../shared/text";
 import { htmlToUniverDocumentBody } from "./html-to-univer";
 import { univerDocumentSnapshotToRichDocxBytes } from "./univer-to-docx";
 
 export interface DocxImportOptions {
-    filename: string;
+	filename: string;
 }
 
 export interface PreservedDocxExportOptions {
-    originalBytes: Uint8Array;
-    baselineSnapshot?: IDocumentData;
+	originalBytes: Uint8Array;
+	baselineSnapshot?: IDocumentData;
 }
 
-const WORDPROCESSINGML_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+const WORDPROCESSINGML_NS =
+	"http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const XML_NS = "http://www.w3.org/XML/1998/namespace";
-const ADVANCED_DOCX_PART = /^word\/(?:header|footer|comments|footnotes|endnotes|media|embeddings|charts|diagrams|customXml)/i;
+const ADVANCED_DOCX_PART =
+	/^word\/(?:header|footer|comments|footnotes|endnotes|media|embeddings|charts|diagrams|customXml)/i;
 
 /**
  * 把 .docx 字节导入为 Univer 文档快照（富文本保真）。
@@ -29,39 +38,44 @@ const ADVANCED_DOCX_PART = /^word\/(?:header|footer|comments|footnotes|endnotes|
  * 保证最坏情况 = 历史纯文本行为，永不抛错、永不比现状更差。
  */
 export async function docxBytesToUniverDocumentSnapshot(
-    data: Uint8Array,
-    options: DocxImportOptions,
+	data: Uint8Array,
+	options: DocxImportOptions,
 ): Promise<IDocumentData> {
-    const ext = getOfficeExtension(options.filename);
-    if (ext !== "docx") {
-        // .doc（旧二进制）等格式本适配器不支持，明确抛错。
-        throw new Error("Only .docx documents can be imported by the current OOXML adapter.");
-    }
+	const ext = getOfficeExtension(options.filename);
+	if (ext !== "docx") {
+		// .doc（旧二进制）等格式本适配器不支持，明确抛错。
+		throw new Error(
+			"Only .docx documents can be imported by the current OOXML adapter.",
+		);
+	}
 
-    const arrayBuffer = bytesToArrayBuffer(data);
-    const nodeBuffer = (globalThis as unknown as {
-        Buffer?: { from(value: Uint8Array): Buffer };
-    }).Buffer;
-    const mammothInput = nodeBuffer
-        ? { buffer: nodeBuffer.from(data) }
-        : { arrayBuffer };
+	const arrayBuffer = bytesToArrayBuffer(data);
+	const nodeBuffer = (
+		globalThis as unknown as {
+			Buffer?: { from(value: Uint8Array): Buffer };
+		}
+	).Buffer;
+	const mammothInput = nodeBuffer
+		? { buffer: nodeBuffer.from(data) }
+		: { arrayBuffer };
 
-    try {
-        const htmlResult = await mammoth.convertToHtml(mammothInput);
-        const html = htmlResult.value || "";
-        const { body, tableSource, drawings, drawingsOrder } = htmlToUniverDocumentBody(html);
-        const snapshot = plainTextToUniverDocumentSnapshot(options.filename, "");
-        snapshot.title = getOfficeFileName(options.filename);
-        snapshot.body = body;
-        snapshot.tableSource = tableSource;
-        snapshot.drawings = drawings;
-        snapshot.drawingsOrder = drawingsOrder;
-        return snapshot;
-    } catch {
-        // 兜底：纯文本导入，保留历史行为。
-        const raw = await mammoth.extractRawText(mammothInput);
-        return plainTextToUniverDocumentSnapshot(options.filename, raw.value || "");
-    }
+	try {
+		const htmlResult = await mammoth.convertToHtml(mammothInput);
+		const html = htmlResult.value || "";
+		const { body, tableSource, drawings, drawingsOrder } =
+			htmlToUniverDocumentBody(html);
+		const snapshot = plainTextToUniverDocumentSnapshot(options.filename, "");
+		snapshot.title = getOfficeFileName(options.filename);
+		snapshot.body = body;
+		snapshot.tableSource = tableSource;
+		snapshot.drawings = drawings;
+		snapshot.drawingsOrder = drawingsOrder;
+		return snapshot;
+	} catch {
+		// 兜底：纯文本导入，保留历史行为。
+		const raw = await mammoth.extractRawText(mammothInput);
+		return plainTextToUniverDocumentSnapshot(options.filename, raw.value || "");
+	}
 }
 
 /**
@@ -70,12 +84,14 @@ export async function docxBytesToUniverDocumentSnapshot(
  * 优先路径：遍历 Univer body（dataStream + textRuns + paragraphs + tables + drawings）用 docx 库重建。
  * 兜底路径：富文本导出失败时回退到逐行纯文本 Paragraph（历史行为），永不抛错。
  */
-export async function univerDocumentSnapshotToDocxBytes(snapshot: IDocumentData): Promise<Uint8Array> {
-    try {
-        return await univerDocumentSnapshotToRichDocxBytes(snapshot);
-    } catch {
-        return await plainTextDocxFallback(snapshot);
-    }
+export async function univerDocumentSnapshotToDocxBytes(
+	snapshot: IDocumentData,
+): Promise<Uint8Array> {
+	try {
+		return await univerDocumentSnapshotToRichDocxBytes(snapshot);
+	} catch {
+		return await plainTextDocxFallback(snapshot);
+	}
 }
 
 /**
@@ -89,132 +105,332 @@ export async function univerDocumentSnapshotToDocxBytes(snapshot: IDocumentData)
  * instead of silently discarding unsupported content.
  */
 export async function univerDocumentSnapshotToPreservedDocxBytes(
-    snapshot: IDocumentData,
-    options: PreservedDocxExportOptions,
+	snapshot: IDocumentData,
+	options: PreservedDocxExportOptions,
 ): Promise<Uint8Array> {
-    const originalZip = await JSZip.loadAsync(bytesToArrayBuffer(options.originalBytes));
-    if (!Object.keys(originalZip.files).some((name) => ADVANCED_DOCX_PART.test(name))) {
-        return univerDocumentSnapshotToDocxBytes(snapshot);
-    }
+	const originalZip = await JSZip.loadAsync(
+		bytesToArrayBuffer(options.originalBytes),
+	);
+	if (
+		!Object.keys(originalZip.files).some((name) =>
+			ADVANCED_DOCX_PART.test(name),
+		)
+	) {
+		return univerDocumentSnapshotToDocxBytes(snapshot);
+	}
 
-    const baseline =
-        options.baselineSnapshot ??
-        (await docxBytesToUniverDocumentSnapshot(options.originalBytes, { filename: "preserved.docx" }));
-    if (documentFormatSignature(snapshot) !== documentFormatSignature(baseline)) {
-        throw new Error(
-            "该 DOCX 含页眉、批注、媒体或其他高级结构；当前只能安全保存正文文字修改。请撤销格式或结构调整后重试。",
-        );
-    }
+	const baseline =
+		options.baselineSnapshot ??
+		(await docxBytesToUniverDocumentSnapshot(options.originalBytes, {
+			filename: "preserved.docx",
+		}));
+	if (documentFormatSignature(snapshot) !== documentFormatSignature(baseline)) {
+		throw new Error(
+			"该 DOCX 含页眉、批注、媒体或其他高级结构；当前只能安全保存正文文字修改。请撤销格式或结构调整后重试。",
+		);
+	}
 
-    const [baselineBytes, targetBytes, originalXml] = await Promise.all([
-        univerDocumentSnapshotToDocxBytes(baseline),
-        univerDocumentSnapshotToDocxBytes(snapshot),
-        originalZip.file("word/document.xml")?.async("text"),
-    ]);
-    if (!originalXml) throw new Error("Invalid DOCX package: word/document.xml is missing.");
+	const [baselineBytes, targetBytes, originalXml] = await Promise.all([
+		univerDocumentSnapshotToDocxBytes(baseline),
+		univerDocumentSnapshotToDocxBytes(snapshot),
+		originalZip.file("word/document.xml")?.async("text"),
+	]);
+	if (!originalXml)
+		throw new Error("Invalid DOCX package: word/document.xml is missing.");
 
-    const [baselineZip, targetZip] = await Promise.all([
-        JSZip.loadAsync(bytesToArrayBuffer(baselineBytes)),
-        JSZip.loadAsync(bytesToArrayBuffer(targetBytes)),
-    ]);
-    const [baselineXml, targetXml] = await Promise.all([
-        baselineZip.file("word/document.xml")?.async("text"),
-        targetZip.file("word/document.xml")?.async("text"),
-    ]);
-    if (!baselineXml || !targetXml) throw new Error("Unable to build the DOCX text-preservation baseline.");
+	const [baselineZip, targetZip] = await Promise.all([
+		JSZip.loadAsync(bytesToArrayBuffer(baselineBytes)),
+		JSZip.loadAsync(bytesToArrayBuffer(targetBytes)),
+	]);
+	const [baselineXml, targetXml] = await Promise.all([
+		baselineZip.file("word/document.xml")?.async("text"),
+		targetZip.file("word/document.xml")?.async("text"),
+	]);
+	if (!baselineXml || !targetXml)
+		throw new Error("Unable to build the DOCX text-preservation baseline.");
 
-    const parser = new DOMParser();
-    const originalDocument = parser.parseFromString(originalXml, "application/xml");
-    const baselineDocument = parser.parseFromString(baselineXml, "application/xml");
-    const targetDocument = parser.parseFromString(targetXml, "application/xml");
-    const originalParagraphs = elements(originalDocument, WORDPROCESSINGML_NS, "p");
-    const baselineParagraphs = elements(baselineDocument, WORDPROCESSINGML_NS, "p");
-    const targetParagraphs = elements(targetDocument, WORDPROCESSINGML_NS, "p");
-    if (originalParagraphs.length !== baselineParagraphs.length || baselineParagraphs.length !== targetParagraphs.length) {
-        throw new Error(
-            "该 DOCX 含高级结构，且正文段落结构已经变化；为避免丢失页眉、批注或媒体，本次保存已阻止。",
-        );
-    }
+	const parser = new DOMParser();
+	const originalDocument = parser.parseFromString(
+		originalXml,
+		"application/xml",
+	);
+	const baselineDocument = parser.parseFromString(
+		baselineXml,
+		"application/xml",
+	);
+	const targetDocument = parser.parseFromString(targetXml, "application/xml");
+	const originalParagraphs = elements(
+		originalDocument,
+		WORDPROCESSINGML_NS,
+		"p",
+	);
+	const baselineParagraphs = elements(
+		baselineDocument,
+		WORDPROCESSINGML_NS,
+		"p",
+	);
+	const targetParagraphs = elements(targetDocument, WORDPROCESSINGML_NS, "p");
+	reconcileParagraphs(
+		originalDocument,
+		originalParagraphs,
+		baselineParagraphs,
+		targetParagraphs,
+	);
 
-    for (let index = 0; index < originalParagraphs.length; index += 1) {
-        const before = paragraphText(baselineParagraphs[index]);
-        const after = paragraphText(targetParagraphs[index]);
-        if (before === after) continue;
-        patchParagraphText(originalDocument, originalParagraphs[index], after);
-    }
-
-    originalZip.file("word/document.xml", new XMLSerializer().serializeToString(originalDocument));
-    return originalZip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+	originalZip.file(
+		"word/document.xml",
+		new XMLSerializer().serializeToString(originalDocument),
+	);
+	return originalZip.generateAsync({
+		type: "uint8array",
+		compression: "DEFLATE",
+	});
 }
 
-function elements(document: Document, namespace: string, localName: string): Element[] {
-    return Array.from(document.getElementsByTagNameNS(namespace, localName)) as Element[];
+type ParagraphEdit =
+	| { kind: "keep" | "replace"; beforeIndex: number; afterIndex: number }
+	| { kind: "delete"; beforeIndex: number }
+	| { kind: "insert"; afterIndex: number };
+
+function alignParagraphs(before: Element[], after: Element[]): ParagraphEdit[] {
+	const left = before.map(paragraphText);
+	const right = after.map(paragraphText);
+	const costs = Array.from({ length: left.length + 1 }, () =>
+		Array<number>(right.length + 1).fill(0),
+	);
+	for (let index = 0; index <= left.length; index += 1) costs[index][0] = index;
+	for (let index = 0; index <= right.length; index += 1)
+		costs[0][index] = index;
+	for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+		for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+			const substitution =
+				costs[leftIndex - 1][rightIndex - 1] +
+				(left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1);
+			costs[leftIndex][rightIndex] = Math.min(
+				substitution,
+				costs[leftIndex - 1][rightIndex] + 1,
+				costs[leftIndex][rightIndex - 1] + 1,
+			);
+		}
+	}
+
+	const edits: ParagraphEdit[] = [];
+	let leftIndex = left.length;
+	let rightIndex = right.length;
+	while (leftIndex > 0 || rightIndex > 0) {
+		if (leftIndex > 0 && rightIndex > 0) {
+			const equal = left[leftIndex - 1] === right[rightIndex - 1];
+			if (
+				equal &&
+				costs[leftIndex][rightIndex] === costs[leftIndex - 1][rightIndex - 1]
+			) {
+				edits.push({
+					kind: "keep",
+					beforeIndex: leftIndex - 1,
+					afterIndex: rightIndex - 1,
+				});
+				leftIndex -= 1;
+				rightIndex -= 1;
+				continue;
+			}
+		}
+		if (
+			rightIndex > 0 &&
+			costs[leftIndex][rightIndex] === costs[leftIndex][rightIndex - 1] + 1
+		) {
+			edits.push({ kind: "insert", afterIndex: rightIndex - 1 });
+			rightIndex -= 1;
+			continue;
+		}
+		if (
+			leftIndex > 0 &&
+			costs[leftIndex][rightIndex] === costs[leftIndex - 1][rightIndex] + 1
+		) {
+			edits.push({ kind: "delete", beforeIndex: leftIndex - 1 });
+			leftIndex -= 1;
+			continue;
+		}
+		edits.push({
+			kind: "replace",
+			beforeIndex: leftIndex - 1,
+			afterIndex: rightIndex - 1,
+		});
+		leftIndex -= 1;
+		rightIndex -= 1;
+	}
+	return edits.reverse();
+}
+
+function reconcileParagraphs(
+	document: Document,
+	originals: Element[],
+	baseline: Element[],
+	target: Element[],
+): void {
+	const baselineToOriginal = new Map<number, Element>();
+	for (const edit of alignParagraphs(originals, baseline)) {
+		if (edit.kind === "keep" || edit.kind === "replace") {
+			baselineToOriginal.set(edit.afterIndex, originals[edit.beforeIndex]);
+		}
+	}
+	const edits = alignParagraphs(baseline, target);
+	for (const [editIndex, edit] of edits.entries()) {
+		if (edit.kind === "keep") continue;
+		if (edit.kind === "replace") {
+			const original = baselineToOriginal.get(edit.beforeIndex);
+			if (original) {
+				patchParagraphText(
+					document,
+					original,
+					paragraphText(target[edit.afterIndex]),
+				);
+			} else {
+				insertParagraph(document, target[edit.afterIndex], null, null);
+			}
+			continue;
+		}
+		if (edit.kind === "delete") {
+			const original = baselineToOriginal.get(edit.beforeIndex);
+			original?.parentNode?.removeChild(original);
+			continue;
+		}
+
+		const previousMapped = edits
+			.slice(0, editIndex)
+			.reverse()
+			.find((candidate) => "beforeIndex" in candidate);
+		const nextMapped = edits
+			.slice(editIndex + 1)
+			.find((candidate) => "beforeIndex" in candidate);
+		const previousOriginal =
+			previousMapped && "beforeIndex" in previousMapped
+				? (baselineToOriginal.get(previousMapped.beforeIndex) ?? null)
+				: null;
+		const nextOriginal =
+			nextMapped && "beforeIndex" in nextMapped
+				? (baselineToOriginal.get(nextMapped.beforeIndex) ?? null)
+				: null;
+		insertParagraph(
+			document,
+			target[edit.afterIndex],
+			previousOriginal,
+			nextOriginal,
+		);
+	}
+}
+
+function insertParagraph(
+	document: Document,
+	paragraph: Element,
+	previous: Element | null,
+	next: Element | null,
+): void {
+	const imported = document.importNode(paragraph, true) as Element;
+	const targetParentName = (paragraph.parentNode as Element | null)?.localName;
+	const nextParent = next?.parentNode as Element | null;
+	if (next && nextParent && nextParent.localName === targetParentName) {
+		nextParent.insertBefore(imported, next);
+		return;
+	}
+	const previousParent = previous?.parentNode as Element | null;
+	if (
+		previous &&
+		previousParent &&
+		previousParent.localName === targetParentName
+	) {
+		previousParent.insertBefore(imported, previous.nextSibling);
+		return;
+	}
+	const body = document.getElementsByTagNameNS(WORDPROCESSINGML_NS, "body")[0];
+	const section =
+		body?.getElementsByTagNameNS(WORDPROCESSINGML_NS, "sectPr")[0] ?? null;
+	if (!body) throw new Error("Invalid DOCX package: document body is missing.");
+	body.insertBefore(imported, section);
+}
+
+function elements(
+	document: Document,
+	namespace: string,
+	localName: string,
+): Element[] {
+	return Array.from(
+		document.getElementsByTagNameNS(namespace, localName),
+	) as Element[];
 }
 
 function paragraphText(paragraph: Element): string {
-    return Array.from(paragraph.getElementsByTagNameNS(WORDPROCESSINGML_NS, "t"))
-        .map((node) => node.textContent ?? "")
-        .join("");
+	return Array.from(paragraph.getElementsByTagNameNS(WORDPROCESSINGML_NS, "t"))
+		.map((node) => node.textContent ?? "")
+		.join("");
 }
 
-function patchParagraphText(document: Document, paragraph: Element, value: string): void {
-    const textNodes = Array.from(paragraph.getElementsByTagNameNS(WORDPROCESSINGML_NS, "t")) as Element[];
-    if (textNodes.length === 0) {
-        const run = document.createElementNS(WORDPROCESSINGML_NS, "w:r");
-        const text = document.createElementNS(WORDPROCESSINGML_NS, "w:t");
-        run.appendChild(text);
-        paragraph.appendChild(run);
-        textNodes.push(text);
-    }
+function patchParagraphText(
+	document: Document,
+	paragraph: Element,
+	value: string,
+): void {
+	const textNodes = Array.from(
+		paragraph.getElementsByTagNameNS(WORDPROCESSINGML_NS, "t"),
+	) as Element[];
+	if (textNodes.length === 0) {
+		const run = document.createElementNS(WORDPROCESSINGML_NS, "w:r");
+		const text = document.createElementNS(WORDPROCESSINGML_NS, "w:t");
+		run.appendChild(text);
+		paragraph.appendChild(run);
+		textNodes.push(text);
+	}
 
-    const originalLengths = textNodes.map((node) => (node.textContent ?? "").length);
-    let offset = 0;
-    textNodes.forEach((node, index) => {
-        const isLast = index === textNodes.length - 1;
-        const nextOffset = isLast ? value.length : Math.min(value.length, offset + originalLengths[index]);
-        const segment = value.slice(offset, nextOffset);
-        while (node.firstChild) node.removeChild(node.firstChild);
-        node.appendChild(document.createTextNode(segment));
-        if (/^\s|\s$/.test(segment)) node.setAttributeNS(XML_NS, "xml:space", "preserve");
-        else node.removeAttributeNS(XML_NS, "space");
-        offset = nextOffset;
-    });
+	const originalLengths = textNodes.map(
+		(node) => (node.textContent ?? "").length,
+	);
+	let offset = 0;
+	textNodes.forEach((node, index) => {
+		const isLast = index === textNodes.length - 1;
+		const nextOffset = isLast
+			? value.length
+			: Math.min(value.length, offset + originalLengths[index]);
+		const segment = value.slice(offset, nextOffset);
+		while (node.firstChild) node.removeChild(node.firstChild);
+		node.appendChild(document.createTextNode(segment));
+		if (/^\s|\s$/.test(segment))
+			node.setAttributeNS(XML_NS, "xml:space", "preserve");
+		else node.removeAttributeNS(XML_NS, "space");
+		offset = nextOffset;
+	});
 }
 
 function documentFormatSignature(snapshot: IDocumentData): string {
-    return JSON.stringify({
-        textRuns: (snapshot.body?.textRuns ?? []).map((run) => run.ts ?? null),
-        paragraphs: (snapshot.body?.paragraphs ?? []).map((paragraph) => ({
-            bullet: paragraph.bullet ?? null,
-            paragraphStyle: paragraph.paragraphStyle ?? null,
-        })),
-        tables: (snapshot.body?.tables ?? []).map((table) => table.tableId),
-        tableStructure: Object.values(snapshot.tableSource ?? {}).map((table) =>
-            table.tableRows.map((row) => row.tableCells.length),
-        ),
-        drawings: snapshot.drawings ?? null,
-        drawingsOrder: snapshot.drawingsOrder ?? null,
-    });
+	return JSON.stringify({
+		textRuns: (snapshot.body?.textRuns ?? []).map((run) => run.ts ?? null),
+		tables: (snapshot.body?.tables ?? []).map((table) => table.tableId),
+		tableStructure: Object.values(snapshot.tableSource ?? {}).map((table) =>
+			table.tableRows.map((row) => row.tableCells.length),
+		),
+		drawings: snapshot.drawings ?? null,
+		drawingsOrder: snapshot.drawingsOrder ?? null,
+	});
 }
 
 // 历史纯文本导出逻辑：每行一个裸 Paragraph(TextRun)。
-async function plainTextDocxFallback(snapshot: IDocumentData): Promise<Uint8Array> {
-    const text = univerDocumentSnapshotToPlainText(snapshot);
-    const lines = text.length > 0 ? text.split("\n") : [""];
-    const doc = new DocxDocument({
-        sections: [
-            {
-                children: lines.map(
-                    (line) =>
-                        new Paragraph({
-                            children: [new TextRun(line)],
-                        }),
-                ),
-            },
-        ],
-    });
-    const arrayBuffer = await Packer.toArrayBuffer(doc);
-    return new Uint8Array(arrayBuffer);
+async function plainTextDocxFallback(
+	snapshot: IDocumentData,
+): Promise<Uint8Array> {
+	const text = univerDocumentSnapshotToPlainText(snapshot);
+	const lines = text.length > 0 ? text.split("\n") : [""];
+	const doc = new DocxDocument({
+		sections: [
+			{
+				children: lines.map(
+					(line) =>
+						new Paragraph({
+							children: [new TextRun(line)],
+						}),
+				),
+			},
+		],
+	});
+	const arrayBuffer = await Packer.toArrayBuffer(doc);
+	return new Uint8Array(arrayBuffer);
 }
 
 export { plainTextToUniverDocumentSnapshot, univerDocumentSnapshotToPlainText };

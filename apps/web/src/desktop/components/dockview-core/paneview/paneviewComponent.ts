@@ -462,7 +462,9 @@ export class PaneviewComponent extends Resizable implements IPaneviewComponent {
 
 		this.layout(width, height);
 
-		queue.forEach((f) => f());
+		queue.forEach((f) => {
+			f();
+		});
 
 		this._onDidLayoutfromJSON.fire();
 	}

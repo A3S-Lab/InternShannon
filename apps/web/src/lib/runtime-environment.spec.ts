@@ -65,7 +65,7 @@ test("native Tauri bridge still enables native runtime capabilities", () => {
     nativeDialog: true,
     nativeFileSystem: true,
     nativeShell: true,
-    nativeUpdater: true,
+    nativeUpdater: false,
     loopbackProxy: true,
   });
 });

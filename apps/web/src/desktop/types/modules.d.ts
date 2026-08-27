@@ -17,3 +17,7 @@ declare module "@radix-ui/react-separator";
 declare module "@radix-ui/react-toast";
 declare module "@radix-ui/react-toggle";
 declare module "@radix-ui/react-toggle-group";
+declare module "monaco-editor/esm/vs/basic-languages/markdown/markdown.js" {
+	export const conf: import("monaco-editor").languages.LanguageConfiguration;
+	export const language: import("monaco-editor").languages.IMonarchLanguage;
+}

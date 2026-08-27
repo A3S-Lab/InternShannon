@@ -1,3 +1,4 @@
+import * as path from 'node:path';
 import { PathSecurityValidator } from './path-validation';
 
 describe('PathSecurityValidator', () => {
@@ -82,13 +83,13 @@ describe('PathSecurityValidator', () => {
     describe('resolveAndValidate', () => {
         it('should resolve safe relative paths', () => {
             const result = PathSecurityValidator.resolveAndValidate('/root', 'foo/bar');
-            expect(result).toBe('/root/foo/bar');
+            expect(result).toBe(path.resolve('/root', 'foo/bar'));
         });
 
         it('should strip leading path traversal and resolve safely', () => {
             // Leading ../ is stripped, so ../etc/passwd becomes etc/passwd
             const result = PathSecurityValidator.resolveAndValidate('/root', '../etc/passwd');
-            expect(result).toBe('/root/etc/passwd');
+            expect(result).toBe(path.resolve('/root', 'etc/passwd'));
         });
 
         it('should throw on paths escaping root after normalization', () => {
@@ -97,17 +98,29 @@ describe('PathSecurityValidator', () => {
             // To actually test escaping, we need a path that escapes AFTER joining
             const result = PathSecurityValidator.resolveAndValidate('/root/subdir', '../../../etc');
             // After stripping leading ../../../, becomes 'etc', so result is /root/subdir/etc
-            expect(result).toBe('/root/subdir/etc');
+            expect(result).toBe(path.resolve('/root/subdir', 'etc'));
         });
 
         it('should handle normalized paths within root', () => {
             const result = PathSecurityValidator.resolveAndValidate('/root', 'foo/../bar');
-            expect(result).toBe('/root/bar');
+            expect(result).toBe(path.resolve('/root', 'bar'));
         });
 
         it('should strip leading path traversal', () => {
             const result = PathSecurityValidator.resolveAndValidate('/root', '../../foo');
-            expect(result).toBe('/root/foo');
+            expect(result).toBe(path.resolve('/root', 'foo'));
+        });
+
+        it('should reject absolute paths instead of letting them replace the root', () => {
+            const absolute = process.platform === 'win32' ? 'C:\\Windows\\System32' : '/etc/passwd';
+            expect(() => PathSecurityValidator.resolveAndValidate('/root', absolute)).toThrow(
+                'expected a relative path',
+            );
+        });
+
+        it('should reject sibling directories that only share the root prefix', () => {
+            const root = path.resolve('/root');
+            expect(PathSecurityValidator.isWithinRoot(path.resolve('/rooted/file'), root)).toBe(false);
         });
     });
 

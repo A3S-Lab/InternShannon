@@ -58,15 +58,18 @@ function MermaidRenderer({ code }: MermaidRendererProps) {
 				<div className="shiki-header">
 					<span className="language-label">mermaid</span>
 					<div className="flex items-center gap-1">
-						<div
+						<button
+							type="button"
 							className="flex items-center space-x-1 cursor-pointer py-[4px] px-[8px] hover:text-primary"
-							onClick={() => (state.fullscreen = true)}
+							onClick={() => {
+								state.fullscreen = true;
+							}}
 						>
 							<Maximize2 className="size-[14px] text-secondary-foreground/50" />
 							<span className="text-[12px] text-secondary-foreground/50">
 								全屏
 							</span>
-						</div>
+						</button>
 					</div>
 				</div>
 				<div className="p-4">
@@ -76,7 +79,9 @@ function MermaidRenderer({ code }: MermaidRendererProps) {
 
 			<Dialog
 				open={state.fullscreen}
-				onOpenChange={(open) => (state.fullscreen = open)}
+				onOpenChange={(open) => {
+					state.fullscreen = open;
+				}}
 			>
 				<DialogContent className="max-w-[90vw] max-h-[90vh] overflow-auto">
 					<DialogHeader>

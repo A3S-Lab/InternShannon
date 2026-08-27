@@ -34,7 +34,9 @@ class KeybindingRegistryImpl {
 	}
 
 	private _notifyChange() {
-		this._changeListeners.forEach((l) => l());
+		this._changeListeners.forEach((listener) => {
+			listener();
+		});
 	}
 
 	registerKeybinding(rule: KeybindingRule): { dispose: () => void } {
@@ -59,7 +61,11 @@ class KeybindingRegistryImpl {
 	registerKeybindings(rules: KeybindingRule[]): { dispose: () => void } {
 		const disposables = rules.map((r) => this.registerKeybinding(r));
 		return {
-			dispose: () => disposables.forEach((d) => d.dispose()),
+			dispose: () => {
+				disposables.forEach((disposable) => {
+					disposable.dispose();
+				});
+			},
 		};
 	}
 

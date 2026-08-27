@@ -2,10 +2,8 @@
  * ShikiDiffViewer — lightweight read-only diff display using Shiki for syntax highlighting.
  * No Monaco dependency, no TextModel disposal issues.
  */
-import { memo, useEffect } from "react";
-import { useReactive } from "ahooks";
-import { useTheme } from "@/components/custom/theme-provider";
-import { getHighlighter } from "./shiki";
+import { memo, useEffect, useState, type CSSProperties } from "react";
+import { getHighlighter, resolveHighlightLanguage } from "./shiki";
 import { cn } from "@/lib/utils";
 import { computeLineDiff } from "@/runtime/wasm/diff-wasm";
 
@@ -20,13 +18,32 @@ interface HighlightedLineProps {
 	className?: string;
 }
 
+interface HighlightedToken {
+	content: string;
+	offset: number;
+	color?: string;
+	bgColor?: string;
+	fontStyle?: number;
+}
+
+function highlightedTokenStyle(token: HighlightedToken): CSSProperties {
+	const fontStyle = token.fontStyle ?? 0;
+	return {
+		color: token.color,
+		backgroundColor: token.bgColor,
+		fontStyle: fontStyle & 1 ? "italic" : undefined,
+		fontWeight: fontStyle & 2 ? 700 : undefined,
+		textDecoration: fontStyle & 4 ? "underline" : undefined,
+	};
+}
+
 const HighlightedLine = memo(function HighlightedLine({
 	content,
 	lang,
 	isDark,
 	className = "",
 }: HighlightedLineProps) {
-	const state = useReactive({ html: "" as string });
+	const [tokens, setTokens] = useState<HighlightedToken[]>([]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -34,16 +51,11 @@ const HighlightedLine = memo(function HighlightedLine({
 			const h = await getHighlighter();
 			if (cancelled) return;
 
-			const escaped = content
-				.replace(/&/g, "&amp;")
-				.replace(/</g, "&lt;")
-				.replace(/>/g, "&gt;");
-
-			const highlighted = h.codeToHtml(escaped, {
-				lang: lang || "text",
+			const highlighted = h.codeToTokens(content, {
+				lang: resolveHighlightLanguage(h, lang),
 				theme: isDark ? "github-dark" : "github-light",
 			});
-			state.html = highlighted;
+			setTokens(highlighted.tokens[0] ?? []);
 		};
 		highlight();
 		return () => {
@@ -51,15 +63,21 @@ const HighlightedLine = memo(function HighlightedLine({
 		};
 	}, [content, lang, isDark]);
 
-	if (!state.html) {
+	if (tokens.length === 0) {
 		return <span className={className}>{content}</span>;
 	}
 
 	return (
-		<span
-			dangerouslySetInnerHTML={{ __html: state.html }}
-			className={`${className} [&_pre]:!bg-transparent [&_pre]:!p-0 [&_code]:!bg-transparent [&_code]:!text-inherit`}
-		/>
+		<span className={className}>
+			{tokens.map((token) => (
+				<span
+					key={`${token.offset}:${token.content}`}
+					style={highlightedTokenStyle(token)}
+				>
+					{token.content}
+				</span>
+			))}
+		</span>
 	);
 });
 
@@ -81,10 +99,7 @@ export function DiffViewer({
 	language = "text",
 	showStats = true,
 }: DiffViewerProps) {
-	const { theme } = useTheme();
-	const isDark =
-		theme === "dark" ||
-		(theme === "system" && document.documentElement.classList.contains("dark"));
+	const isDark = false;
 
 	const diff = computeLineDiff(original.split("\n"), modified.split("\n"));
 
@@ -116,7 +131,7 @@ export function DiffViewer({
 			<div
 				className={`font-mono text-[13px] leading-5 overflow-auto ${isDark ? "[&::-webkit-scrollbar]:bg-[#1e1e1e] [&::-webkit-scrollbar]:w-2" : "[&::-webkit-scrollbar]:bg-white [&::-webkit-scrollbar]:w-2"}`}
 			>
-				{diff.map((line, i) => {
+				{diff.map((line) => {
 					const lineNum =
 						line.type === "removed"
 							? line.origLineNum
@@ -144,7 +159,10 @@ export function DiffViewer({
 					}
 
 					return (
-						<div key={i} className={`flex items-stretch ${bgClass}`}>
+						<div
+							key={`${line.type}:${line.origLineNum ?? "none"}:${line.modLineNum ?? "none"}:${line.content}`}
+							className={`flex items-stretch ${bgClass}`}
+						>
 							<div
 								className="select-none text-right w-12 flex-shrink-0 px-2 text-[11px] leading-5 border-r flex items-center justify-end gap-1"
 								style={{

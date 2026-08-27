@@ -24,6 +24,24 @@ test("restores the boot overlay when startup rendering resumes", () => {
   ]);
 });
 
+test("propagates the Tauri CSP nonce to runtime-created style elements before app startup", () => {
+  assertOrderedSnippets(indexHtml, [
+    "function installStyleNoncePropagation() {",
+    'document.querySelector("style[nonce]")?.nonce',
+    "const originalCreateElement = Document.prototype.createElement;",
+    "Document.prototype.createElement = function () {",
+    'String(arguments[0]).toLowerCase() === "style"',
+    "element.nonce = styleNonce;",
+    "installStyleNoncePropagation();",
+    "const boot = {",
+  ]);
+  const propagation = indexHtml.slice(
+    indexHtml.indexOf("function installStyleNoncePropagation()"),
+    indexHtml.indexOf("const boot = {"),
+  );
+  assert.doesNotMatch(propagation, /currentScript/);
+});
+
 test("removes the completed boot overlay from the accessibility tree", () => {
   assertOrderedSnippets(indexHtml, [
     "#internshannon-bootstrap[hidden] {",

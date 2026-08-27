@@ -3,7 +3,7 @@
  * Uses shared SidebarLayout for consistent navigation.
  */
 
-import { Bot, Code2, FolderOpen, Globe, Info, Palette, PlugZap, RefreshCw } from "lucide-react";
+import { Bot, Code2, FolderOpen, Globe, Info, Palette, PlugZap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { SidebarLayout, type SidebarSection } from "@/desktop/layouts/sidebar-layout";
@@ -15,7 +15,6 @@ import { AppearanceSection } from "./components/appearance-section";
 import { EditorSection } from "./components/editor-section";
 import { McpSection } from "./components/mcp-section";
 import { SearchSection } from "./components/search-section";
-import { UpdateSection } from "./components/update-section";
 import { WorkspaceSection } from "./components/workspace-section";
 import { SETTINGS_CONTENT_MAX_WIDTH_CLASS } from "./settings-layout-state";
 import {
@@ -48,12 +47,6 @@ const sections: SidebarSection<SettingsSectionId>[] = [
     label: "外观",
     icon: Palette,
     description: "主题与配色",
-  },
-  {
-    id: "update",
-    label: "更新",
-    icon: RefreshCw,
-    description: "版本检查与更新安装",
   },
   {
     id: "about",
@@ -110,7 +103,6 @@ export default function SettingsPage() {
       {section === "ai" && <AiSection />}
       {section === "mcp" && <McpSection />}
       {section === "search" && <SearchSection />}
-      {section === "update" && <UpdateSection />}
       {section === "about" && <AboutSection />}
       {section === "editor" && <EditorSection />}
     </SidebarLayout>

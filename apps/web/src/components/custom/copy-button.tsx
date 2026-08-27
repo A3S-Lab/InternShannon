@@ -8,13 +8,15 @@ export default function CopyButton({ text }: { text: string }) {
 	const state = useReactive({
 		copied: false,
 	});
-	const timeoutRef = useTimeout(() => (state.copied = false), COPY_FEEDBACK_MS);
+	const timeoutRef = useTimeout(() => {
+		state.copied = false;
+	}, COPY_FEEDBACK_MS);
 
 	const handleCopy = useCallback(async () => {
 		await writeClipboardText(text);
 		state.copied = true;
 		timeoutRef();
-	}, [text]);
+	}, [text, timeoutRef]);
 
 	return (
 		<button

@@ -8,16 +8,21 @@ import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+    cleanResourceDirectory,
+    stageResourceDirectory,
+} from './resource-directory.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DESKTOP_DIR = path.resolve(SCRIPT_DIR, '..');
 const CACHE_DIR = path.join(DESKTOP_DIR, '.cache', 'node-runtime');
+const RESOURCE_STAGING_ROOT = path.join(DESKTOP_DIR, '.cache', 'resource-staging');
 const NODE_RESOURCE_DIR = path.join(DESKTOP_DIR, 'src-tauri', 'resources', 'node');
-const DEFAULT_NODE_MAJOR = '22';
+const NODE_VERSION_FILE = path.resolve(DESKTOP_DIR, '..', '..', '.nvmrc');
 const DEFAULT_NODE_DIST_BASE_URL = 'https://nodejs.org/dist';
 
 function usage() {
-    console.log(`Usage: node scripts/stage-node-runtime.mjs [--clean] [--version <v22.x.x>] [--platform <darwin|linux|win>] [--arch <x64|arm64>]
+    console.log(`Usage: node scripts/stage-node-runtime.mjs [--clean] [--version <pinned version>] [--platform <darwin|linux|win>] [--arch <x64|arm64>]
 
 Downloads and stages an official Node.js runtime into src-tauri/resources/node
 so Tauri can bundle it into the desktop app. Downloaded archives are cached in
@@ -25,13 +30,21 @@ apps/desktop/.cache/node-runtime.
 `);
 }
 
-function parseArgs(argv) {
+export function readPinnedNodeVersion(versionFile = NODE_VERSION_FILE) {
+    const version = normalizeVersion(fs.readFileSync(versionFile, 'utf8'));
+    if (!version || !/^v\d+\.\d+\.\d+$/.test(version)) {
+        throw new Error(`Invalid pinned Node.js version in ${versionFile}`);
+    }
+    return version;
+}
+
+export function parseArgs(argv, env = process.env) {
+    const pinnedVersion = readPinnedNodeVersion();
     const args = {
         clean: false,
-        version: process.env.INTERNSHANNON_NODE_VERSION,
-        major: process.env.INTERNSHANNON_NODE_MAJOR ?? DEFAULT_NODE_MAJOR,
-        platform: process.env.INTERNSHANNON_NODE_PLATFORM,
-        arch: process.env.INTERNSHANNON_NODE_ARCH,
+        version: env.INTERNSHANNON_NODE_VERSION?.trim() || pinnedVersion,
+        platform: env.INTERNSHANNON_NODE_PLATFORM,
+        arch: env.INTERNSHANNON_NODE_ARCH,
     };
 
     for (let index = 0; index < argv.length; index += 1) {
@@ -40,9 +53,6 @@ function parseArgs(argv) {
             args.clean = true;
         } else if (token === '--version') {
             args.version = argv[index + 1];
-            index += 1;
-        } else if (token === '--major') {
-            args.major = argv[index + 1];
             index += 1;
         } else if (token === '--platform') {
             args.platform = argv[index + 1];
@@ -56,6 +66,14 @@ function parseArgs(argv) {
             throw new Error(`Unknown argument: ${token}`);
         }
     }
+
+    const requestedVersion = normalizeVersion(args.version);
+    if (requestedVersion !== pinnedVersion) {
+        throw new Error(
+            `Node runtime version must match ${path.relative(DESKTOP_DIR, NODE_VERSION_FILE)} (${pinnedVersion}); got ${requestedVersion ?? 'empty'}`,
+        );
+    }
+    args.version = requestedVersion;
 
     return args;
 }
@@ -143,24 +161,9 @@ function requestBuffer(url, redirects = 0) {
     });
 }
 
-async function fetchJson(url) {
-    const buffer = await requestBuffer(url);
-    return JSON.parse(buffer.toString('utf8'));
-}
-
 async function fetchText(url) {
     const buffer = await requestBuffer(url);
     return buffer.toString('utf8');
-}
-
-async function resolveLatestVersion(baseUrl, major) {
-    const releases = await fetchJson(`${baseUrl}/index.json`);
-    const prefix = `v${major}.`;
-    const release = releases.find(item => item.version?.startsWith(prefix));
-    if (!release) {
-        throw new Error(`Could not find a Node.js ${major}.x release in ${baseUrl}/index.json`);
-    }
-    return release.version;
 }
 
 async function expectedSha256(baseUrl, version, filename) {
@@ -259,37 +262,62 @@ function extractArchive(archivePath, version, platform, arch) {
     }
 }
 
-function resetResourceDir() {
-    fs.rmSync(NODE_RESOURCE_DIR, { recursive: true, force: true });
-    fs.mkdirSync(NODE_RESOURCE_DIR, { recursive: true });
-    fs.writeFileSync(path.join(NODE_RESOURCE_DIR, '.gitkeep'), '');
+export async function resetResourceDir({
+    resourceDirectory = NODE_RESOURCE_DIR,
+    resourceStagingRoot = RESOURCE_STAGING_ROOT,
+} = {}) {
+    return cleanResourceDirectory({
+        resourceDir: resourceDirectory,
+        stagingRoot: resourceStagingRoot,
+    });
 }
 
-function stageRuntime(runtimeDir, metadata) {
-    resetResourceDir();
-    fs.rmSync(path.join(NODE_RESOURCE_DIR, '.gitkeep'), { force: true });
-    fs.cpSync(runtimeDir, NODE_RESOURCE_DIR, { recursive: true });
+export async function stageRuntime(runtimeDir, metadata, {
+    resourceDirectory = NODE_RESOURCE_DIR,
+    resourceStagingRoot = RESOURCE_STAGING_ROOT,
+} = {}) {
+    const staged = await stageResourceDirectory({
+        resourceDir: resourceDirectory,
+        stagingRoot: resourceStagingRoot,
+        populate(candidateDir) {
+            for (const entry of fs.readdirSync(runtimeDir)) {
+                fs.cpSync(
+                    path.join(runtimeDir, entry),
+                    path.join(candidateDir, entry),
+                    { recursive: true, verbatimSymlinks: true },
+                );
+            }
 
-    const executable = nodeExecutablePath(NODE_RESOURCE_DIR, metadata.platform);
-    if (!fs.existsSync(executable)) {
-        throw new Error(`Staged Node executable is missing: ${executable}`);
-    }
-    if (metadata.platform !== 'win') {
-        fs.chmodSync(executable, 0o755);
-    }
-    fs.writeFileSync(
-        path.join(NODE_RESOURCE_DIR, 'node-runtime-manifest.json'),
-        `${JSON.stringify(
-            {
-                generatedAt: new Date().toISOString(),
-                destination: path.relative(DESKTOP_DIR, NODE_RESOURCE_DIR),
-                nodeExecutable: path.relative(NODE_RESOURCE_DIR, executable),
-                ...metadata,
-            },
-            null,
-            2,
-        )}\n`,
-    );
+            const executable = nodeExecutablePath(candidateDir, metadata.platform);
+            if (!fs.existsSync(executable)) {
+                throw new Error(`Staged Node executable is missing: ${executable}`);
+            }
+            if (metadata.platform !== 'win') {
+                fs.chmodSync(executable, 0o755);
+            }
+            fs.writeFileSync(
+                path.join(candidateDir, 'node-runtime-manifest.json'),
+                `${JSON.stringify(
+                    {
+                        generatedAt: new Date().toISOString(),
+                        destination: path.relative(DESKTOP_DIR, resourceDirectory),
+                        nodeExecutable: path.relative(candidateDir, executable),
+                        ...metadata,
+                    },
+                    null,
+                    2,
+                )}\n`,
+            );
+            return { metadata };
+        },
+    });
+    return {
+        ...staged,
+        result: {
+            ...staged.result,
+            executable: nodeExecutablePath(resourceDirectory, metadata.platform),
+        },
+    };
 }
 
 async function main() {
@@ -299,7 +327,7 @@ async function main() {
         return;
     }
     if (args.clean) {
-        resetResourceDir();
+        await resetResourceDir();
         console.log(`Reset bundled Node runtime resources: ${path.relative(DESKTOP_DIR, NODE_RESOURCE_DIR)}`);
         return;
     }
@@ -307,12 +335,13 @@ async function main() {
     const baseUrl = (process.env.INTERNSHANNON_NODE_DIST_BASE_URL ?? DEFAULT_NODE_DIST_BASE_URL).replace(/\/$/, '');
     const platform = normalizePlatform(args.platform);
     const arch = normalizeArch(args.arch);
-    const version = normalizeVersion(args.version) ?? (await resolveLatestVersion(baseUrl, args.major));
+    const version = args.version;
+    const major = version.slice(1).split('.', 1)[0];
     const { filename, archivePath, expectedSha, downloaded } = await ensureArchive(baseUrl, version, platform, arch);
     const runtimeDir = extractArchive(archivePath, version, platform, arch);
-    stageRuntime(runtimeDir, {
+    await stageRuntime(runtimeDir, {
         version,
-        major: args.major,
+        major,
         platform,
         arch,
         source: `${baseUrl}/${version}/${filename}`,
@@ -326,6 +355,8 @@ async function main() {
     );
 }
 
-main().catch(error => {
-    fail(error.message);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    main().catch(error => {
+        fail(error.message);
+    });
+}

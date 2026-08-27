@@ -26,6 +26,15 @@ export function normalizeToolName(name: string): string {
 		.replace(/[\s-]+/g, "_");
 }
 
+function isSkillToolName(name: string): boolean {
+	const normalized = normalizeToolName(name);
+	return (
+		normalized === "skill" ||
+		normalized.endsWith("__skill") ||
+		normalized.endsWith("_skill")
+	);
+}
+
 export function getToolKind(name: string): ToolKind {
 	const n = normalizeToolName(name);
 	if (n === "read" || n.includes("read_file")) return "read";
@@ -114,6 +123,10 @@ export function summarizeToolInput(
 		return stringifyShort(parsed.__display, 140);
 	}
 	if (!parsed) return stringifyShort(input, 140);
+	if (isSkillToolName(toolName)) {
+		const skillName = parsed.skill_name ?? parsed.skillName ?? parsed.name;
+		return typeof skillName === "string" ? stringifyShort(skillName, 80) : "";
+	}
 
 	const command = parsed.command ?? parsed.script;
 	const query = parsed.query ?? parsed.pattern ?? parsed.regex;
@@ -188,7 +201,7 @@ export function formatToolInvocation(
 	filePath?: string,
 ): string {
 	const kind = getToolKind(toolName);
-	const name = getCanonicalToolName(kind);
+	const name = isSkillToolName(toolName) ? "Skill" : getCanonicalToolName(kind);
 	const summary = summarizeToolInput(toolName, input, filePath);
 	return summary ? `${name}(${summary})` : name;
 }
@@ -200,7 +213,7 @@ export function getToolInvocationParts(
 ): { name: string; args: string } {
 	const kind = getToolKind(toolName);
 	return {
-		name: getCanonicalToolName(kind),
+		name: isSkillToolName(toolName) ? "Skill" : getCanonicalToolName(kind),
 		args: summarizeToolInput(toolName, input, filePath),
 	};
 }
@@ -216,7 +229,8 @@ export function summarizeToolResult(
 		return "生成工具参数...";
 	}
 	if (active && !output && !isError) return "运行中...";
-	const normalizedOutput = output?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
+	const normalizedOutput =
+		output?.replace(/\s+/g, " ").trim().toLowerCase() ?? "";
 	if (
 		kind === "search" &&
 		(/\bno (?:search )?results?\b/.test(normalizedOutput) ||

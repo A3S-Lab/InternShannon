@@ -1,7 +1,7 @@
 /**
  * InputDialog - Modal dialog for text input
  */
-import { useEffect, useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,10 +31,14 @@ export function InputDialog({
   onCancel,
 }: InputDialogProps) {
   const inputId = useId();
+  const valueRef = useRef(value);
+  const onChangeRef = useRef(onChange);
+  valueRef.current = value;
+  onChangeRef.current = onChange;
 
   useEffect(() => {
     if (open) {
-      onChange(value);
+      onChangeRef.current(valueRef.current);
     }
   }, [open]);
 

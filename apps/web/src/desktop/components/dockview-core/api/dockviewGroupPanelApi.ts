@@ -78,7 +78,7 @@ export class DockviewGroupPanelApiImpl extends GridviewPanelApiImpl {
 		if (!this._group) {
 			return;
 		}
-		return this.accessor.removeGroup(this._group);
+		this.accessor.removeGroup(this._group);
 	}
 
 	getWindow(): Window {

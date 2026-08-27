@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 2,
+  "createdAt": "2026-08-25T17:31:07.000Z",
+  "scope": "app-source.zip and handoff-authored files",
+  "apiKeyOrCredentialFileIncluded": false,
+  "requiredIgnoredFilesIncluded": [
+    {
+      "path": "apps/desktop/src-tauri/Cargo.lock",
+      "reason": "required by cargo test --locked and native NSIS build",
+      "sha256": "2195809d302d3f31a30d1832b45b581fc129857b3e5d8c8556652ae44daaf9be"
+    }
+  ],
+  "trackedEnvironmentFiles": [
+    {
+      "path": "apps/sidecar/env/.env.development",
+      "sensitiveKeyCount": 0
+    },
+    {
+      "path": "apps/web/.env.development",
+      "sensitiveKeyCount": 0
+    },
+    {
+      "path": "apps/web/.env.example",
+      "sensitiveKeyCount": 0
+    },
+    {
+      "path": "apps/web/.env.production",
+      "sensitiveKeyCount": 0
+    }
+  ],
+  "literalSecretPatternFindings": {
+    "productionCredentialCount": 0,
+    "testRedactionPlaceholderCount": 4,
+    "testRedactionPlaceholderPaths": [
+      "apps/sidecar/src/modules/kernel/application/kernel-content-logging.spec.ts",
+      "apps/sidecar/src/modules/kernel/application/kernel-message-runner.service.spec.ts",
+      "apps/sidecar/src/shared/common/security/secret-redaction.spec.ts"
+    ]
+  },
+  "notes": [
+    "No user config directory, API Key, token file, node_modules, target, build cache or acceptance output was included in app-source.zip.",
+    "The ignored Cargo.lock is the sole explicitly added ignored file; it contains dependency resolution metadata, not credentials.",
+    "The listed placeholder strings are existing test fixtures used to verify secret redaction; values are not copied into this report."
+  ]
+}

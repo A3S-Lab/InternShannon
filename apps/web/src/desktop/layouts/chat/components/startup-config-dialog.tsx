@@ -1,6 +1,6 @@
 import { FolderOpen, Loader2, Settings2, UserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,16 +31,16 @@ const OPENAI_PROVIDER = "openai";
 const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_PROFILE_NICKNAME = "本地用户";
 
-async function ensureBackendModelsLoaded() {
+async function ensureBackendModelsLoaded(): Promise<boolean> {
   if (
     settingsModel.state.providers.length > 0 &&
     settingsModel.state.defaultProvider.trim() &&
     settingsModel.state.defaultModel.trim()
   ) {
-    return;
+    return true;
   }
 
-  await settingsModel.seedFromBackend({ retries: 20, retryDelayMs: 500 });
+  return settingsModel.seedFromBackend({ retries: 20, retryDelayMs: 500 });
 }
 
 function ensureOpenAiProvider() {
@@ -71,10 +71,14 @@ export function StartupConfigDialog() {
 
   useEffect(() => {
     let mounted = true;
-    settingsModel.waitForSeed().then(async () => {
+    settingsModel.waitForSeed().then(async (initialLoadSucceeded) => {
       if (!mounted) return;
-      await ensureBackendModelsLoaded();
+      const backendModelsLoaded = initialLoadSucceeded || (await ensureBackendModelsLoaded());
       if (!mounted) return;
+      if (!backendModelsLoaded) {
+        toast.error("默认配置加载失败，请先确认本地后端可用后再重新打开应用");
+        return;
+      }
 
       const fallbackProvider = settingsModel.state.providers[0] || ensureOpenAiProvider();
       if (!settingsModel.state.defaultProvider) {

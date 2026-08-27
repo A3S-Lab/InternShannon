@@ -8,7 +8,7 @@ import {
 } from '../../domain/services/kernel-runtime-config.service.interface';
 
 export const DESKTOP_DEFAULT_STREAM_STALL_WARNING_MS = 30_000;
-export const DESKTOP_DEFAULT_STREAM_STALL_HARD_MS = 90_000;
+export const DESKTOP_DEFAULT_STREAM_STALL_HARD_MS = 150_000;
 export const DESKTOP_DEFAULT_TOOL_INPUT_STREAM_STALL_HARD_MS = 90_000;
 export const DESKTOP_DEFAULT_STREAM_STALL_ACTIVE_TOOL_HARD_MS = 600_000;
 export const DESKTOP_DEFAULT_TOOL_TIMEOUT_MS = 300_000;

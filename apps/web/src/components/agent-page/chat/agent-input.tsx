@@ -2,7 +2,7 @@ import { useReactive } from "ahooks";
 import { FileText, Loader2, Send, Terminal, Upload, X } from "lucide-react";
 import type React from "react";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { useSnapshot } from "valtio";
 import type { SuggestionItem } from "@/components/tiptap-editor/mention-list";
 import TiptapEditor, { type TiptapEditorRef } from "@/components/tiptap-editor/TiptapEditor";
@@ -160,7 +160,7 @@ export const AgentInput = forwardRef<
       if (!isRunning) {
         state.isInterrupting = false;
       }
-    }, [isRunning, state]);
+    }, [isRunning]);
 
     // Keyboard shortcuts: Cmd+Enter to send, Up/Down for history
     const hasPendingFileUploads = state.pendingFiles.some((f) => f.progress !== undefined);
@@ -269,7 +269,7 @@ export const AgentInput = forwardRef<
       } finally {
         state.isSubmitting = false;
       }
-    }, [clearCurrentDraft, effectiveWhisperMode, onSend, persistCurrentDraft, sendDisabled, state]);
+    }, [clearCurrentDraft, effectiveWhisperMode, onSend, persistCurrentDraft, sendDisabled]);
 
     // Consume any pending chat-input prefill (set e.g. by AssetProposalCard
     // "确认/修改/取消" buttons). When the per-session slot turns from null →
@@ -322,7 +322,7 @@ export const AgentInput = forwardRef<
       return () => {
         cancelled = true;
       };
-    }, [pendingPrefillSnap, sessionId, handleSubmit, persistCurrentDraft, state]);
+    }, [pendingPrefillSnap, sessionId, handleSubmit, persistCurrentDraft]);
 
     useEffect(() => {
       if (pendingPrefillSnap) return;
@@ -344,7 +344,7 @@ export const AgentInput = forwardRef<
       state.inputHistoryIndex = -1;
       state.inputHistoryDraft = "";
       historyPreviewTextRef.current = null;
-    }, [pendingPrefillSnap, sessionId, state]);
+    }, [pendingPrefillSnap, sessionId]);
 
     useEffect(() => {
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -414,7 +414,7 @@ export const AgentInput = forwardRef<
 
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [state, sendDisabled, handleSubmit]);
+    }, [sendDisabled, handleSubmit]);
 
     useEffect(() => {
       if (disableSlash || sessionConnectionStatus !== "connected") return;
@@ -429,7 +429,7 @@ export const AgentInput = forwardRef<
         group: "命令",
         icon: <Terminal className="size-3 text-primary" />,
       }));
-    }, [sessionState?.slashCommands, state]);
+    }, [sessionState?.slashCommands]);
 
     const currentAgentId = agentRegistryModel.resolveSessionAgentId(sessionId);
 
@@ -559,14 +559,14 @@ export const AgentInput = forwardRef<
           state.workspaceUploadOverallPercent = 0;
         }
       },
-      [apiUrl, sessionId, state, uploadBlockReason],
+      [apiUrl, sessionId, uploadBlockReason],
     );
 
     const removeFile = useCallback(
       (id: string) => {
         state.pendingFiles = state.pendingFiles.filter((f) => f.id !== id);
       },
-      [state],
+      [],
     );
 
     // ── Handlers ──
@@ -589,7 +589,7 @@ export const AgentInput = forwardRef<
         if (!historyPreviewEdit.shouldPersistDraft) return;
         persistCurrentDraft(text);
       },
-      [persistCurrentDraft, state],
+      [persistCurrentDraft],
     );
 
     const handlePasteImages = useCallback(
@@ -598,7 +598,7 @@ export const AgentInput = forwardRef<
         const newFiles = createPendingFilesFromPastedImages(images);
         state.pendingFiles = [...state.pendingFiles, ...newFiles];
       },
-      [disabled, state],
+      [disabled],
     );
 
     const handleInterrupt = useCallback(async () => {
@@ -616,7 +616,7 @@ export const AgentInput = forwardRef<
         state.isInterrupting = false;
         toast.error(error instanceof Error ? error.message : "中断请求失败");
       }
-    }, [onInterrupt, sessionId, state]);
+    }, [onInterrupt, sessionId]);
 
     // ── Drag and drop ──
 
@@ -629,7 +629,7 @@ export const AgentInput = forwardRef<
           state.isDragging = true;
         }
       },
-      [state, uploadDisabled],
+      [uploadDisabled],
     );
 
     const handleDragLeave = useCallback(
@@ -641,7 +641,7 @@ export const AgentInput = forwardRef<
           state.isDragging = false;
         }
       },
-      [state],
+      [],
     );
 
     const handleDragOver = useCallback(
@@ -664,7 +664,7 @@ export const AgentInput = forwardRef<
         const { files, skippedDirectories } = getDroppedFiles(e.dataTransfer);
         if (files.length > 0 || skippedDirectories > 0) void uploadFilesToSessionWorkspace(files, skippedDirectories);
       },
-      [state, uploadFilesToSessionWorkspace],
+      [uploadFilesToSessionWorkspace],
     );
 
     const handleChooseFiles = useCallback(() => {
@@ -711,7 +711,7 @@ export const AgentInput = forwardRef<
           state.isEmpty = false;
         },
       }),
-      [persistCurrentDraft, state],
+      [persistCurrentDraft],
     );
 
     const currentUploadPercent = clampUploadPercent(state.workspaceUploadCurrentPercent);

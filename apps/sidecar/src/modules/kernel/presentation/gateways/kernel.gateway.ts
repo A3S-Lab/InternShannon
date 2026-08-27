@@ -1,4 +1,4 @@
-import { Inject, Logger } from '@nestjs/common';
+import { HttpException, Inject, Logger } from "@nestjs/common";
 import {
     ConnectedSocket,
     MessageBody,
@@ -8,28 +8,30 @@ import {
     SubscribeMessage,
     WebSocketGateway,
     WebSocketServer,
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { AgentLifecycleMediator } from '../../application/agent-lifecycle-mediator.service';
+} from "@nestjs/websockets";
+import { Server, Socket } from "socket.io";
+import { redactDeep, redactSecretValuesInText } from "@/shared/common/security/secret-redaction";
+import { desktopCorsOrigin, desktopSocketAllowRequest } from "@/shared/infrastructure/network/desktop-cors";
+import { AgentLifecycleMediator } from "../../application/agent-lifecycle-mediator.service";
 import {
     isLockedAgent,
     lockedRunViolation,
     lockedSessionViolation,
-} from '../../application/agents/locked-agent.policy';
-import { KernelBtwQueryService } from '../../application/kernel-btw-query.service';
-import { KernelMessageRunCancellationService } from '../../application/kernel-message-run-cancellation.service';
-import { KernelMessageRunIntakeService } from '../../application/kernel-message-run-intake.service';
-import { KernelSessionAccessService } from '../../application/kernel-session-access.service';
-import { KernelSessionBroadcaster } from '../../application/kernel-session-broadcaster.service';
-import { KernelSessionConnectionService } from '../../application/kernel-session-connection.service';
-import { KernelSessionResetService } from '../../application/kernel-session-reset.service';
-import { KernelSessionRuntimeAccessService } from '../../application/kernel-session-runtime-access.service';
-import { KernelSessionSnapshotService } from '../../application/kernel-session-snapshot.service';
-import { KernelSessionStatusService } from '../../application/kernel-session-status.service';
-import type { MessagePayload, SubscribePayload } from '../../application/session-runtime.types';
-import { IKernelService, KERNEL_SERVICE } from '../../domain/services/kernel-service.interface';
-import { type ToolConfirmationResponse, WebSocketConfirmationManager } from './websocket-confirmation-manager';
-import { desktopCorsOrigin, desktopSocketAllowRequest } from '@/shared/infrastructure/network/desktop-cors';
+} from "../../application/agents/locked-agent.policy";
+import { KernelBtwQueryService } from "../../application/kernel-btw-query.service";
+import { KernelMessageRunCancellationService } from "../../application/kernel-message-run-cancellation.service";
+import { KernelMessageRunIntakeService } from "../../application/kernel-message-run-intake.service";
+import { isNoopSystemPromptUpdate } from "../../application/runtime-override-guard";
+import { KernelSessionAccessService } from "../../application/kernel-session-access.service";
+import { KernelSessionBroadcaster } from "../../application/kernel-session-broadcaster.service";
+import { KernelSessionConnectionService } from "../../application/kernel-session-connection.service";
+import { KernelSessionResetService } from "../../application/kernel-session-reset.service";
+import { KernelSessionRuntimeAccessService } from "../../application/kernel-session-runtime-access.service";
+import { KernelSessionSnapshotService } from "../../application/kernel-session-snapshot.service";
+import { KernelSessionStatusService } from "../../application/kernel-session-status.service";
+import type { MessagePayload, SubscribePayload } from "../../application/session-runtime.types";
+import { IKernelService, KERNEL_SERVICE } from "../../domain/services/kernel-service.interface";
+import { type ToolConfirmationResponse, WebSocketConfirmationManager } from "./websocket-confirmation-manager";
 
 /**
  * Kernel WebSocket Gateway
@@ -40,7 +42,7 @@ import { desktopCorsOrigin, desktopSocketAllowRequest } from '@/shared/infrastru
  * Uses @a3s-lab/code for the actual AI agent conversation functionality.
  */
 @WebSocketGateway({
-    namespace: '/ws/kernel',
+    namespace: "/ws/kernel",
     cors: {
         origin: desktopCorsOrigin,
         credentials: true,
@@ -74,18 +76,18 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     ) {}
 
     afterInit(): void {
-        this.logger.log('Initializing KernelGateway...');
+        this.logger.log("Initializing KernelGateway...");
 
         // Initialize HITL Confirmation Manager
         this.confirmationManager = new WebSocketConfirmationManager(this.server, 60000);
-        this.logger.log('HITL Confirmation Manager initialized');
+        this.logger.log("HITL Confirmation Manager initialized");
 
         // Wire the broadcaster bridge so non-kernel services can push raw
         // frames to a session room.
         this.sessionBroadcaster.attach(this.server);
 
         // Load runtime config for agent configuration
-        this.runtimeAccess.refreshRuntimeCatalog().catch(error => {
+        this.runtimeAccess.refreshRuntimeCatalog().catch((error) => {
             this.logger.warn(`Failed to load runtime config: ${error}. Using defaults.`);
         });
     }
@@ -93,7 +95,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     async handleConnection(client: Socket): Promise<void> {
         const userId = await this.resolveSocketUserId(client);
         if (!userId) {
-            client.emit('message', { type: 'error', message: '请先登录后再连接内核会话' });
+            client.emit("message", { type: "error", message: "请先登录后再连接内核会话" });
             client.disconnect(true);
             return;
         }
@@ -107,7 +109,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         const sessionId = this.sessionConnections.sessionIdForClient(client.id);
         this.sessionConnections.disconnect({
             clientId: client.id,
-            leave: room => client.leave(room),
+            leave: (room) => client.leave(room),
         });
         if (sessionId) {
             this.confirmationManager?.cleanup(sessionId);
@@ -117,9 +119,9 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     private async requireClientSessionAccess(client: Socket, sessionId?: string): Promise<string | null> {
         const userId = await this.resolveClientUserId(client);
         if (!userId || !sessionId) {
-            client.emit('message', {
-                type: 'error',
-                message: 'Session not found or access denied',
+            client.emit("message", {
+                type: "error",
+                message: "Session not found or access denied",
             });
             return null;
         }
@@ -128,12 +130,12 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
             await this.sessionAccess.requireOwnedSession(sessionId, userId);
             return userId;
         } catch {
-            client.emit('message', {
-                type: 'error',
-                message: 'Session not found or access denied',
+            client.emit("message", {
+                type: "error",
+                message: "Session not found or access denied",
             });
-            client.emit('message', {
-                type: 'status_change',
+            client.emit("message", {
+                type: "status_change",
                 status: null,
             });
             return null;
@@ -152,10 +154,10 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     }
 
     private async resolveSocketUserId(client: Socket): Promise<string | null> {
-        return 'desktop-user';
+        return "desktop-user";
     }
 
-    @SubscribeMessage('subscribe')
+    @SubscribeMessage("subscribe")
     async handleSubscribe(@ConnectedSocket() client: Socket, @MessageBody() payload: SubscribePayload): Promise<void> {
         const { sessionId } = payload;
         this.logger.log(`Client ${client.id} subscribing to session ${sessionId}`);
@@ -165,16 +167,16 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         this.sessionConnections.subscribe({
             clientId: client.id,
             sessionId,
-            join: room => client.join(room),
-            leave: room => client.leave(room),
-            emitSubscribed: message => client.emit('subscribed', message),
+            join: (room) => client.join(room),
+            leave: (room) => client.leave(room),
+            emitSubscribed: (message) => client.emit("subscribed", message),
         });
 
         // Send session state to the client
         await this.emitSessionInit(client, sessionId);
     }
 
-    @SubscribeMessage('message')
+    @SubscribeMessage("message")
     async handleMessage(@ConnectedSocket() client: Socket, @MessageBody() payload: MessagePayload): Promise<void> {
         const { sessionId, type } = payload;
         this.logger.debug(`Message from ${client.id} to session ${sessionId}: type=${type}`);
@@ -183,7 +185,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
             const userId = await this.requireClientSessionAccess(client, sessionId);
             if (!userId) return;
             switch (type) {
-                case 'user_message':
+                case "user_message":
                     await this.handleUserMessage(
                         client,
                         sessionId,
@@ -201,39 +203,51 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
                         },
                     );
                     break;
-                case 'interrupt':
-                case 'cancel':
+                case "interrupt":
+                case "cancel":
                     await this.handleCancel(sessionId);
                     break;
-                case 'btw_message':
-                case 'btw':
+                case "btw_message":
+                case "btw":
                     await this.handleBtw(sessionId, payload as { content?: string });
                     break;
-                case 'set_model':
+                case "set_model":
+                    if (this.rejectBusySessionOverride(sessionId)) break;
                     if (await this.rejectLockedSessionOverride(sessionId, { model: payload.model })) {
                         break;
                     }
                     this.runtimeAccess.patchRuntimeOverrides(sessionId, {
-                        model: typeof payload.model === 'string' ? payload.model : undefined,
+                        model: typeof payload.model === "string" ? payload.model : undefined,
                     });
                     this.broadcastToSession(sessionId, {
-                        type: 'session_update',
+                        type: "session_update",
                         session: { model: payload.model },
                     });
                     break;
-                case 'set_permissionMode': {
+                case "set_permissionMode": {
+                    if (this.rejectBusySessionOverride(sessionId)) break;
                     if (await this.rejectLockedSessionOverride(sessionId, { permissionMode: payload.mode })) {
                         break;
                     }
                     const permissionPatch = this.runtimePatchForPermissionMode(payload.mode);
                     this.runtimeAccess.patchRuntimeOverrides(sessionId, permissionPatch);
                     this.broadcastToSession(sessionId, {
-                        type: 'session_update',
+                        type: "session_update",
                         session: permissionPatch,
                     });
                     break;
                 }
-                case 'set_systemPrompt':
+                case "set_systemPrompt":
+                    if (
+                        this.runtimeAccess.isOperationActive(sessionId) &&
+                        isNoopSystemPromptUpdate(
+                            payload.systemPrompt,
+                            this.runtimeAccess.runtimeOverrides(sessionId).systemPrompt,
+                        )
+                    ) {
+                        break;
+                    }
+                    if (this.rejectBusySessionOverride(sessionId)) break;
                     if (
                         await this.rejectLockedSessionOverride(sessionId, {
                             systemPrompt: payload.systemPrompt,
@@ -242,44 +256,47 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
                         break;
                     }
                     this.runtimeAccess.patchRuntimeOverrides(sessionId, {
-                        systemPrompt: typeof payload.systemPrompt === 'string' ? payload.systemPrompt : undefined,
+                        systemPrompt: typeof payload.systemPrompt === "string" ? payload.systemPrompt : undefined,
                     });
                     break;
-                case 'session_status':
-                    await this.handleSessionStatus(sessionId);
+                case "session_status":
+                    await this.handleSessionStatus(client, sessionId, payload);
                     break;
-                case 'clear_session':
+                case "clear_session":
                     await this.handleClearSession(sessionId);
                     break;
-                case 'tool_confirmation_response':
+                case "tool_confirmation_response":
                     await this.handleToolConfirmationResponse(
                         sessionId,
                         payload as unknown as ToolConfirmationResponse,
                     );
                     break;
-                case 'send_agent_message':
+                case "send_agent_message":
                     await this.handleAgentMessageRelay(sessionId, payload, userId);
                     break;
-                case 'set_autoExecute':
+                case "set_autoExecute":
                     await this.handleAutoExecuteChange(sessionId, payload);
                     break;
                 default:
                     this.logger.debug(`Unhandled message type: ${type}`);
             }
         } catch (error) {
-            this.logger.error(`Unhandled gateway message error for ${sessionId}: ${error}`);
-            client.emit('message', {
-                type: 'error',
-                message: error instanceof Error ? error.message : String(error),
+            const safeMessage = redactSecretValuesInText(error instanceof Error ? error.message : String(error));
+            this.logger.error(`Unhandled gateway message error for ${sessionId}: ${safeMessage}`);
+            client.emit("message", {
+                type: "error",
+                message: safeMessage,
+                ...(error instanceof HttpException && error.getStatus() === 409 ? { code: "session_busy" } : {}),
             });
-            client.emit('message', {
-                type: 'status_change',
+            if (error instanceof HttpException && error.getStatus() === 409) return;
+            client.emit("message", {
+                type: "status_change",
                 status: null,
             });
         }
     }
 
-    @SubscribeMessage('tool_confirmation_response')
+    @SubscribeMessage("tool_confirmation_response")
     async handleDirectToolConfirmationResponse(
         @ConnectedSocket() client: Socket,
         @MessageBody() payload: ToolConfirmationResponse & { sessionId?: string },
@@ -296,12 +313,12 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     }
 
     private async handleAgentMessageRelay(sessionId: string, payload: MessagePayload, userId: string): Promise<void> {
-        const targetSessionId = typeof payload.target === 'string' ? payload.target.trim() : '';
-        const content = typeof payload.content === 'string' ? payload.content.trim() : '';
+        const targetSessionId = typeof payload.target === "string" ? payload.target.trim() : "";
+        const content = typeof payload.content === "string" ? payload.content.trim() : "";
         if (!targetSessionId || !content) {
             this.broadcastToSession(sessionId, {
-                type: 'error',
-                message: 'target and content are required for agent message',
+                type: "error",
+                message: "target and content are required for agent message",
             });
             return;
         }
@@ -310,17 +327,17 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
             await this.sessionAccess.requireOwnedSession(targetSessionId, userId);
         } catch {
             this.broadcastToSession(sessionId, {
-                type: 'error',
-                message: 'target session not found or access denied',
+                type: "error",
+                message: "target session not found or access denied",
             });
             return;
         }
 
         this.broadcastToSession(targetSessionId, {
-            type: 'agent_message',
+            type: "agent_message",
             messageId: `agent-msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             fromSessionId: sessionId,
-            topic: typeof payload.topic === 'string' ? payload.topic : 'agent-message',
+            topic: typeof payload.topic === "string" ? payload.topic : "agent-message",
             content,
             autoExecute: payload.autoExecute === true,
         });
@@ -330,7 +347,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         const enabled = payload.enabled === true;
         await this.kernelService.updateSession(sessionId, { autoExecute: enabled });
         this.broadcastToSession(sessionId, {
-            type: 'session_update',
+            type: "session_update",
             session: { autoExecute: enabled },
         });
     }
@@ -340,14 +357,24 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         planningMode?: string;
         goalTracking?: boolean;
     } {
-        const permissionMode = typeof mode === 'string' ? mode : undefined;
-        if (permissionMode === 'plan') {
-            return { permissionMode, planningMode: 'enabled', goalTracking: true };
+        const permissionMode = typeof mode === "string" ? mode : undefined;
+        if (permissionMode === "plan") {
+            return { permissionMode, planningMode: "enabled", goalTracking: true };
         }
-        if (permissionMode === 'default' || permissionMode === 'auto') {
-            return { permissionMode, planningMode: 'disabled', goalTracking: false };
+        if (permissionMode === "default" || permissionMode === "auto") {
+            return { permissionMode, planningMode: "disabled", goalTracking: false };
         }
         return { permissionMode };
+    }
+
+    private rejectBusySessionOverride(sessionId: string): boolean {
+        if (!this.runtimeAccess.isOperationActive(sessionId)) return false;
+        this.broadcastToSession(sessionId, {
+            type: "error",
+            code: "session_busy",
+            message: "当前会话正在运行或压缩，请等待完成后再修改运行配置。",
+        });
+        return true;
     }
 
     /**
@@ -357,7 +384,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         this.logger.log(`Received tool confirmation response for session ${sessionId}: ${response.requestId}`);
 
         if (!this.confirmationManager) {
-            this.logger.error('Confirmation manager not initialized');
+            this.logger.error("Confirmation manager not initialized");
             return;
         }
 
@@ -376,7 +403,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
      * Broadcast a message to all clients in a session room
      */
     broadcastToSession(sessionId: string, message: unknown): void {
-        this.server.to(`session:${sessionId}`).emit('message', message);
+        this.server.to(`session:${sessionId}`).emit("message", redactDeep(message));
     }
 
     private async emitSessionInit(client: Socket, sessionId: string): Promise<void> {
@@ -386,19 +413,19 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
                 return;
             }
 
-            client.emit('message', {
-                type: 'session_init',
+            client.emit("message", {
+                type: "session_init",
                 session: snapshot.session,
             });
 
             if (snapshot.messages.length > 0) {
-                client.emit('message', {
-                    type: 'message_history',
+                client.emit("message", {
+                    type: "message_history",
                     messages: snapshot.messages,
                 });
             }
 
-            client.emit('message', { type: 'cli_connected' });
+            client.emit("message", { type: "cli_connected" });
         } catch (error) {
             this.logger.error(`Error emitting session init: ${error}`);
         }
@@ -418,11 +445,11 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         const violation = lockedRunViolation(session?.agentId, { model: data.model });
         if (violation) {
             this.broadcastToSession(sessionId, {
-                type: 'error',
+                type: "error",
                 message: violation,
             });
             this.broadcastToSession(sessionId, {
-                type: 'status_change',
+                type: "status_change",
                 status: null,
             });
             return;
@@ -439,7 +466,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
             images: data.images,
             model: locked ? undefined : data.model,
             confirmation: this.confirmationManager?.forClient(client.id) ?? null,
-            emit: message => this.broadcastToSession(sessionId, message),
+            emit: (message) => this.broadcastToSession(sessionId, message),
         });
     }
 
@@ -458,11 +485,11 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         if (!violation) return false;
 
         this.broadcastToSession(sessionId, {
-            type: 'error',
+            type: "error",
             message: violation,
         });
         this.broadcastToSession(sessionId, {
-            type: 'status_change',
+            type: "status_change",
             status: null,
         });
         return true;
@@ -474,25 +501,25 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         userId?: string,
     ): Promise<void> {
         const activeSession = this.runtimeAccess.active(sessionId);
-        const agentId = activeSession?.agentId || 'default';
+        const agentId = activeSession?.agentId || "default";
 
         for (const attachment of attachments) {
             await this.agentLifecycle.dispatchFileAttached({
                 sessionId,
                 agentId,
-                userId: userId || activeSession?.userId || 'desktop-user',
+                userId: userId || activeSession?.userId || "desktop-user",
                 upload: {
                     uploadId: attachment.uploadId,
                     fileName: attachment.fileName,
                     mimeType: attachment.mimeType,
                     size: attachment.size || 0,
-                    sha256: attachment.sha256 || '',
-                    path: '',
+                    sha256: attachment.sha256 || "",
+                    path: "",
                 },
             });
 
             this.broadcastToSession(sessionId, {
-                type: 'file_attached',
+                type: "file_attached",
                 uploadId: attachment.uploadId,
                 fileName: attachment.fileName,
                 mimeType: attachment.mimeType,
@@ -503,7 +530,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
     private async handleCancel(sessionId: string): Promise<void> {
         await this.messageRunCancellation.cancel({
             sessionId,
-            emit: message => this.broadcastToSession(sessionId, message),
+            emit: (message) => this.broadcastToSession(sessionId, message),
         });
     }
 
@@ -511,7 +538,7 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         await this.btwQuery.ask({
             sessionId,
             content: data.content,
-            emit: message => this.broadcastToSession(sessionId, message),
+            emit: (message) => this.broadcastToSession(sessionId, message),
         });
     }
 
@@ -519,33 +546,40 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
         await this.sessionReset.reset(sessionId);
 
         this.broadcastToSession(sessionId, {
-            type: 'command_response',
-            command: '/clear',
-            text: '已清空当前会话记录',
+            type: "command_response",
+            command: "/clear",
+            text: "已清空当前会话记录",
             stateChanged: true,
         });
         this.broadcastToSession(sessionId, {
-            type: 'status_change',
+            type: "status_change",
             status: null,
         });
         this.broadcastToSession(sessionId, {
-            type: 'cli_connected',
+            type: "cli_connected",
         });
     }
 
-    private async handleSessionStatus(sessionId: string): Promise<void> {
+    private async handleSessionStatus(client: Socket, sessionId: string, payload: MessagePayload): Promise<void> {
+        const requestId =
+            typeof payload.requestId === "string" && payload.requestId.trim().length > 0
+                ? payload.requestId.trim().slice(0, 160)
+                : undefined;
+        const contextOnly = payload.contextOnly === true;
+        const emitStatus = (message: Record<string, unknown>) => client.emit("message", message);
         try {
             const activeSession = await this.runtimeAccess.getActiveOrCreate({
                 sessionId,
-                emit: message => this.broadcastToSession(sessionId, message),
+                emit: (message) => this.broadcastToSession(sessionId, message),
             });
             if (!activeSession) {
-                this.broadcastToSession(sessionId, {
-                    type: 'error',
-                    message: 'Failed to access session',
+                emitStatus({
+                    type: "error",
+                    message: "Failed to access session",
+                    ...(requestId ? { requestId } : {}),
                 });
-                this.broadcastToSession(sessionId, {
-                    type: 'status_change',
+                emitStatus({
+                    type: "status_change",
                     status: null,
                 });
                 return;
@@ -554,18 +588,30 @@ export class KernelGateway implements OnGatewayConnection, OnGatewayDisconnect, 
                 ...activeSession.runtimeOverrides,
                 ...this.runtimeAccess.runtimeOverrides(sessionId),
             };
-            this.broadcastToSession(sessionId, {
-                type: 'session_status',
-                data: await this.sessionStatus.describe(activeSession, runtimeOverrides),
+            const operation = this.runtimeAccess.activeOperation(sessionId);
+            const statusData = contextOnly
+                ? await this.sessionStatus.describeContext(activeSession)
+                : await this.sessionStatus.describe(activeSession, runtimeOverrides);
+            emitStatus({
+                type: "session_status",
+                ...(requestId ? { requestId } : {}),
+                data: {
+                    ...statusData,
+                    runtimeBusy: Boolean(operation),
+                    ...(operation
+                        ? { activeRunId: operation.runId ?? operation.operationId, runtimePhase: operation.phase }
+                        : {}),
+                },
             });
         } catch (error) {
             this.logger.error(`Failed to read session status for ${sessionId}: ${error}`);
-            this.broadcastToSession(sessionId, {
-                type: 'error',
+            emitStatus({
+                type: "error",
                 message: error instanceof Error ? error.message : String(error),
+                ...(requestId ? { requestId } : {}),
             });
-            this.broadcastToSession(sessionId, {
-                type: 'status_change',
+            emitStatus({
+                type: "status_change",
                 status: null,
             });
         }

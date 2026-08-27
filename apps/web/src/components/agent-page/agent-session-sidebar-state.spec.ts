@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { AgentProcessInfo } from "@/lib/types";
 import {
   formatSessionSidebarActionError,
+  isSessionSidebarActive,
   nextSessionSearchQueryAfterCreate,
   resolveFirstSelectableSessionId,
   resolveLatestSessionMessagePreview,
@@ -220,13 +221,20 @@ test("resolves sidebar status labels and tones from lifecycle and runtime state"
     tone: "disconnected",
   });
   assert.deepEqual(resolveSessionSidebarStatus({ connectionStatus: "connected" }), {
-    label: "已连接",
-    tone: "active",
+    label: "空闲",
+    tone: "idle",
   });
   assert.deepEqual(resolveSessionSidebarStatus({}), {
     label: "空闲",
     tone: "idle",
   });
+});
+
+test("counts only sessions doing work as active", () => {
+  assert.equal(isSessionSidebarActive({ connectionStatus: "connected" }), false);
+  assert.equal(isSessionSidebarActive({ connectionStatus: "connecting" }), false);
+  assert.equal(isSessionSidebarActive({ sessionStatus: "running", connectionStatus: "connected" }), true);
+  assert.equal(isSessionSidebarActive({ sessionState: "creating" }), true);
 });
 
 test("indexes the visible sidebar status in session search text", () => {

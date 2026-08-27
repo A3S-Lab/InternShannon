@@ -33,7 +33,7 @@ import {
   AlignLeft,
   StickyNote,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 // ---------------------------------------------------------------------------
 // Command definitions

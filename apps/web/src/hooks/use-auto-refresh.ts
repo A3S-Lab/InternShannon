@@ -76,7 +76,7 @@ export function useAutoRefresh(fetcher: () => void, options: AutoRefreshOptions)
       window.clearInterval(poll);
       window.clearInterval(tick);
     };
-  }, [polling, effectiveInterval, immediate, fetch]);
+  }, [polling, effectiveInterval, immediate]);
 
   return { secondsToRefresh };
 }

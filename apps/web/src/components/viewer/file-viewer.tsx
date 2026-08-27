@@ -2,11 +2,9 @@
  * FileViewer — lightweight read-only file content display using Shiki for syntax highlighting.
  * No Monaco dependency, no TextModel disposal issues.
  */
-import { memo, useEffect } from "react";
-import { useReactive } from "ahooks";
-import { useTheme } from "@/components/custom/theme-provider";
+import { memo, useEffect, useState, type CSSProperties } from "react";
 import { FileText } from "lucide-react";
-import { getHighlighter } from "./shiki";
+import { getHighlighter, resolveHighlightLanguage } from "./shiki";
 
 // =============================================================================
 // Highlighted line component
@@ -19,15 +17,32 @@ interface HighlightedLineProps {
 	className?: string;
 }
 
+interface HighlightedToken {
+	content: string;
+	offset: number;
+	color?: string;
+	bgColor?: string;
+	fontStyle?: number;
+}
+
+function highlightedTokenStyle(token: HighlightedToken): CSSProperties {
+	const fontStyle = token.fontStyle ?? 0;
+	return {
+		color: token.color,
+		backgroundColor: token.bgColor,
+		fontStyle: fontStyle & 1 ? "italic" : undefined,
+		fontWeight: fontStyle & 2 ? 700 : undefined,
+		textDecoration: fontStyle & 4 ? "underline" : undefined,
+	};
+}
+
 const HighlightedLine = memo(function HighlightedLine({
 	content,
 	lang,
 	isDark,
 	className = "",
 }: HighlightedLineProps) {
-	const state = useReactive({
-		html: "",
-	});
+	const [tokens, setTokens] = useState<HighlightedToken[]>([]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -35,16 +50,11 @@ const HighlightedLine = memo(function HighlightedLine({
 			const h = await getHighlighter();
 			if (cancelled) return;
 
-			const escaped = content
-				.replace(/&/g, "&amp;")
-				.replace(/</g, "&lt;")
-				.replace(/>/g, "&gt;");
-
-			const highlighted = h.codeToHtml(escaped, {
-				lang: lang || "text",
+			const highlighted = h.codeToTokens(content, {
+				lang: resolveHighlightLanguage(h, lang),
 				theme: isDark ? "github-dark" : "github-light",
 			});
-			state.html = highlighted;
+			setTokens(highlighted.tokens[0] ?? []);
 		};
 		highlight();
 		return () => {
@@ -52,15 +62,21 @@ const HighlightedLine = memo(function HighlightedLine({
 		};
 	}, [content, lang, isDark]);
 
-	if (!state.html) {
+	if (tokens.length === 0) {
 		return <span className={className}>{content}</span>;
 	}
 
 	return (
-		<span
-			dangerouslySetInnerHTML={{ __html: state.html }}
-			className={`${className} [&_pre]:!bg-transparent [&_pre]:!p-0 [&_code]:!bg-transparent [&_code]:!text-inherit`}
-		/>
+		<span className={className}>
+			{tokens.map((token) => (
+				<span
+					key={`${token.offset}:${token.content}`}
+					style={highlightedTokenStyle(token)}
+				>
+					{token.content}
+				</span>
+			))}
+		</span>
 	);
 });
 
@@ -85,12 +101,15 @@ export function FileViewer({
 	showLineNumbers = true,
 	maxHeight,
 }: FileViewerProps) {
-	const { theme } = useTheme();
-	const isDark =
-		theme === "dark" ||
-		(theme === "system" && document.documentElement.classList.contains("dark"));
+	const isDark = false;
 
 	const lines = content.split("\n");
+	let lineOffset = 0;
+	const lineEntries = lines.map((line) => {
+		const entry = { key: `${lineOffset}:${line}`, line };
+		lineOffset += line.length + 1;
+		return entry;
+	});
 
 	return (
 		<div
@@ -116,9 +135,9 @@ export function FileViewer({
 				className={`font-mono text-[13px] leading-5 overflow-auto ${isDark ? "[&::-webkit-scrollbar]:bg-[#1e1e1e] [&::-webkit-scrollbar]:w-2" : "[&::-webkit-scrollbar]:bg-white [&::-webkit-scrollbar]:w-2"}`}
 				style={maxHeight ? { maxHeight } : undefined}
 			>
-				{lines.map((line, i) => (
+				{lineEntries.map(({ key, line }, lineIndex) => (
 					<div
-						key={i}
+						key={key}
 						className={`flex items-stretch ${isDark ? "hover:bg-[#2a2d2e]" : "hover:bg-[#f6f8fa]"}`}
 					>
 						{showLineNumbers && (
@@ -132,7 +151,7 @@ export function FileViewer({
 								<span
 									className={`text-[10px] ${isDark ? "text-[#858585]" : "text-[#959da5]"}`}
 								>
-									{i + 1}
+									{lineIndex + 1}
 								</span>
 							</div>
 						)}

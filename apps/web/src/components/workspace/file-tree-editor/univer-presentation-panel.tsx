@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, FileSliders } from "lucide-react";
+import { Check, FileSliders, Minus, Plus } from "lucide-react";
 import {
   CommandType,
   ICommandService,
@@ -25,7 +25,7 @@ import slidesZhCN from "@univerjs/slides-ui/locale/zh-CN";
 import "@univerjs/preset-docs-core/lib/index.css";
 import "@univerjs/slides-ui/lib/index.css";
 import type { IDockviewPanelProps } from "@/desktop/components/dockview";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { workspaceApi } from "@/lib/workspace-api";
 import {
   FILE_EDITOR_SAVE_ALL_EVENT,
@@ -39,7 +39,7 @@ import {
 } from "@a3s-lab/ooxml";
 import { OfficePanelShell, type OfficePanelStatus } from "./office-panel-shell";
 import { disposeUniverAfterReactCommit } from "./univer-runtime-lifecycle";
-import { installSlidesRenderViewportFallback } from "./univer-slides-runtime";
+import { installSlidesRenderViewportFallback, setSlidesRenderZoom, type SlidesRenderManager } from "./univer-slides-runtime";
 
 type SaveStatus = OfficePanelStatus;
 
@@ -55,6 +55,8 @@ interface UniverPresentationRuntime {
   univer: { dispose(): void };
   slide: SlideDataModel;
   canvasView: CanvasView;
+  renderManager: SlidesRenderManager;
+  slideId: string;
   originalBytes: Uint8Array;
   commandDisposable?: { dispose(): void };
   wheelViewportDisposable?: { dispose(): void };
@@ -78,7 +80,7 @@ function createSlidesUniver(container: HTMLElement) {
     container,
     header: false,
     toolbar: true,
-    footer: {},
+    footer: false,
   });
   for (const entry of docsPreset.plugins) {
     const [PluginCtor, config] = Array.isArray(entry)
@@ -160,6 +162,18 @@ export function UniverPresentationPanel({
   const [textEntries, setTextEntries] = useState<SlideTextEntry[]>([]);
   const [selectedTextKey, setSelectedTextKey] = useState<string | null>(null);
   const [textDraft, setTextDraft] = useState("");
+  const [zoomPercent, setZoomPercent] = useState(100);
+
+  const changeZoom = useCallback((nextPercent: number) => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    const normalized = Math.max(50, Math.min(200, nextPercent));
+    if (!setSlidesRenderZoom(runtime.renderManager, runtime.slideId, normalized / 100)) {
+      toast.error("演示文稿画布尚未就绪");
+      return;
+    }
+    setZoomPercent(normalized);
+  }, []);
 
   const markDirty = useCallback(
     (nextDirty: boolean) => {
@@ -211,6 +225,7 @@ export function UniverPresentationPanel({
     const entry = textEntries.find((item) => item.key === selectedTextKey);
     if (!runtime || !entry || entry.text === textDraft) return;
     const pages = runtime.slide.getPages();
+    if (!pages) return;
     const page = pages[entry.pageId];
     const element = page?.pageElements[entry.elementId];
     if (!page || !element?.richText) return;
@@ -231,6 +246,7 @@ export function UniverPresentationPanel({
   }, [markDirty, selectedTextKey, textDraft, textEntries]);
 
   useEffect(() => {
+    void retryCount;
     const container = containerRef.current;
     if (!path || !container) return;
 
@@ -251,6 +267,7 @@ export function UniverPresentationPanel({
     setTextEntries([]);
     setSelectedTextKey(null);
     setTextDraft("");
+    setZoomPercent(100);
     dirtyRef.current = false;
 
     workspaceApi
@@ -269,7 +286,7 @@ export function UniverPresentationPanel({
         const slideId = slide.getUnitId();
         const renderManager = univer
           .__getInjector()
-          .get(IRenderManagerService);
+          .get(IRenderManagerService) as unknown as SlidesRenderManager;
         const wheelViewportDisposable = installSlidesRenderViewportFallback(
           renderManager,
           slideId
@@ -288,6 +305,8 @@ export function UniverPresentationPanel({
           univer,
           slide,
           canvasView,
+          renderManager,
+          slideId,
           originalBytes: data,
           commandDisposable,
           wheelViewportDisposable,
@@ -399,6 +418,15 @@ export function UniverPresentationPanel({
           ) : (
             <div className="p-3 text-xs text-muted-foreground">暂无可编辑文本</div>
           )}
+          <fieldset className="m-0 flex h-10 min-w-0 shrink-0 items-center justify-between border-0 border-t border-border-light bg-white px-2" aria-label="演示文稿缩放">
+            <button type="button" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40" onClick={() => changeZoom(zoomPercent - 10)} disabled={zoomPercent <= 50} title="缩小" aria-label="缩小演示文稿">
+              <Minus className="size-3.5" />
+            </button>
+            <span className="w-12 text-center text-[11px] tabular-nums text-muted-foreground">{zoomPercent}%</span>
+            <button type="button" className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-40" onClick={() => changeZoom(zoomPercent + 10)} disabled={zoomPercent >= 200} title="放大" aria-label="放大演示文稿">
+              <Plus className="size-3.5" />
+            </button>
+          </fieldset>
         </aside>
       </div>
     </OfficePanelShell>

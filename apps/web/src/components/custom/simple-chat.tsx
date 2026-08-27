@@ -67,6 +67,7 @@ export function SimpleChat({
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
+		if (messages.length === 0) return;
     if (scrollAreaRef.current) {
       const scrollContainer = scrollAreaRef.current.querySelector("[data-radix-scroll-area-viewport]");
       if (scrollContainer) {
@@ -96,7 +97,7 @@ export function SimpleChat({
         handleSend();
       }
     },
-    [handleSend, state.isComposing],
+		[handleSend],
   );
 
   const handleInput = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {

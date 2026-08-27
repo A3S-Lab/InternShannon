@@ -1,8 +1,5 @@
 import type { ModelConfig, ProviderConfig } from "@/lib/shared";
-import {
-  resolveModelLimit,
-  resolveModelLimitPreset,
-} from "../../../lib/llm-model-limits.ts";
+import { type ModelLimitInput, resolveModelLimit, resolveModelLimitPreset } from "../../../lib/llm-model-limits.ts";
 
 export interface ProviderConnectionDraft {
   apiKey: string;
@@ -58,7 +55,7 @@ export function storeProviderConnectionDraft(
   drafts: ProviderConnectionDraftMap,
   providerName: string,
   draft: ProviderConnectionDraft,
-): Record<string, ProviderConnectionDraft> {
+): ProviderConnectionDraftMap {
   return {
     ...drafts,
     [providerName]: {
@@ -126,7 +123,7 @@ const DEFAULT_IMPORTED_MODEL_PRESET: ImportedModelPreset = {
 
 const IMPORTED_MODEL_PRESETS: Array<{ match: RegExp; preset: ImportedModelPreset }> = [
   {
-    match: /^gpt-5(?:[.\-]|$)/i,
+    match: /^gpt-5(?:[.-]|$)/i,
     preset: {
       family: "openai",
       toolCall: true,
@@ -144,7 +141,7 @@ const IMPORTED_MODEL_PRESETS: Array<{ match: RegExp; preset: ImportedModelPreset
     },
   },
   {
-    match: /^claude-(?:fable-5|opus-(?:4[.\-]8|5)|sonnet-5)/i,
+    match: /^claude-(?:fable-5|opus-(?:4[.-]8|5)|sonnet-5)/i,
     preset: {
       family: "anthropic",
       toolCall: true,
@@ -253,7 +250,7 @@ export function hydrateFetchedProviderModel(model: FetchedProviderModel): ModelC
   };
 }
 
-export function resolveEditableModelLimit(model?: Pick<ModelConfig, "id" | "limit"> | null): {
+export function resolveEditableModelLimit(model?: { id: string; limit?: ModelLimitInput | null } | null): {
   context: number;
   output: number;
 } {

@@ -171,7 +171,7 @@ function ShikiCodeBlock({ code, language, className, children, ...props }: Shiki
     return () => {
       cancelled = true;
     };
-  }, [code, language, state]);
+  }, [code, language]);
 
   return (
     <div className="shiki-block group">

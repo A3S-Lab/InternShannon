@@ -61,6 +61,43 @@ export function toUserProfileForm(user: Partial<UserProfileFormValue> | null | u
   };
 }
 
+function drawAvatarCanvas(
+  canvas: HTMLCanvasElement | null,
+  previewCanvas: HTMLCanvasElement | null,
+  image: HTMLImageElement,
+  scaleValue: number,
+  offsetValue: { x: number; y: number },
+) {
+  const context = canvas?.getContext("2d");
+  if (!canvas || !context || !image.naturalWidth || !image.naturalHeight) return;
+
+  canvas.width = AVATAR_CANVAS_SIZE;
+  canvas.height = AVATAR_CANVAS_SIZE;
+  const draw = getAvatarDrawRect(image, AVATAR_CANVAS_SIZE, scaleValue, offsetValue);
+
+  context.clearRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
+  context.fillStyle = "#f8fafc";
+  context.fillRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
+  context.drawImage(image, draw.dx, draw.dy, draw.dw, draw.dh);
+
+  context.save();
+  context.fillStyle = "rgba(15, 23, 42, 0.48)";
+  context.fillRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
+  context.globalCompositeOperation = "destination-out";
+  context.beginPath();
+  context.arc(AVATAR_CANVAS_SIZE / 2, AVATAR_CANVAS_SIZE / 2, AVATAR_CANVAS_SIZE / 2 - 2, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
+
+  context.beginPath();
+  context.arc(AVATAR_CANVAS_SIZE / 2, AVATAR_CANVAS_SIZE / 2, AVATAR_CANVAS_SIZE / 2 - 2, 0, Math.PI * 2);
+  context.strokeStyle = "rgba(255, 255, 255, 0.92)";
+  context.lineWidth = 2;
+  context.stroke();
+
+  drawAvatarPreview(previewCanvas, image, scaleValue, offsetValue);
+}
+
 export function UserProfileEditor({
   value,
   onChange,
@@ -99,7 +136,6 @@ export function UserProfileEditor({
       avatarImageRef.current = image;
       const nextOffset = { x: 0, y: 0 };
       setAvatarOffset(nextOffset);
-      drawAvatarCanvas(image, avatarScale, nextOffset);
     };
     image.src = avatarSourceUrl;
     return () => {
@@ -109,8 +145,16 @@ export function UserProfileEditor({
 
   useEffect(() => {
     const image = avatarImageRef.current;
-    if (image) drawAvatarCanvas(image, avatarScale, avatarOffset);
-  }, [avatarOffset, avatarScale, avatarSourceUrl]);
+    if (image) {
+      drawAvatarCanvas(
+        avatarCanvasRef.current,
+        avatarPreviewCanvasRef.current,
+        image,
+        avatarScale,
+        avatarOffset,
+      );
+    }
+  }, [avatarOffset, avatarScale]);
 
   useEffect(() => {
     return () => {
@@ -139,38 +183,6 @@ export function UserProfileEditor({
     setAvatarScale(1);
     setAvatarOffset({ x: 0, y: 0 });
     setAvatarEditorOpen(true);
-  }
-
-  function drawAvatarCanvas(image: HTMLImageElement, scaleValue: number, offsetValue: { x: number; y: number }) {
-    const canvas = avatarCanvasRef.current;
-    const context = canvas?.getContext("2d");
-    if (!canvas || !context || !image.naturalWidth || !image.naturalHeight) return;
-
-    canvas.width = AVATAR_CANVAS_SIZE;
-    canvas.height = AVATAR_CANVAS_SIZE;
-    const draw = getAvatarDrawRect(image, AVATAR_CANVAS_SIZE, scaleValue, offsetValue);
-
-    context.clearRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
-    context.fillStyle = "#f8fafc";
-    context.fillRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
-    context.drawImage(image, draw.dx, draw.dy, draw.dw, draw.dh);
-
-    context.save();
-    context.fillStyle = "rgba(15, 23, 42, 0.48)";
-    context.fillRect(0, 0, AVATAR_CANVAS_SIZE, AVATAR_CANVAS_SIZE);
-    context.globalCompositeOperation = "destination-out";
-    context.beginPath();
-    context.arc(AVATAR_CANVAS_SIZE / 2, AVATAR_CANVAS_SIZE / 2, AVATAR_CANVAS_SIZE / 2 - 2, 0, Math.PI * 2);
-    context.fill();
-    context.restore();
-
-    context.beginPath();
-    context.arc(AVATAR_CANVAS_SIZE / 2, AVATAR_CANVAS_SIZE / 2, AVATAR_CANVAS_SIZE / 2 - 2, 0, Math.PI * 2);
-    context.strokeStyle = "rgba(255, 255, 255, 0.92)";
-    context.lineWidth = 2;
-    context.stroke();
-
-    drawAvatarPreview(avatarPreviewCanvasRef.current, image, scaleValue, offsetValue);
   }
 
   function handleAvatarPointerDown(event: PointerEvent<HTMLCanvasElement>) {
@@ -337,7 +349,7 @@ export function UserProfileEditor({
                 value={value.bio}
                 disabled={saving}
                 onChange={(event) => updateField("bio", event.target.value)}
-                placeholder="简单说明你的身份、团队或使用InternShannon的目的"
+                placeholder="简单说明你的身份、团队或使用书小安的目的"
                 className="min-h-24 resize-none border-border"
               />
             </div>

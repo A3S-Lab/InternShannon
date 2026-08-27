@@ -2,7 +2,7 @@
   "name": "@internshannon/web",
   "private": true,
   "version": "0.1.0",
-  "description": "InternShannon Desktop workspace frontend",
+  "description": "书小安 Desktop workspace frontend",
   "type": "module",
   "scripts": {
     "dev": "pnpm run workspace:dev",

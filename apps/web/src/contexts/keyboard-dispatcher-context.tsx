@@ -55,7 +55,9 @@ export function useFocusTracker() {
 
   const notifyFocusChange = useCallback((focused: boolean) => {
     focusRef.current = focused;
-    handlersRef.current.forEach((h) => h(focused));
+    handlersRef.current.forEach((handler) => {
+      handler(focused);
+    });
   }, []);
 
   return { registerFocusChangeHandler, getContext, notifyFocusChange };

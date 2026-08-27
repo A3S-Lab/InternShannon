@@ -129,11 +129,10 @@ function normalizeInternShannonMemoryTimelineItem(value: unknown): InternShannon
     conversation,
   };
   if (!isInternShannonMemoryTimelineItem(candidate)) return null;
-  const record = candidate as Record<string, unknown>;
   return {
     ...candidate,
-    updatedAt: optionalTimestamp(record, "updatedAt", "updated_at"),
-    deletedAt: optionalTimestamp(record, "deletedAt", "deleted_at"),
+    updatedAt: optionalTimestamp(value, "updatedAt", "updated_at"),
+    deletedAt: optionalTimestamp(value, "deletedAt", "deleted_at"),
   };
 }
 

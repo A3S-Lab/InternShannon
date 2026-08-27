@@ -17,7 +17,7 @@ import {
 } from "./slash-commands";
 import Image from "@tiptap/extension-image";
 import { TableKit } from "@tiptap/extension-table";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { CalloutDecoration } from "./callout-decoration";
 import { restoreWikiLinkBrackets, WikiLink } from "./wikilink-extension";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -219,7 +219,7 @@ function HeadingDropdown({ editor }: { editor: Editor }) {
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, []);
+	}, []);
 
   // Subscribe only to the active heading level — re-renders this dropdown when the
   // heading changes, not on every keystroke.
@@ -233,11 +233,18 @@ function HeadingDropdown({ editor }: { editor: Editor }) {
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => (state.open = !state.open)}
+			onClick={() => {
+				state.open = !state.open;
+			}}
         className="flex items-center gap-1 px-2 h-7 rounded text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
       >
         {label}
-        <svg className="size-3" viewBox="0 0 16 16" fill="currentColor">
+			<svg
+				className="size-3"
+				viewBox="0 0 16 16"
+				fill="currentColor"
+				aria-hidden={true}
+			>
           <path
             d="M4 6l4 4 4-4"
             stroke="currentColor"
@@ -469,15 +476,20 @@ export default function MarkdownEditor({
   onOpenWikiLink,
 }: MarkdownEditorProps) {
   const { editorSettings } = useSnapshot(settingsModel.state);
-  const state = useReactive({
+	const state = useReactive({
     mode: "wysiwyg" as ViewMode,
     selectionMenu: null as SelectionMenuState | null,
     aiAction: null as AiActionState | null,
     // Obsidian-style live outline rail (opt-in; bumping docVersion on edits keeps
     // the heading list in sync only while the rail is open).
     outlineOpen: false,
-    docVersion: 0,
-  });
+		docVersion: 0,
+	});
+	const stateRef = useRef(state);
+	const currentMode = state.mode;
+	const currentAiAction = state.aiAction;
+	const outlineOpen = state.outlineOpen;
+	const outlineVersion = state.docVersion;
   // Track source-mode edits so we can sync back to TipTap on mode switch
   const sourceValueRef = useRef(value);
   const wysiwygContainerRef = useRef<HTMLDivElement | null>(null);
@@ -498,7 +510,9 @@ export default function MarkdownEditor({
   });
 
   // Keep setMode and editor accessible to the command handler
-  const setModeRef = useRef((v: ViewMode) => (state.mode = v));
+	const setModeRef = useRef((v: ViewMode) => {
+		state.mode = v;
+	});
   const editorRef = useRef<Editor | null>(null);
   // Keep onSave accessible to the save handler
   const onSaveRef = useRef(onSave);
@@ -512,7 +526,9 @@ export default function MarkdownEditor({
     onOpenWikiLinkRef.current = onOpenWikiLink;
   });
   useEffect(() => {
-    setModeRef.current = (v: ViewMode) => (state.mode = v);
+		setModeRef.current = (v: ViewMode) => {
+			state.mode = v;
+		};
   });
   useEffect(() => {
     editorRef.current = editor;
@@ -520,7 +536,7 @@ export default function MarkdownEditor({
 
   const handleModeChange = useCallback(
     (next: ViewMode) => {
-      if (next === "wysiwyg" && state.mode === "source" && editorRef.current) {
+			if (next === "wysiwyg" && currentMode === "source" && editorRef.current) {
         editorRef.current.commands.setContent(sourceValueRef.current);
         lastSyncedRef.current = sourceValueRef.current;
       }
@@ -528,7 +544,7 @@ export default function MarkdownEditor({
       setActiveEditorType(next === "wysiwyg" ? "tiptap" : "monaco");
       state.mode = next;
     },
-    [state.mode],
+		[currentMode],
   );
 
   const shortcutFor = useCallback(
@@ -668,13 +684,14 @@ export default function MarkdownEditor({
   useEffect(() => {
     if (!editor) return;
     const disposable = tiptapRegistry.registerCommandHandler(MARKDOWN_EDITOR_ID, "editor.toggleSourceMode", (ed) => {
-      const next = state.mode === "wysiwyg" ? "source" : "wysiwyg";
+			const reactiveState = stateRef.current;
+			const next = reactiveState.mode === "wysiwyg" ? "source" : "wysiwyg";
       if (next === "wysiwyg") {
         ed.commands.setContent(sourceValueRef.current);
         lastSyncedRef.current = sourceValueRef.current;
       }
       setActiveEditorType(next === "wysiwyg" ? "tiptap" : "monaco");
-      state.mode = next;
+			reactiveState.mode = next;
     });
     return () => disposable.dispose();
   }, [editor]);
@@ -709,7 +726,7 @@ export default function MarkdownEditor({
     if (!editor) return;
     const dispose = tiptapRegistry.registerCommandHandler(MARKDOWN_EDITOR_ID, "editor.save", () => {
       const currentEditor = editorRef.current;
-      if (state.mode === "wysiwyg" && currentEditor) {
+			if (stateRef.current.mode === "wysiwyg" && currentEditor) {
         onSaveRef.current?.(syncMarkdownFromEditor(currentEditor));
         return;
       }
@@ -737,7 +754,7 @@ export default function MarkdownEditor({
 
   const openAiContextMenu = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!editable || !editor || state.mode !== "wysiwyg" || state.aiAction) return;
+		if (!editable || !editor || currentMode !== "wysiwyg" || currentAiAction) return;
       const target = event.target as HTMLElement | null;
       if (!target?.closest(".ProseMirror")) return;
 
@@ -770,36 +787,37 @@ export default function MarkdownEditor({
         source: "context",
       };
     },
-    [editable, editor, state.aiAction, state.mode],
-  );
+		[currentAiAction, currentMode, editable, editor],
+	);
 
   useEffect(() => {
     const dom = wysiwygContainerRef.current;
-    if (!editor || state.mode !== "wysiwyg" || !dom) {
-      state.selectionMenu = null;
+		const reactiveState = stateRef.current;
+		if (!editor || currentMode !== "wysiwyg" || !dom) {
+			reactiveState.selectionMenu = null;
       return;
     }
 
     let rafId = 0;
     const scheduleSelectionRefresh = () => {
-      if (state.aiAction) return;
+			if (reactiveState.aiAction) return;
       cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
         const { from, to, empty } = editor.state.selection;
         if (empty || from === to) {
-          if (state.selectionMenu?.source === "context") return;
-          state.selectionMenu = null;
+					if (reactiveState.selectionMenu?.source === "context") return;
+					reactiveState.selectionMenu = null;
           return;
         }
         const text = editor.state.doc.textBetween(from, to, "\n").trim();
         if (!text) {
-          state.selectionMenu = null;
+					reactiveState.selectionMenu = null;
           return;
         }
         try {
           const start = editor.view.coordsAtPos(from);
           const end = editor.view.coordsAtPos(to);
-          state.selectionMenu = {
+					reactiveState.selectionMenu = {
             from,
             to,
             top: Math.max(start.bottom, end.bottom) + 4,
@@ -807,7 +825,7 @@ export default function MarkdownEditor({
             source: "selection",
           };
         } catch {
-          state.selectionMenu = null;
+					reactiveState.selectionMenu = null;
         }
       });
     };
@@ -815,9 +833,9 @@ export default function MarkdownEditor({
     const handleKeyUp = () => scheduleSelectionRefresh();
     const handleBlur = () => {
       window.setTimeout(() => {
-        if (state.aiAction) return;
-        if (!editor.isFocused) {
-          state.selectionMenu = null;
+				if (reactiveState.aiAction) return;
+				if (!editor.isFocused) {
+					reactiveState.selectionMenu = null;
         }
       }, 0);
     };
@@ -834,22 +852,23 @@ export default function MarkdownEditor({
       dom.removeEventListener("keyup", handleKeyUp);
       dom.removeEventListener("blur", handleBlur, true);
     };
-  }, [editor, state.mode]);
+	}, [currentMode, editor]);
 
   const runMenuCommand = useCallback(
     (item: (typeof AI_COMMANDS)[number]) => {
-      if (!editor || !state.selectionMenu || state.aiAction) return;
-      const range = state.selectionMenu;
-      const abortController = new AbortController();
-      state.aiAction = {
+		const reactiveState = stateRef.current;
+		if (!editor || !reactiveState.selectionMenu || reactiveState.aiAction) return;
+		const range = reactiveState.selectionMenu;
+		const abortController = new AbortController();
+		reactiveState.aiAction = {
         label: item.label,
         abortController,
       };
       void executeMarkdownCommand(editor, range, item.id, {
         signal: abortController.signal,
       }).finally(() => {
-        state.aiAction = null;
-        state.selectionMenu = null;
+			reactiveState.aiAction = null;
+			reactiveState.selectionMenu = null;
       });
     },
     [editor],
@@ -858,10 +877,10 @@ export default function MarkdownEditor({
   // Live document outline (top-level headings) — recomputed whenever the rail is
   // open and the doc changes (docVersion). doc.forEach walks immediate children;
   // markdown headings are always top-level so that is sufficient.
-  const outlineItems = useMemo(() => {
-    if (!editor || !state.outlineOpen) return [];
-    // Touch docVersion so this recomputes on each edit while the rail is open.
-    void state.docVersion;
+	const outlineItems = useMemo(() => {
+		if (!editor || !outlineOpen) return [];
+		// Touch docVersion so this recomputes on each edit while the rail is open.
+		void outlineVersion;
     const items: { level: number; text: string; pos: number }[] = [];
     editor.state.doc.forEach((node, offset) => {
       if (node.type.name === "heading") {
@@ -869,7 +888,7 @@ export default function MarkdownEditor({
       }
     });
     return items;
-  }, [editor, state.outlineOpen, state.docVersion]);
+	}, [editor, outlineOpen, outlineVersion]);
 
   const scrollToHeading = useCallback((pos: number) => {
     const ed = editorRef.current;
@@ -943,22 +962,27 @@ export default function MarkdownEditor({
       <div className="flex-1 min-h-0 overflow-hidden">
         {state.mode === "wysiwyg" ? (
           <div className="flex h-full min-h-0">
-          <div
-            ref={wysiwygContainerRef}
-            className="md-editor-content h-full flex-1 overflow-y-auto"
-            onContextMenu={openAiContextMenu}
-          >
-            <EditorContent editor={editor} className="h-full" />
+			<div
+				ref={wysiwygContainerRef}
+				className="md-editor-content h-full flex-1 overflow-y-auto"
+			>
+				<EditorContent
+					editor={editor}
+					className="h-full"
+					onContextMenu={openAiContextMenu}
+				/>
             {editor && state.selectionMenu && (
               <div
                 className="fixed z-[9999]"
-                style={{
+					style={{
                   top: state.selectionMenu.top,
                   left: state.selectionMenu.left,
                 }}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                }}
+					onMouseDown={(event) => {
+						event.preventDefault();
+					}}
+					role="toolbar"
+					aria-label="AI writing actions"
               >
                 {state.aiAction ? (
                   <AiActionLoadingPanel
@@ -975,7 +999,9 @@ export default function MarkdownEditor({
                     items={AI_COMMANDS}
                     executeOnMouseDown
                     command={runMenuCommand}
-                    onClose={() => (state.selectionMenu = null)}
+						onClose={() => {
+							state.selectionMenu = null;
+						}}
                   />
                 )}
               </div>

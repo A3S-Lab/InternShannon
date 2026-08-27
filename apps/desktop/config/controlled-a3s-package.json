@@ -1,0 +1,35 @@
+{
+	"schemaVersion": 1,
+	"requiredForStandalone": true,
+	"publicFiles": {
+		"index.js": "b22586790b3a05449a987168ca78c1cd2bd267ea4be7bc0d8960f36761a7eb82",
+		"index.d.ts": "fd6c96ee6f2616a9371521bda82d48c7a94226b88f8751914954b3e08ffe51f5",
+		"generated.d.ts": "d73abb3263329bb69aff898f4aef3871cec8a0063146649f2d23c391c4c2edad",
+		"extra-types.d.ts": "3a0009b061532f42b6c1364b14b1ab815b5cec7a173606ecfd6a4c044f038978",
+		"event-protocol-v1.d.ts": "b6a2b97784ab7d0c2dbf9a8aa230cfa9d04245a3246408b0a4e5f616f1f17113"
+	},
+	"packages": {
+		"darwin-arm64": {
+			"packagePath": "../../../vendor/a3s/darwin-arm64/a3s-lab-code-6.6.1-knowledge-complete.3.tgz",
+			"version": "6.6.1-knowledge-complete.3",
+			"sourceVersion": "6.6.0",
+			"sourceRevision": "07707ad74785f940e6579d692d7f142c13231040",
+			"sourceDirty": false,
+			"sourceTreeSha256": "3321cde6cd7d6b7c1439f09d22d7449b501dc8200fdbbbfe09a5334f5d83fc62",
+			"sha256": "1119c3649a6b3308acc9b692f14aedcc77ecc4db76d7c3f28aadd5d25eca29eb",
+			"binary": "index.darwin-arm64.node",
+			"binarySha256": "2e797e935b18c11c586fbbba6a59f6dc6b3aa77094a311b32b95dd4b53292fec"
+		},
+		"win32-x64": {
+			"packagePath": "../../../vendor/a3s/win32-x64/a3s-lab-code-6.6.1-knowledge-complete.3.tgz",
+			"version": "6.6.1-knowledge-complete.3",
+			"sourceVersion": "6.6.0",
+			"sourceRevision": "07707ad74785f940e6579d692d7f142c13231040",
+			"sourceDirty": false,
+			"sourceTreeSha256": "3321cde6cd7d6b7c1439f09d22d7449b501dc8200fdbbbfe09a5334f5d83fc62",
+			"sha256": "18ca8253e1711b2abc4d850250e2210a928916c18b9d73637554e0abe9e68187",
+			"binary": "index.win32-x64-msvc.node",
+			"binarySha256": "d3f64db2c28a529b75a581ae9b2ebaabbc938b0e4e998071a87bcd004c852b77"
+		}
+	}
+}

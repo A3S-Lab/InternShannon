@@ -11,12 +11,9 @@ import {
 	DiffEditor as MonacoDiffEditor,
 	DiffEditorProps,
 } from "@monaco-editor/react";
-import { useTheme } from "@/components/custom/theme-provider";
 import settingsModel from "@/models/settings.model";
 import { useEffect, useRef } from "react";
-import { useReactive } from "ahooks";
 import { useSnapshot } from "valtio";
-import ThemeOneDarkPro from "../code-editor/themes/onedarkpro.json";
 import type * as monacoEditor from "monaco-editor";
 
 export interface DiffEditorPanelProps {
@@ -40,7 +37,6 @@ export function DiffEditorPanel({
 	modifiedUri: _modifiedUri,
 	readOnly = false,
 }: DiffEditorPanelProps) {
-	const { theme: appTheme } = useTheme();
 	const { editorSettings } = useSnapshot(settingsModel.state);
 	const editorRef = useRef<monacoEditor.editor.IStandaloneDiffEditor | null>(
 		null,
@@ -59,40 +55,7 @@ export function DiffEditorPanel({
 		};
 	}, []);
 
-	// Theme
-	const getMonacoTheme = () => {
-		if (appTheme === "dark") return "one-dark-pro";
-		if (appTheme === "light") return "vs";
-		const isDark = document.documentElement.classList.contains("dark");
-		return isDark ? "one-dark-pro" : "vs";
-	};
-
-	const state = useReactive({ editorTheme: getMonacoTheme() });
-
-	useEffect(() => {
-		state.editorTheme = getMonacoTheme();
-	}, [appTheme]);
-
-	useEffect(() => {
-		if (appTheme !== "system") return;
-		const observer = new MutationObserver(
-			() => (state.editorTheme = getMonacoTheme()),
-		);
-		observer.observe(document.documentElement, {
-			attributes: true,
-			attributeFilter: ["class"],
-		});
-		return () => observer.disconnect();
-	}, [appTheme]);
-
 	function handleBeforeMount(monaco: any) {
-		monaco.editor.defineTheme("one-dark-pro", {
-			base: "vs-dark",
-			inherit: true,
-			rules: [...ThemeOneDarkPro.rules],
-			encodedTokensColors: [...ThemeOneDarkPro.encodedTokensColors],
-			colors: { ...ThemeOneDarkPro.colors },
-		});
 		monacoRef.current = monaco;
 	}
 
@@ -175,7 +138,7 @@ export function DiffEditorPanel({
 			modified={modifiedContent}
 			originalLanguage={originalLanguage}
 			modifiedLanguage={modifiedLanguage}
-			theme={state.editorTheme}
+			theme="vs"
 			height="100%"
 			beforeMount={handleBeforeMount}
 			onMount={handleEditorMount}

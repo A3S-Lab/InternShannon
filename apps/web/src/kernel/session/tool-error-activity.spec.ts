@@ -59,6 +59,20 @@ test("preserves tool_error detail before InternShannon renders runtime failures"
   );
 });
 
+test("preserves localized non-ASCII tool errors verbatim", () => {
+	const event = normalizeToolErrorActivity(
+		{
+			type: "tool_error",
+			toolName: "search",
+			reason: "知识库连接失败，请稍后重试",
+		},
+		{ timestamp: 4_250 },
+	);
+
+	assert.equal(event.detail, "知识库连接失败，请稍后重试");
+	assert.equal(event.diagnosticDetail, undefined);
+});
+
 test("trims legacy tool_error fields before InternShannon groups runtime failures", () => {
   assert.deepEqual(
     normalizeToolErrorActivity(

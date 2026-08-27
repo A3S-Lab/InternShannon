@@ -13,6 +13,7 @@ export type FileTreeEditorCommand =
 
 export const FILE_TREE_EDITOR_COMMAND_EVENT = "internshannon:file-tree-editor-command";
 export const FILE_EDITOR_SAVE_ALL_EVENT = "internshannon:file-editor-save-all";
+export const FILE_EDITOR_SAVE_EVENT = "internshannon:file-editor-save";
 
 export interface FileTreeEditorCommandDetail {
   command: FileTreeEditorCommand;
@@ -22,6 +23,11 @@ export interface FileTreeEditorCommandDetail {
 
 export interface FileEditorSaveAllDetail {
   scope?: string;
+}
+
+export interface FileEditorSaveDetail {
+  scope?: string;
+  path: string;
 }
 
 export function dispatchFileTreeEditorCommand(command: FileTreeEditorCommand, scope?: string, path?: string): void {
@@ -36,6 +42,15 @@ export function dispatchFileEditorSaveAll(scope?: string): void {
   document.dispatchEvent(
     new CustomEvent(FILE_EDITOR_SAVE_ALL_EVENT, {
       detail: { scope },
+    }),
+  );
+}
+
+/** Save exactly one open editor panel instead of asking every dirty panel. */
+export function dispatchFileEditorSave(path: string, scope?: string): void {
+  document.dispatchEvent(
+    new CustomEvent(FILE_EDITOR_SAVE_EVENT, {
+      detail: { path, scope },
     }),
   );
 }

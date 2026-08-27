@@ -220,7 +220,7 @@ async function assertLoadableSkillPackage(targetPath: string, sourceName: string
     return;
   }
   await workspaceApi.remove(targetPath).catch(() => undefined);
-  throw new Error(`技能包 "${sourceName}" 缺少 SKILL.md，无法被InternShannon加载`);
+  throw new Error(`技能包 "${sourceName}" 缺少 SKILL.md，无法被书小安加载`);
 }
 
 export async function installSkillPackage(

@@ -9,7 +9,7 @@ import {
   ChevronUp,
   Search,
 } from "lucide-react";
-import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
+import type { MouseEvent, KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -242,7 +242,7 @@ export function DataTable<TData>({
 
   useEffect(() => {
     if (!enableSlashShortcut) return;
-    const handler = (event: KeyboardEvent) => {
+    const handler = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "/") return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const target = event.target as HTMLElement | null;
@@ -267,7 +267,7 @@ export function DataTable<TData>({
     if (serverMode || grouped || onSearchChange) {
       emitSearchChange(debouncedSearch.trim());
     }
-  }, [debouncedSearch, emitSearchChange, serverMode, grouped, onSearchChange]);
+  }, [debouncedSearch, serverMode, grouped, onSearchChange]);
 
   const searchableColumns = useMemo(
     () => columns.filter((column) => column.enableSearch !== false && (column.searchValue || column.accessor)),
@@ -512,7 +512,7 @@ export function DataTable<TData>({
                           }
                           onRowClick(row);
                         },
-                        onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+                        onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => {
                           if (event.key !== "Enter" && event.key !== " ") return;
                           const interactive = (event.target as HTMLElement).closest(
                             "button,a,input,textarea,select,[role='button'],[data-row-click-ignore]",

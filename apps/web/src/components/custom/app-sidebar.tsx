@@ -57,7 +57,9 @@ export function AppSidebar({ menus }: { menus: NavLink[] }) {
     if (requiredExpandedUrls.length === 0) return;
     setExpandedGroups((current) => {
       const next = new Set(current);
-      requiredExpandedUrls.forEach((url) => next.add(url));
+      requiredExpandedUrls.forEach((url) => {
+        next.add(url);
+      });
       return next;
     });
   }, [activeGroupUrls, defaultExpandedUrls]);

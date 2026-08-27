@@ -57,6 +57,19 @@ test("restores a stored builtin activity only from the root route", () => {
   );
 });
 
+test("an explicit knowledge-source return keeps the root route on chat and clears the stale activity", () => {
+  assert.deepEqual(
+    resolveStoredActivityRoute({
+      storedKey: "knowledge",
+      pathname: "/",
+      routeMap,
+      staticKeys,
+      knowledgeReturnRequestId: "knowledge-return-1",
+    }),
+    { kind: "clear" },
+  );
+});
+
 test("does not clear unknown dynamic activity keys before their routes are known", () => {
   assert.deepEqual(
     resolveStoredActivityRoute({

@@ -5,4 +5,8 @@ describe('DEFAULT_SETTINGS', () => {
         expect(DEFAULT_SETTINGS.llm.defaultModel).toBe('');
         expect(DEFAULT_SETTINGS.llm.providers).toEqual([]);
     });
+
+    it('uses the single supported light appearance theme', () => {
+        expect(DEFAULT_SETTINGS.appearance.theme).toBe('light');
+    });
 });

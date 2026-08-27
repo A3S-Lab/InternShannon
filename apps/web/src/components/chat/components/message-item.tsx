@@ -8,6 +8,31 @@ import type { RichMessage, TextBlock, ToolCallBlock } from "../types/message";
 import type { ToolCallDisplayRenderProps } from "./tool-call-display";
 import { ToolCallDisplay } from "./tool-call-display";
 
+function stableKeyPart(value: string): string {
+	let hash = 2166136261;
+	for (let offset = 0; offset < value.length; offset += 1) {
+		hash ^= value.charCodeAt(offset);
+		hash = Math.imul(hash, 16777619);
+	}
+	return `${value.length.toString(36)}-${(hash >>> 0).toString(36)}`;
+}
+
+function withStableOccurrenceKeys<T>(
+	items: readonly T[],
+	identity: (item: T) => string,
+): Array<{ item: T; key: string }> {
+	const occurrences = new Map<string, number>();
+	return items.map((item) => {
+		const identityValue = identity(item);
+		const occurrence = occurrences.get(identityValue) ?? 0;
+		occurrences.set(identityValue, occurrence + 1);
+		return {
+			item,
+			key: `${stableKeyPart(identityValue)}-${occurrence}`,
+		};
+	});
+}
+
 // =============================================================================
 // Date separator
 // =============================================================================
@@ -19,10 +44,7 @@ export function DateSeparator({ timestamp }: { timestamp: number }) {
 	const display = isToday ? "今天" : isYesterday ? "昨天" : label;
 
 	return (
-		<div
-			className="flex select-none items-center gap-3 px-4 py-2"
-			aria-label={`日期: ${display}`}
-		>
+		<div className="flex select-none items-center gap-3 px-4 py-2">
 			<div className="flex-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 			<span className="text-[10px] text-muted-foreground/50 font-medium tracking-wider uppercase">
 				{display}
@@ -55,7 +77,9 @@ function MessageActions({
 	const handleCopy = useCallback(() => {
 		onCopy();
 		state.copied = true;
-		setTimeout(() => (state.copied = false), 1500);
+		setTimeout(() => {
+			state.copied = false;
+		}, 1500);
 	}, [onCopy]);
 
 	const handleFeedback = useCallback((type: "up" | "down") => {
@@ -137,11 +161,15 @@ function InlineImages({
 	images,
 }: { images?: { mediaType: string; data: string }[] }) {
 	if (!images || images.length === 0) return null;
+	const keyedImages = withStableOccurrenceKeys(
+		images,
+		(image) => `${image.mediaType}:${image.data}`,
+	);
 	return (
 		<div className="flex flex-wrap gap-2 mt-2">
-			{images.map((img, i) => (
+			{keyedImages.map(({ item: img, key }, imageIndex) => (
 				<a
-					key={`inline-img-${i}`}
+					key={key}
 					href={`data:${img.mediaType};base64,${img.data}`}
 					target="_blank"
 					rel="noopener noreferrer"
@@ -149,7 +177,7 @@ function InlineImages({
 				>
 					<img
 						src={`data:${img.mediaType};base64,${img.data}`}
-						alt={`图片 ${i + 1}`}
+						alt={`图片 ${imageIndex + 1}`}
 						className="max-h-48 max-w-xs rounded-md border object-contain hover:opacity-90 transition-opacity cursor-zoom-in"
 					/>
 				</a>
@@ -169,12 +197,13 @@ function splitFileMentions(
 	const segments: Array<{ type: "text" | "file"; value: string }> = [];
 	const re = /@(\/[^\s@]+)/g;
 	let last = 0;
-	let m: RegExpExecArray | null;
-	while ((m = re.exec(text)) !== null) {
+	let m = re.exec(text);
+	while (m !== null) {
 		if (m.index > last)
 			segments.push({ type: "text", value: text.slice(last, m.index) });
 		segments.push({ type: "file", value: m[1] });
 		last = m.index + m[0].length;
+		m = re.exec(text);
 	}
 	if (last < text.length)
 		segments.push({ type: "text", value: text.slice(last) });
@@ -183,6 +212,7 @@ function splitFileMentions(
 
 function FileTypeIcon({ ext, size = 22 }: { ext?: string; size?: number }) {
 	const s = size;
+	const iconTitle = ext ? `${ext.toUpperCase()} 文件` : "文件";
 	const iconColor =
 		ext === "pdf"
 			? "#cf4444"
@@ -219,6 +249,7 @@ function FileTypeIcon({ ext, size = 22 }: { ext?: string; size?: number }) {
 	) {
 		return (
 			<svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+				<title>{iconTitle}</title>
 				<path
 					d="M8 3L3 8l5 5M8 3l5 5M8 3l5 5M16 21l5-5-5-5M16 21l-5-5 5-5"
 					stroke={iconColor}
@@ -234,6 +265,7 @@ function FileTypeIcon({ ext, size = 22 }: { ext?: string; size?: number }) {
 	) {
 		return (
 			<svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+				<title>{iconTitle}</title>
 				<rect x="3" y="3" width="18" height="18" rx="2" stroke={iconColor} strokeWidth="1.8" />
 				<circle cx="8.5" cy="8.5" r="1.5" fill={iconColor} />
 				<path d="M21 15l-5-5L5 21" stroke={iconColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -243,6 +275,7 @@ function FileTypeIcon({ ext, size = 22 }: { ext?: string; size?: number }) {
 	if (ext === "pdf") {
 		return (
 			<svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+				<title>{iconTitle}</title>
 				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke={iconColor} strokeWidth="1.8" strokeLinejoin="round" />
 				<path d="M14 2v6h6M9 13h6M9 17h4" stroke={iconColor} strokeWidth="1.8" strokeLinecap="round" />
 			</svg>
@@ -251,6 +284,7 @@ function FileTypeIcon({ ext, size = 22 }: { ext?: string; size?: number }) {
 	if (["doc", "docx", "odt"].includes(ext || "")) {
 		return (
 			<svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+				<title>{iconTitle}</title>
 				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke={iconColor} strokeWidth="1.8" strokeLinejoin="round" />
 				<path d="M14 2v6h6M9 12h6M9 16h4" stroke={iconColor} strokeWidth="1.8" strokeLinecap="round" />
 			</svg>
@@ -259,6 +293,7 @@ function FileTypeIcon({ ext, size = 22 }: { ext?: string; size?: number }) {
 	if (["xls", "xlsx", "csv", "ods"].includes(ext || "")) {
 		return (
 			<svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+				<title>{iconTitle}</title>
 				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke={iconColor} strokeWidth="1.8" strokeLinejoin="round" />
 				<path d="M14 2v6h6M8 13h8M8 17h5" stroke={iconColor} strokeWidth="1.8" strokeLinecap="round" />
 			</svg>
@@ -267,6 +302,7 @@ function FileTypeIcon({ ext, size = 22 }: { ext?: string; size?: number }) {
 	if (["ppt", "pptx", "odp"].includes(ext || "")) {
 		return (
 			<svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+				<title>{iconTitle}</title>
 				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke={iconColor} strokeWidth="1.8" strokeLinejoin="round" />
 				<path d="M14 2v6h6M9 11l2 2 4-4" stroke={iconColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
 			</svg>
@@ -275,6 +311,7 @@ function FileTypeIcon({ ext, size = 22 }: { ext?: string; size?: number }) {
 	if (["md", "txt", "text"].includes(ext || "")) {
 		return (
 			<svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+				<title>{iconTitle}</title>
 				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke={iconColor} strokeWidth="1.8" strokeLinejoin="round" />
 				<path d="M14 2v6h6M8 13h8M8 17h8M8 9h2" stroke={iconColor} strokeWidth="1.8" strokeLinecap="round" />
 			</svg>
@@ -283,6 +320,7 @@ function FileTypeIcon({ ext, size = 22 }: { ext?: string; size?: number }) {
 	if (["json", "toml", "yaml", "yml", "xml", "ini", "env"].includes(ext || "")) {
 		return (
 			<svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+				<title>{iconTitle}</title>
 				<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke={iconColor} strokeWidth="1.8" strokeLinejoin="round" />
 				<path d="M9 9l-2 3h4l-2 3M15 9l2 3h-4l2 3" stroke={iconColor} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
 			</svg>
@@ -290,6 +328,7 @@ function FileTypeIcon({ ext, size = 22 }: { ext?: string; size?: number }) {
 	}
 	return (
 		<svg width={s} height={s} viewBox="0 0 24 24" fill="none">
+			<title>{iconTitle}</title>
 			<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" stroke={iconColor} strokeWidth="1.8" strokeLinejoin="round" />
 			<path d="M14 2v6h6" stroke={iconColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
 		</svg>
@@ -362,63 +401,75 @@ function FileMentionCard({
 		}
 	};
 
-	const handleCopyPath = async (e: React.MouseEvent) => {
-		e.stopPropagation();
+	const handleCopyPath = async () => {
 		await writeClipboardText(path);
 	};
 
 	return (
 		<div
-			title={`${path}\n点击打开 · 右键复制路径`}
-			onClick={handleOpen}
 			className={cn(
-				"my-1 inline-flex max-w-[19rem] cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 shadow-sm backdrop-blur-sm transition-all hover:shadow-md active:scale-[0.98]",
+				"my-1 inline-flex max-w-[19rem] items-center gap-2.5 rounded-lg border px-3 py-2 shadow-sm backdrop-blur-sm transition-all hover:shadow-md",
 				isUser
 					? "border-primary/25 bg-white/95 hover:border-primary/40"
 					: "border-slate-200/60 bg-white/90 dark:border-slate-700/60 dark:bg-slate-900/90 dark:hover:border-slate-600",
 			)}
 		>
-			<div
-				className={cn(
-					"flex size-9 shrink-0 items-center justify-center rounded-lg",
-					isUser ? "bg-primary/10" : "bg-slate-50 dark:bg-slate-800",
-				)}
+			<button
+				type="button"
+				title={`${path}\n点击打开`}
+				onClick={handleOpen}
+				className="flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 text-left transition-transform active:scale-[0.98]"
 			>
-				<FileTypeIcon ext={ext} size={18} />
-			</div>
-			<div className="min-w-0 flex-1">
-				<p className="truncate text-[13px] font-semibold leading-tight text-slate-800 dark:text-slate-100">
-					{name}
-				</p>
-				<div className="mt-1 flex items-center gap-1.5">
-					<span
-						className={cn(
-							"inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-							tagColor,
-						)}
-					>
-						{tagText}
-					</span>
-					<span className="truncate text-[10px] text-slate-400 dark:text-slate-500">
-						{dir || "/"}
-					</span>
+				<div
+					className={cn(
+						"flex size-9 shrink-0 items-center justify-center rounded-lg",
+						isUser ? "bg-primary/10" : "bg-slate-50 dark:bg-slate-800",
+					)}
+				>
+					<FileTypeIcon ext={ext} size={18} />
 				</div>
-			</div>
+				<div className="min-w-0 flex-1">
+					<p className="truncate text-[13px] font-semibold leading-tight text-slate-800 dark:text-slate-100">
+						{name}
+					</p>
+					<div className="mt-1 flex items-center gap-1.5">
+						<span
+							className={cn(
+								"inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+								tagColor,
+							)}
+						>
+							{tagText}
+						</span>
+						<span className="truncate text-[10px] text-slate-400 dark:text-slate-500">
+							{dir || "/"}
+						</span>
+					</div>
+				</div>
+			</button>
 			<div className="shrink-0 text-slate-300 dark:text-slate-600">
 				{isOpening ? (
-					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="animate-spin">
+					<svg
+						width="16"
+						height="16"
+						viewBox="0 0 24 24"
+						fill="none"
+						className="animate-spin"
+					>
+						<title>正在打开文件</title>
 						<path d="M21 12a9 9 0 1 1-6.219-8.56" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
 					</svg>
 				) : (
 					<button
 						type="button"
-						onClick={handleCopyPath}
-						title="复制路径"
-						className="flex items-center justify-center rounded p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-					>
-						<svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-							<rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-							<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+							onClick={handleCopyPath}
+							title="复制路径"
+							className="flex items-center justify-center rounded p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+						>
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+								<title>复制路径</title>
+								<rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+								<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
 						</svg>
 					</button>
 				)}
@@ -449,24 +500,28 @@ function TextWithFileMentions({
 			<div className="whitespace-pre-wrap">{safeContent}</div>
 		);
 	}
+	const keyedSegments = withStableOccurrenceKeys(
+		segments,
+		(segment) => `${segment.type}:${segment.value}`,
+	);
 
 	return (
 		<div className="space-y-1">
-			{segments.map((seg, i) =>
+			{keyedSegments.map(({ item: seg, key }) =>
 				seg.type === "file" ? (
 					<FileMentionCard
-						key={i}
+						key={key}
 						path={seg.value}
 						isUser={isUser}
 						onOpenFilePath={onOpenFilePath}
 					/>
 				) : seg.value.trim() ? (
 					renderMarkdown ? (
-						<React.Fragment key={i}>
-							{renderMarkdown(seg.value, `seg-${i}`)}
+						<React.Fragment key={key}>
+							{renderMarkdown(seg.value, `seg-${key}`)}
 						</React.Fragment>
 					) : (
-						<div key={i} className="whitespace-pre-wrap">
+						<div key={key} className="whitespace-pre-wrap">
 							{seg.value}
 						</div>
 					)
@@ -527,6 +582,9 @@ const MessageItem = React.memo(function MessageItem({
 			? "rounded-[14px] rounded-tr-[5px] bg-[#9fe870] text-slate-900 shadow-[0_10px_18px_-16px_rgba(22,101,52,0.22)] dark:bg-[#86d962]"
 			: "rounded-[14px] rounded-tl-[5px] bg-[rgba(255,255,255,0.98)] text-slate-900 shadow-[0_10px_20px_-18px_rgba(15,23,42,0.16)] dark:bg-[rgba(43,43,45,0.96)] dark:text-slate-100",
 	);
+	const keyedBlocks = withStableOccurrenceKeys(msg.blocks, (block) =>
+		block.type === "tool_call" ? `tool:${block.tool}` : block.type,
+	);
 
 	if (msg.role === "system") {
 		return (
@@ -555,6 +613,7 @@ const MessageItem = React.memo(function MessageItem({
 			>
 				{isCompactLeft ? (
 					<span
+						role="img"
 						className={cn(
 							"mt-1 inline-flex size-2.5 shrink-0 rounded-full animate-pulse",
 							isUser
@@ -569,6 +628,7 @@ const MessageItem = React.memo(function MessageItem({
 					) : (
 						<div className="mt-6 size-9 shrink-0 rounded-[12px] ring-1 ring-black/5 shadow-sm bg-muted flex items-center justify-center">
 							<svg className="size-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<title>助手</title>
 								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
 							</svg>
 						</div>
@@ -624,11 +684,11 @@ const MessageItem = React.memo(function MessageItem({
 
 							<div className="relative z-[1] min-w-0">
 								<div className="space-y-1">
-									{msg.blocks.map((block, i) => {
+									{keyedBlocks.map(({ item: block, key }) => {
 										if (block.type === "tool_call") {
 											const b = block as ToolCallBlock;
 											return (
-												<div key={i}>
+												<div key={key}>
 													<ToolCallDisplay
 														compact
 														renderDiff={renderDiff}
@@ -650,7 +710,7 @@ const MessageItem = React.memo(function MessageItem({
 										if (block.type === "text") {
 											return (
 												<div
-													key={i}
+													key={key}
 													className={cn(
 														"overflow-x-auto text-[14px] leading-6.5",
 														isUser
@@ -694,6 +754,7 @@ const MessageItem = React.memo(function MessageItem({
 						) : (
 							<div className="size-full bg-primary flex items-center justify-center">
 								<svg className="size-4 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<title>用户</title>
 									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
 								</svg>
 							</div>

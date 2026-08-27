@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 
 interface ChatInputProps {
   onSend: (content: string) => void;
@@ -18,21 +18,20 @@ export function ChatInput({
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-resize textarea
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  }, [value]);
-
   const handleSend = useCallback(() => {
     const trimmed = value.trim();
     if (!trimmed || disabled) return;
 
     onSend(trimmed);
     setValue('');
+		if (textareaRef.current) textareaRef.current.style.height = 'auto';
   }, [value, disabled, onSend]);
+
+	const handleChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+		setValue(event.target.value);
+		event.target.style.height = 'auto';
+		event.target.style.height = `${event.target.scrollHeight}px`;
+	}, []);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -51,7 +50,7 @@ export function ChatInput({
           <textarea
             ref={textareaRef}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled}
@@ -69,6 +68,7 @@ export function ChatInput({
             title="���止生��"
           >
             <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <title>停止生成</title>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -81,6 +81,7 @@ export function ChatInput({
             title="发送���息 (Enter)"
           >
             <svg className="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <title>发送消息</title>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
           </button>

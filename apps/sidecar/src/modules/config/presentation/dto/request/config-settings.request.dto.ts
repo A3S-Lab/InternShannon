@@ -17,7 +17,7 @@ import {
 const REGISTRATION_MODES = ['adminOnly', 'inviteOnly', 'open'] as const;
 const VISIBILITY_OPTIONS = ['private', 'organization', 'public'] as const;
 const IMAGE_PULL_POLICIES = ['IfNotPresent', 'Always', 'Never'] as const;
-const THEMES = ['light', 'dark', 'system'] as const;
+const THEMES = ['light'] as const;
 const SIDEBAR_POSITIONS = ['left', 'right'] as const;
 const LINE_NUMBER_MODES = ['off', 'on', 'relative', 'interval'] as const;
 const CURSOR_STYLES = ['line', 'block', 'underline', 'line-thin', 'block-outline', 'underline-thin'] as const;
@@ -440,7 +440,7 @@ export class EditorSettingsRequestDto {
 export class AppearanceSettingsRequestDto {
     @ApiProperty({ enum: THEMES })
     @IsIn(THEMES)
-    theme!: 'light' | 'dark' | 'system';
+    theme!: 'light';
 
     @ApiProperty({ enum: SIDEBAR_POSITIONS })
     @IsIn(SIDEBAR_POSITIONS)

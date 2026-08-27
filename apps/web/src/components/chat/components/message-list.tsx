@@ -16,6 +16,7 @@ export function MessageList({ messages, ...itemProps }: MessageListProps) {
 						stroke="currentColor"
 						viewBox="0 0 24 24"
 					>
+						<title>暂无会话消息</title>
 						<path
 							strokeLinecap="round"
 							strokeLinejoin="round"

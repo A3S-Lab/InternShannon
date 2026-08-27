@@ -5,6 +5,21 @@ interface SlidesViewport {
 export interface SlidesSceneWithViewport {
   getMainViewport(): SlidesViewport | undefined;
   getViewport(key: string): SlidesViewport | undefined;
+  scale?(scaleX?: number, scaleY?: number): SlidesSceneWithViewport;
+  makeDirty?(state?: boolean): SlidesSceneWithViewport;
+}
+
+export function setSlidesRenderZoom(
+  renderManager: Pick<SlidesRenderManager, "getRenderById">,
+  unitId: string,
+  zoomRatio: number
+): boolean {
+  const scene = renderManager.getRenderById(unitId)?.scene;
+  if (!scene?.scale) return false;
+  const ratio = Math.max(0.5, Math.min(2, zoomRatio));
+  scene.scale(ratio, ratio);
+  scene.makeDirty?.(true);
+  return true;
 }
 
 interface SlidesRender {

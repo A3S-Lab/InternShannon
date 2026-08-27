@@ -134,7 +134,7 @@ export class EditorSettings {
  * 外观配置
  */
 export class AppearanceSettings {
-    theme!: 'light' | 'dark' | 'system';
+    theme!: 'light';
     sideBarPosition!: 'left' | 'right';
     statusBar!: boolean;
     activityBar!: boolean;
@@ -613,7 +613,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
         workspacePath: '',
     },
     appearance: {
-        theme: 'system',
+        theme: 'light',
         sideBarPosition: 'left',
         statusBar: true,
         activityBar: true,

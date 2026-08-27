@@ -129,34 +129,25 @@ MemoizedMarkdownBlock.displayName = "MemoizedMarkdownBlock";
 // MemoizedMarkdown — top-level component with block-level memoization
 // =============================================================================
 
-export const MemoizedMarkdown = memo(
-	({
-		content,
-		id,
-		streaming = false,
-	}: {
-		content: string;
-		id: string;
-		streaming?: boolean;
-	}) => {
-		// Streaming: skip expensive normalization + block parsing, render raw
-		if (streaming) {
-			return (
-				<article className="prose-chat" data-markdown-id={id}>
-					<ReactMarkdown
-						remarkPlugins={REMARK_PLUGINS}
-						rehypePlugins={REHYPE_PLUGINS}
-						components={MARKDOWN_COMPONENTS}
-					>
-						{content}
-					</ReactMarkdown>
-				</article>
-			);
-		}
+function StreamingMarkdown({ content, id }: { content: string; id: string }) {
+	return (
+		<article className="prose-chat" data-markdown-id={id}>
+			<ReactMarkdown
+				remarkPlugins={REMARK_PLUGINS}
+				rehypePlugins={REHYPE_PLUGINS}
+				components={MARKDOWN_COMPONENTS}
+			>
+				{content}
+			</ReactMarkdown>
+		</article>
+	);
+}
 
+const SettledMarkdown = memo(
+	({ content, id }: { content: string; id: string }) => {
 		const normalizedContent = useMemo(
-			() => normalizeMarkdownContent(content, { streaming }),
-			[content, streaming],
+			() => normalizeMarkdownContent(content, { streaming: false }),
+			[content],
 		);
 		const blocks = useMemo(
 			() => parseMarkdownIntoBlocks(normalizedContent),
@@ -170,6 +161,27 @@ export const MemoizedMarkdown = memo(
 				))}
 			</article>
 		);
+	},
+);
+
+SettledMarkdown.displayName = "SettledMarkdown";
+
+export const MemoizedMarkdown = memo(
+	({
+		content,
+		id,
+		streaming = false,
+	}: {
+		content: string;
+		id: string;
+		streaming?: boolean;
+	}) => {
+		// Streaming: skip expensive normalization + block parsing, render raw
+		if (streaming) {
+			return <StreamingMarkdown content={content} id={id} />;
+		}
+
+		return <SettledMarkdown content={content} id={id} />;
 	},
 );
 

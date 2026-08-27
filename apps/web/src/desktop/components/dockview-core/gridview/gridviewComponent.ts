@@ -253,7 +253,9 @@ export class GridviewComponent
 
 			this.layout(width, height, true);
 
-			queue.forEach((f) => f());
+			queue.forEach((f) => {
+				f();
+			});
 
 			if (typeof activePanel === "string") {
 				const panel = this.getPanel(activePanel);

@@ -124,12 +124,16 @@ export function StreamingDisplay({
 	}, [sessionId]);
 
 	const isRunning = state.status === "running";
-	const isCompacting = state.status === "compacting";
-	const streamActive = isRunning || isCompacting;
+	const messages = state.messages;
+	const segments = state.segments;
+	const streamStartedAt = state.streamStartedAt;
+	// Compaction has its own client-only activity row in the conversation. Do not
+	// render a second assistant streaming bubble for the same operation.
+	const streamActive = isRunning;
 	const agent = agentRegistryModel.getSessionAgent(sessionId);
 	const latestCommittedAssistant = useMemo(
 		() =>
-			[...state.messages]
+			[...messages]
 				.reverse()
 				.find(
 					(msg) =>
@@ -137,7 +141,7 @@ export function StreamingDisplay({
 						((msg.contentBlocks?.length || 0) > 0 ||
 							msg.content.trim().length > 0),
 				) ?? null,
-		[state.messages],
+		[messages],
 	);
 	const latestAssistantToolIds = useMemo(() => {
 		const lastAssistant = latestCommittedAssistant;
@@ -149,46 +153,42 @@ export function StreamingDisplay({
 		);
 	}, [latestCommittedAssistant]);
 	const orderedSegments = useMemo(
-		() => orderStreamingSegments(state.segments),
-		[state.segments],
+		() => orderStreamingSegments(segments),
+		[segments],
 	);
 	const visibleSegments = useMemo(
 		() =>
-			getVisibleStreamingSegments(state.segments, {
+			getVisibleStreamingSegments(segments, {
 				streamActive,
 				latestAssistantToolIds,
 			}),
-		[latestAssistantToolIds, state.segments, streamActive],
+		[latestAssistantToolIds, segments, streamActive],
 	);
 	// True once any user-visible content has ever been produced.
 	const hasProducedContent =
 		hasProducedVisibleStreamingContent(orderedSegments);
 
-	const waitingSec = state.streamStartedAt
-		? Math.max(0, Math.floor((state.nowMs - state.streamStartedAt) / 1000))
+	const waitingSec = streamStartedAt
+		? Math.max(0, Math.floor((state.nowMs - streamStartedAt) / 1000))
 		: 0;
 	const showSlowHint =
 		isRunning && orderedSegments.length === 0 && waitingSec >= 8;
 	const committedAssistantTakesOver =
 		!!latestCommittedAssistant &&
 		!isRunning &&
-		!isCompacting &&
-		state.streamStartedAt != null &&
-		latestCommittedAssistant.timestamp >= state.streamStartedAt;
+		streamStartedAt != null &&
+		latestCommittedAssistant.timestamp >= streamStartedAt;
 	const shouldRender =
 		!committedAssistantTakesOver &&
 		(isRunning ||
-			isCompacting ||
 			visibleSegments.length > 0 ||
-			(state.streamStartedAt != null && waitingSec < 120));
-
-	useEffect(() => {
-		if (!isRunning || !state.streamStartedAt) return;
-	}, [isRunning, state.streamStartedAt]);
+			(streamStartedAt != null && waitingSec < 120));
 
 	useInterval(
-		() => (state.nowMs = Date.now()),
-		isRunning && state.streamStartedAt ? 400 : undefined,
+		() => {
+			state.nowMs = Date.now();
+		},
+		isRunning && streamStartedAt ? 400 : undefined,
 	);
 
 	useEffect(() => {
@@ -223,7 +223,9 @@ export function StreamingDisplay({
 				isCompactLeft ? "px-3 py-0.5" : "px-3 pb-1.5 pt-1 sm:px-4",
 			)}
 		>
-			<div className={cn("flex items-start", isCompactLeft ? "gap-2" : "gap-2")}>
+			<div
+				className={cn("flex items-start", isCompactLeft ? "gap-2" : "gap-2")}
+			>
 				{isCompactLeft ? (
 					<span
 						className="mt-6 inline-flex size-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
@@ -235,8 +237,20 @@ export function StreamingDisplay({
 						className="mt-4 size-7 shrink-0 rounded-[12px] ring-1 ring-[#f2f3f5] shadow-[rgba(0,0,0,0.06)_0px_3px_5px]"
 					/>
 				)}
-				<div className={cn("min-w-0", isCompactLeft ? "max-w-[min(96%,72rem)]" : "max-w-[min(84%,52rem)]")}>
-					<div className={cn("flex", isCompactLeft ? "mb-0.5 justify-start pl-0.5" : "mb-0.5 justify-center")}>
+				<div
+					className={cn(
+						"min-w-0",
+						isCompactLeft ? "max-w-[min(96%,72rem)]" : "max-w-[min(84%,52rem)]",
+					)}
+				>
+					<div
+						className={cn(
+							"flex",
+							isCompactLeft
+								? "mb-0.5 justify-start pl-0.5"
+								: "mb-0.5 justify-center",
+						)}
+					>
 						<span
 							className={cn(
 								"text-[9px] leading-none text-muted-foreground [font-variant-numeric:tabular-nums]",
@@ -286,11 +300,6 @@ export function StreamingDisplay({
 								</span>
 								{streamActive && (
 									<Loader2 className="size-3 animate-spin text-primary" />
-								)}
-								{isCompacting && (
-									<span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-										正在整理对话...
-									</span>
 								)}
 							</div>
 

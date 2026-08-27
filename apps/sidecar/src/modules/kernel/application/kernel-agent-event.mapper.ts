@@ -1,4 +1,5 @@
 import type { AgentEvent, MessageObject } from '@a3s-lab/code';
+import { redactSecretValuesInText } from '@/shared/common/security/secret-redaction';
 import { normalizeStreamEvent, parseAgentEventData } from './kernel-stream-event-normalizer';
 
 export function mapAgentEvent(eventType: string, event: AgentEvent): Record<string, unknown> | null {
@@ -16,7 +17,7 @@ export function mapAgentEvent(eventType: string, event: AgentEvent): Record<stri
         case 'error':
             return {
                 type: 'error',
-                message: (event.error as string) || 'Unknown error',
+                message: redactSecretValuesInText((event.error as string) || 'Unknown error'),
             };
         default:
             return null;

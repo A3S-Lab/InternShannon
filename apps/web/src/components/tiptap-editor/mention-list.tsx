@@ -178,9 +178,10 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(
 						item.path?.toLowerCase().includes(state.searchQuery.toLowerCase()),
 				)
 			: items;
+		const searchQuery = state.searchQuery;
 		const normalizedSearchQuery = useMemo(
-			() => normalizeQuery(state.searchQuery),
-			[state.searchQuery],
+			() => normalizeQuery(searchQuery),
+			[searchQuery],
 		);
 
 		// Clamp selectedIndex when items array changes length
@@ -255,11 +256,6 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(
 				window.clearTimeout(timer);
 			};
 		}, [normalizedSearchQuery, workspaceDir]);
-
-		useEffect(() => {
-			state.workspaceSearchResults = null;
-			state.workspaceSearchLoading = false;
-		}, [workspaceDir]);
 
 		const selectItem = useCallback(
 			(index: number) => {
@@ -353,7 +349,9 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(
 								ref={searchInputRef}
 								type="text"
 								value={state.searchQuery}
-								onChange={(e) => (state.searchQuery = e.target.value)}
+								onChange={(e) => {
+									state.searchQuery = e.target.value;
+								}}
 								placeholder="搜索文件..."
 								className="w-full h-7 pl-7 pr-2 text-xs border rounded bg-background outline-none focus:ring-1 focus:ring-ring"
 								onKeyDown={(e) => {
@@ -444,7 +442,9 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(
 								ref={searchInputRef}
 								type="text"
 								value={state.searchQuery}
-								onChange={(e) => (state.searchQuery = e.target.value)}
+								onChange={(e) => {
+									state.searchQuery = e.target.value;
+								}}
 								placeholder="搜索文件..."
 								className="w-full h-7 pl-7 pr-2 text-xs border rounded bg-background outline-none focus:ring-1 focus:ring-ring"
 								onKeyDown={(e) => {
@@ -488,7 +488,9 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(
 								ref={searchInputRef}
 								type="text"
 								value={state.searchQuery}
-								onChange={(e) => (state.searchQuery = e.target.value)}
+								onChange={(e) => {
+									state.searchQuery = e.target.value;
+								}}
 								placeholder="搜索文件..."
 								className="w-full h-7 pl-7 pr-2 text-xs border rounded bg-background outline-none focus:ring-1 focus:ring-ring"
 								onKeyDown={(e) => {
@@ -543,7 +545,9 @@ const MentionList = forwardRef<MentionListRef, MentionListProps>(
 										handleItemClick(item.globalIdx);
 									}}
 									onClick={() => handleItemClick(item.globalIdx)}
-									onMouseEnter={() => (state.selectedIndex = item.globalIdx)}
+									onMouseEnter={() => {
+										state.selectedIndex = item.globalIdx;
+									}}
 								>
 									{(item.icon || item.isDirectory) && (
 										<span

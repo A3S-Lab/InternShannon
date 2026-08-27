@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   installSlidesMainViewportFallback,
   installSlidesRenderViewportFallback,
+  setSlidesRenderZoom,
   UNIVER_SLIDES_VIEWPORT_KEY,
   type SlidesRenderManager,
   type SlidesSceneWithViewport,
@@ -10,6 +11,21 @@ import {
 
 test("uses Univer Slides 0.24's concrete SLIDE_KEY.VIEW value", () => {
   assert.equal(UNIVER_SLIDES_VIEWPORT_KEY, "__mainView__");
+});
+
+test("applies presentation zoom to the rendered scene", () => {
+  const calls: number[][] = [];
+  const scene: SlidesSceneWithViewport = {
+    getMainViewport: () => undefined,
+    getViewport: () => undefined,
+    scale: (x, y) => {
+      calls.push([x ?? 0, y ?? 0]);
+      return scene;
+    },
+    makeDirty: () => scene,
+  };
+  assert.equal(setSlidesRenderZoom({ getRenderById: () => ({ unitId: "slide-1", scene }) }, "slide-1", 1.4), true);
+  assert.deepEqual(calls, [[1.4, 1.4]]);
 });
 
 test("maps Univer Slides' view viewport to the generic wheel handler", () => {

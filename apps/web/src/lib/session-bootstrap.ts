@@ -1,8 +1,14 @@
 import { connectSession, disconnectSession } from "@/hooks/use-agent-ws";
 import agentModel from "@/models/agent.model";
 import agentRegistryModel from "@/models/agent-registry.model";
+import { getSessionRoutingModel } from "@/models/settings.model";
+import {
+  formatResolvedRuntimeModel,
+  SESSION_MODEL_CONFIGURATION_ERROR,
+} from "@/models/settings-runtime-model-config-state";
 import { agentApi, type CreateSessionRequest } from "./agent-api";
 import type { AgentProfile } from "./agent-profile.types";
+import { buildAgentRuntimeConfig, type PromptSlotConfig } from "./agent-runtime-config";
 import { DEFAULT_AGENT_ID, getAgentById, normalizeAgentId } from "./builtins";
 import { allowsLocalWorkspacePaths } from "./runtime-environment";
 import {
@@ -14,7 +20,6 @@ import { defaultSessionTitle } from "./session-title";
 import type { AgentProcessInfo, AgentSessionState } from "./types";
 import { exposeWorkspacePath as exposeRuntimeWorkspacePath } from "./workspace-path";
 import { resolveAgentWorkingDirectory } from "./workspace-utils";
-import { buildAgentRuntimeConfig, type PromptSlotConfig } from "./agent-runtime-config";
 
 const pendingSessionCreations = new Map<
   string,
@@ -69,7 +74,9 @@ export interface CreateAgentSessionOptions extends Partial<CreateAgentSessionRun
 }
 
 function exposeWorkspacePath(path: string | null | undefined): string {
-  return exposeRuntimeWorkspacePath(path, { allowLocal: allowsLocalWorkspacePaths() });
+  return exposeRuntimeWorkspacePath(path, {
+    allowLocal: allowsLocalWorkspacePaths(),
+  });
 }
 
 function stringFromRecord(record: Record<string, unknown> | undefined, key: string): string | undefined {
@@ -82,7 +89,9 @@ function normalizeStringList(values?: string[] | null): string[] | undefined {
   return normalized.length > 0 ? Array.from(new Set(normalized)) : undefined;
 }
 
-function pickDefinedRuntimeOptions(source: Partial<CreateSessionRequest> | undefined): Record<string, unknown> {
+function pickDefinedRuntimeOptions(
+  source: Partial<CreateAgentSessionRuntimeOptions> | undefined,
+): Record<string, unknown> {
   const runtimeOptions: Record<string, unknown> = {};
   if (!source) return runtimeOptions;
   for (const key of SESSION_RUNTIME_OPTION_KEYS) {
@@ -94,7 +103,7 @@ function pickDefinedRuntimeOptions(source: Partial<CreateSessionRequest> | undef
   return runtimeOptions;
 }
 
-function runtimeOptionsFingerprint(options: Partial<CreateSessionRequest>): string {
+function runtimeOptionsFingerprint(options: Partial<CreateAgentSessionRuntimeOptions>): string {
   const runtimeOptions: Record<string, unknown> = {};
   for (const key of SESSION_RUNTIME_OPTION_KEYS) {
     const value = options[key];
@@ -130,7 +139,6 @@ function toSessionState(session: AgentProcessInfo): AgentSessionState {
     skills: [],
     totalCostUsd: 0,
     numTurns: 0,
-    contextUsedPercent: 0,
     isCompacting: false,
     totalLinesAdded: 0,
     totalLinesRemoved: 0,
@@ -197,16 +205,7 @@ function applySessionListToStore(
   return visibleSessions;
 }
 
-function buildCreationKey(
-  options: {
-    agentId: string;
-    cwd?: string | null;
-    hideFromMainList?: boolean;
-    skills?: string[];
-    skillDirs?: string[];
-    apiUrl?: string;
-  } & Partial<CreateSessionRequest>,
-): string {
+function buildCreationKey(options: CreateAgentSessionOptions): string {
   return [
     normalizeAgentId(options.agentId) ?? options.agentId,
     options.cwd?.trim() || "",
@@ -359,7 +358,11 @@ export async function createAgentSession(
     }
 
     const createRequest = buildAgentSessionCreateRequest({
-      agent,
+      agent: {
+        sessionOptions: agent.sessionOptions ? { ...agent.sessionOptions } : undefined,
+        defaultModel: agent.defaultModel,
+        defaultSkills: agent.defaultSkills,
+      },
       normalizedAgentId,
       title: explicitName || undefined,
       permissionMode,
@@ -367,6 +370,22 @@ export async function createAgentSession(
       options: resolvedOptions,
       runtimeOptions: pickDefinedRuntimeOptions(resolvedOptions),
     }) as CreateSessionRequest;
+
+    const requestedModel = typeof createRequest.model === "string" ? createRequest.model : undefined;
+    const followsDefault =
+      createRequest.followDefaultModel === true || (!requestedModel && createRequest.followDefaultModel !== false);
+    const resolvedModel = getSessionRoutingModel(requestedModel, followsDefault);
+    const resolvedModelRef = formatResolvedRuntimeModel(resolvedModel);
+    if (!resolvedModelRef) {
+      if (tempSessionId) agentModel.removeSession(tempSessionId);
+      throw new Error(SESSION_MODEL_CONFIGURATION_ERROR);
+    }
+    // Pinned sessions always send a provider-qualified exact model. Locked
+    // follow-default sessions deliberately omit model because their backend
+    // policy rejects per-session overrides; they were still validated above.
+    if (!followsDefault) {
+      createRequest.model = resolvedModelRef;
+    }
 
     let result: Awaited<ReturnType<typeof agentApi.createSession>>;
     try {
@@ -383,7 +402,10 @@ export async function createAgentSession(
 
     const sessionName = result.session.title || explicitName || defaultSessionTitle(result.session.sessionId);
     const session = buildCreatedSessionInfo({
-      session: result.session,
+      session: {
+        ...result.session,
+        sessionId: result.session.sessionId,
+      },
       normalizedAgentId,
       permissionMode,
       cwd: exposeWorkspacePath(result.session.cwd),

@@ -1,18 +1,18 @@
-import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit, Optional } from '@nestjs/common';
-import { MetricsService } from '@/shared/observability/metrics';
+import { Inject, Injectable, Logger, type OnModuleDestroy, type OnModuleInit, Optional } from "@nestjs/common";
+import { MetricsService } from "@/shared/observability/metrics";
 import {
     IKernelRuntimeConfigService,
     KERNEL_RUNTIME_CONFIG_SERVICE,
     KernelAssistantRuntimeDefaults,
     KernelRuntimeModelsConfig,
-} from '../domain/services/kernel-runtime-config.service.interface';
-import { KernelRuntimeConfigBuilder } from './kernel-runtime-config.builder';
+} from "../domain/services/kernel-runtime-config.service.interface";
+import { KernelRuntimeConfigBuilder } from "./kernel-runtime-config.builder";
 import {
     ActiveSession,
     DEFAULT_RUNTIME_IDLE_TIMEOUT_MS,
     DEFAULT_RUNTIME_SWEEP_INTERVAL_MS,
     SessionRuntimeOverrides,
-} from './session-runtime.types';
+} from "./session-runtime.types";
 
 export interface ActiveSessionSummary {
     sessionId: string;
@@ -27,7 +27,67 @@ export interface ActiveSessionSummary {
     ageMs: number;
 }
 
-export type SessionCloseReason = 'explicit' | 'reset' | 'runtime_key_change' | 'idle_sweep' | 'shutdown';
+export type KernelSessionOperationPhase = "queued" | "preparing" | "running" | "compacting" | "cancelling";
+
+export interface KernelSessionOperation {
+    operationId: string;
+    runId?: string;
+    phase: KernelSessionOperationPhase;
+    startedAt: number;
+}
+
+const RUNTIME_AFFECTING_SESSION_FIELDS = new Set([
+    "model",
+    "followDefaultModel",
+    "systemPrompt",
+    "role",
+    "guidelines",
+    "responseStyle",
+    "extra",
+    "permissionMode",
+    "skills",
+    "allowCapabilities",
+    "skillDirs",
+    "builtinSkills",
+    "enforceActiveSkillToolRestrictions",
+    "planningMode",
+    "goalTracking",
+    "maxToolRounds",
+    "maxParseRetries",
+    "circuitBreakerThreshold",
+    "continuationEnabled",
+    "maxContinuationTurns",
+    "autoCompact",
+    "autoCompactThreshold",
+    "temperature",
+    "thinkingBudget",
+    "toolTimeoutMs",
+    "queueTimeoutMs",
+    "maxExecutionTimeMs",
+    "streamStallWarningMs",
+    "streamStallHardMs",
+    "toolInputStreamStallHardMs",
+    "streamStallActiveToolHardMs",
+    "maxConsecutiveToolErrors",
+    "maxStreamRetries",
+    "mcpServers",
+    "searchConfig",
+    "workerAgents",
+    "inlineSkills",
+    "autoDelegation",
+    "autoParallel",
+    "maxParallelTasks",
+    "artifactStoreLimits",
+    "retentionLimits",
+]);
+
+export type SessionCloseReason =
+    | "explicit"
+    | "reset"
+    | "runtime_key_change"
+    | "closed_runtime_recovery"
+    | "idle_sweep"
+    | "shutdown";
 
 @Injectable()
 export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleDestroy {
@@ -36,6 +96,7 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
     private assistantDefaults: KernelAssistantRuntimeDefaults | null = null;
     private modelsConfigFetchedAt = 0;
     private readonly activeSessions = new Map<string, ActiveSession>();
+    private readonly activeOperations = new Map<string, KernelSessionOperation>();
     private readonly sessionRuntimeOverrides = new Map<string, SessionRuntimeOverrides>();
     private readonly cancelledSessionIds = new Set<string>();
     private sweepTimer: NodeJS.Timeout | null = null;
@@ -69,7 +130,7 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
         return new KernelRuntimeConfigBuilder(this.modelsConfig, this.assistantDefaults);
     }
 
-    invalidateModelsConfig(reason = 'unknown'): void {
+    invalidateModelsConfig(reason = "unknown"): void {
         this.modelsConfig = null;
         this.assistantDefaults = null;
         this.modelsConfigFetchedAt = 0;
@@ -100,7 +161,7 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
         for (const [key, value] of Object.entries(patch) as Array<
             [keyof SessionRuntimeOverrides, SessionRuntimeOverrides[keyof SessionRuntimeOverrides]]
         >) {
-            if (typeof value === 'string' && value.trim()) {
+            if (typeof value === "string" && value.trim()) {
                 writable[key] = value.trim();
             } else if (value !== undefined) {
                 writable[key] = value;
@@ -117,9 +178,55 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
         return this.activeSessions.get(sessionId);
     }
 
+    tryBeginOperation(sessionId: string, operationId: string, now: number = Date.now()): boolean {
+        if (this.activeOperations.has(sessionId)) return false;
+        this.activeOperations.set(sessionId, { operationId, phase: "queued", startedAt: now });
+        return true;
+    }
+
+    activeOperation(sessionId: string): KernelSessionOperation | null {
+        return this.activeOperations.get(sessionId) ?? null;
+    }
+
+    isOperationActive(sessionId: string): boolean {
+        return this.activeOperations.has(sessionId);
+    }
+
+    updateOperationPhase(sessionId: string, operationId: string, phase: KernelSessionOperationPhase): boolean {
+        const operation = this.activeOperations.get(sessionId);
+        if (!operation || operation.operationId !== operationId) return false;
+        operation.phase = phase;
+        return true;
+    }
+
+    updateActiveOperationPhase(sessionId: string, phase: KernelSessionOperationPhase): boolean {
+        const operation = this.activeOperations.get(sessionId);
+        if (!operation) return false;
+        operation.phase = phase;
+        return true;
+    }
+
+    associateOperationRunId(sessionId: string, operationId: string, runId: string): boolean {
+        const operation = this.activeOperations.get(sessionId);
+        if (!operation || operation.operationId !== operationId) return false;
+        operation.runId = runId;
+        return true;
+    }
+
+    finishOperation(sessionId: string, operationId: string): boolean {
+        const operation = this.activeOperations.get(sessionId);
+        if (!operation || operation.operationId !== operationId) return false;
+        this.activeOperations.delete(sessionId);
+        return true;
+    }
+
+    patchAffectsRuntime(patch: Record<string, unknown>): boolean {
+        return Object.keys(patch).some((key) => RUNTIME_AFFECTING_SESSION_FIELDS.has(key));
+    }
+
     setActiveSession(sessionId: string, session: ActiveSession): void {
         this.activeSessions.set(sessionId, session);
-        this.metrics?.setGauge('kernel_active_runtime_sessions', this.activeSessions.size);
+        this.metrics?.setGauge("kernel_active_runtime_sessions", this.activeSessions.size);
     }
 
     /**
@@ -133,11 +240,15 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
         if (session) session.lastActivityAt = now;
     }
 
-    deleteActiveSession(sessionId: string): void {
+    deleteActiveSession(
+        sessionId: string,
+        options: { preserveOperation?: boolean; preserveRuntimeOverrides?: boolean } = {},
+    ): void {
         this.activeSessions.delete(sessionId);
-        this.sessionRuntimeOverrides.delete(sessionId);
+        if (options.preserveRuntimeOverrides !== true) this.sessionRuntimeOverrides.delete(sessionId);
         this.cancelledSessionIds.delete(sessionId);
-        this.metrics?.setGauge('kernel_active_runtime_sessions', this.activeSessions.size);
+        if (options.preserveOperation !== true) this.activeOperations.delete(sessionId);
+        this.metrics?.setGauge("kernel_active_runtime_sessions", this.activeSessions.size);
     }
 
     activeSessionIds(): string[] {
@@ -171,6 +282,10 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
     idleSessionIds(thresholdMs: number = this.idleTimeoutMs, now: number = Date.now()): string[] {
         const ids: string[] = [];
         for (const [sessionId, session] of this.activeSessions.entries()) {
+            // A long model/tool operation is not idle merely because no second
+            // caller touched the runtime. Closing it from the sweeper would
+            // turn an in-flight run into a misleading "Session is closed".
+            if (this.activeOperations.has(sessionId)) continue;
             if (now - session.lastActivityAt >= thresholdMs) {
                 ids.push(sessionId);
             }
@@ -203,7 +318,7 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
     }
 
     recordCloseMetric(reason: SessionCloseReason): void {
-        this.metrics?.incCounter('kernel_runtime_session_closed_total', { reason });
+        this.metrics?.incCounter("kernel_runtime_session_closed_total", { reason });
     }
 
     onModuleInit(): void {
@@ -227,7 +342,7 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
         this.logger.log(`Closing ${ids.length} active runtime session(s) on module destroy`);
         for (const sessionId of ids) {
             try {
-                this.reaper(sessionId, 'shutdown');
+                this.reaper(sessionId, "shutdown");
             } catch (error) {
                 this.logger.warn(
                     `Failed to close session ${sessionId} on shutdown: ${
@@ -245,7 +360,7 @@ export class KernelSessionRuntimeStateService implements OnModuleInit, OnModuleD
         this.logger.log(`Sweeping ${ids.length} idle runtime session(s)`);
         for (const sessionId of ids) {
             try {
-                this.reaper(sessionId, 'idle_sweep');
+                this.reaper(sessionId, "idle_sweep");
             } catch (error) {
                 this.logger.warn(
                     `Idle sweep failed to close session ${sessionId}: ${

@@ -90,11 +90,10 @@ export function DataTableSegmentedFilter<TValue extends string>({
   className?: string;
 }) {
   return (
-    <div
-      role="group"
+    <fieldset
       aria-label={ariaLabel}
       className={cn(
-        "flex flex-wrap gap-1 rounded-[4px] border border-border-light bg-muted/40 p-1",
+        "m-0 flex min-w-0 flex-wrap gap-1 rounded-[4px] border border-border-light bg-muted/40 p-1",
         className,
       )}
     >
@@ -122,7 +121,7 @@ export function DataTableSegmentedFilter<TValue extends string>({
           </button>
         );
       })}
-    </div>
+    </fieldset>
   );
 }
 
@@ -150,11 +149,10 @@ export function DataTablePresetTabs<TValue extends string>({
 }) {
   // 与 ui/tabs 的 TabsList/TabsTrigger 同款分段框风格(全站 tab 栏统一);保留 count 徽章与换行能力。
   return (
-    <div
-      role="group"
+    <fieldset
       aria-label={ariaLabel}
       className={cn(
-        "inline-flex min-h-8 flex-wrap items-center justify-start gap-0.5 rounded-[7px] border border-border-light bg-muted/45 p-0.5 text-muted-foreground",
+        "m-0 inline-flex min-h-8 min-w-0 flex-wrap items-center justify-start gap-0.5 rounded-[7px] border border-border-light bg-muted/45 p-0.5 text-muted-foreground",
         className,
       )}
     >
@@ -180,7 +178,7 @@ export function DataTablePresetTabs<TValue extends string>({
           </button>
         );
       })}
-    </div>
+    </fieldset>
   );
 }
 

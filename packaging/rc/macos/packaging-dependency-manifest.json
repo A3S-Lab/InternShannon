@@ -1,0 +1,85 @@
+{
+	"schemaVersion": 1,
+	"artifact": {
+		"name": "InternShannon",
+		"version": "0.2.3",
+		"target": "darwin-arm64",
+		"sourceSnapshotSha256": "4d6f9430c92aa492f3b301a410553046ab6ee980c285a047362d234d83728ea3",
+		"gitHead": "a4e89b7470a25f43ea62de30b64a44aa131598a2"
+	},
+	"packagedRuntime": {
+		"node": {
+			"version": "22.18.0",
+			"sha256": "9187ad22c98cea5b635a79db52fa32ab3f6aa9d41e3abf5da71437cfef1ca9de"
+		},
+		"controlledA3s": {
+			"package": "@a3s-lab/code",
+			"version": "6.6.1-knowledge-complete.3",
+			"tgzSha256": "1119c3649a6b3308acc9b692f14aedcc77ecc4db76d7c3f28aadd5d25eca29eb",
+			"sourceRevision": "07707ad74785f940e6579d692d7f142c13231040",
+			"sourceTreeSha256": "3321cde6cd7d6b7c1439f09d22d7449b501dc8200fdbbbfe09a5334f5d83fc62",
+			"nativeBinary": "index.darwin-arm64.node",
+			"nativeBinarySha256": "2e797e935b18c11c586fbbba6a59f6dc6b3aa77094a311b32b95dd4b53292fec",
+			"nativeAclVersion": "0.3.0"
+		},
+		"searchBrowser": {
+			"name": "Lightpanda",
+			"snapshot": "0.3.1@85d84c296ed592a0a924c8dee3426dbf7881b560",
+			"sha256": "9ee31612f3d46ff513056d021b15daba4f07368c050debe25e8aa8527587b074"
+		}
+	},
+	"buildToolchain": {
+		"macOS": "15.0 (24A5320a)",
+		"architecture": "arm64",
+		"xcode": "16.2 (16C5032a)",
+		"macOSSDK": "15.2",
+		"appleClang": "16.0.0 (clang-1600.0.26.6)",
+		"rustc": "1.94.1 (e408947bf 2026-03-25)",
+		"cargo": "1.94.1 (29ea6fb6a 2026-03-24)",
+		"orchestrationNode": "20.9.0",
+		"pnpm": "11.19.0",
+		"typescript": "5.9.3",
+		"biome": "2.3.14",
+		"tauriCli": "2.11.3",
+		"installMode": "pnpm install --frozen-lockfile --offline"
+	},
+	"rustRuntime": {
+		"tauri": "2.11.5",
+		"tauriBuild": "2.6.3",
+		"tauriRuntime": "2.11.3",
+		"tauriRuntimeWry": "2.11.4",
+		"wry": "0.55.1",
+		"tao": "0.35.3",
+		"tokio": "1.53.1"
+	},
+	"lockfiles": {
+		"pnpm": {
+			"path": "pnpm-lock.yaml",
+			"sha256": "c5a700d89248573c49d2a6c7c8e9a0ed27258f9e33f3cabf348a71236e6d3659"
+		},
+		"cargo": {
+			"path": "apps/desktop/src-tauri/Cargo.lock",
+			"sha256": "2195809d302d3f31a30d1832b45b581fc129857b3e5d8c8556652ae44daaf9be"
+		}
+	},
+	"directDependencyInventories": [
+		{
+			"path": "packaging/rc/macos/desktop-direct-dependencies.raw.json",
+			"dependencies": 1,
+			"devDependencies": 6,
+			"sha256": "c15d5bc42b4108d218acf3278be4f55f6a19389d34e4b1b79669b93ce525cb15"
+		},
+		{
+			"path": "packaging/rc/macos/web-direct-dependencies.raw.json",
+			"dependencies": 115,
+			"devDependencies": 17,
+			"sha256": "748559a61caf5e5c699a4822640d99075cc3d6579555d9648cafdad6038d47d9"
+		},
+		{
+			"path": "packaging/rc/macos/sidecar-direct-dependencies.raw.json",
+			"dependencies": 40,
+			"devDependencies": 18,
+			"sha256": "eaa9238adf0f48f9d52aefeb84212c5942160dec66e4f38381ccee3cc97057db"
+		}
+	]
+}

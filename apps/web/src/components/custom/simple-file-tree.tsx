@@ -88,7 +88,7 @@ function TreeNode({
           state.isLoading = false;
         });
     }
-  }, [node.isDirectory, node.path, depth, onLoadChildren, state]);
+  }, [node.isDirectory, node.path, depth, onLoadChildren]);
 
   const handleToggle = useCallback(
     async (e: React.MouseEvent) => {
@@ -115,7 +115,7 @@ function TreeNode({
         }
       }
     },
-    [node.isDirectory, node.path, onFileSelect, onLoadChildren, state],
+    [node.isDirectory, node.path, onFileSelect, onLoadChildren],
   );
 
   const isActive = activeFile === node.path;

@@ -97,7 +97,9 @@ export function InlineErrorDisplay({
 					<>
 						<button
 							type="button"
-							onClick={() => (state.expanded = !state.expanded)}
+							onClick={() => {
+								state.expanded = !state.expanded;
+							}}
 							className="mt-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
 						>
 							{state.expanded ? "收起详情" : "查看详情"}
@@ -134,7 +136,9 @@ export const UnifiedError: React.FC<UnifiedErrorProps> = ({
 	const isExpanded = controlledExpanded ?? state.internalExpanded;
 	const setExpanded = onToggleExpand
 		? () => onToggleExpand(error.id)
-		: () => (state.internalExpanded = !state.internalExpanded);
+		: () => {
+				state.internalExpanded = !state.internalExpanded;
+			};
 
 	const Icon = ICONS[error.severity];
 	const hasDetails = error.details || error.errorCode;
@@ -161,6 +165,7 @@ export const UnifiedError: React.FC<UnifiedErrorProps> = ({
 				</div>
 				{onDismiss && (
 					<button
+						type="button"
 						onClick={() => onDismiss(error.id)}
 						className="shrink-0 rounded-md p-1 hover:bg-destructive/10 transition-colors"
 					>
@@ -212,6 +217,7 @@ export const UnifiedError: React.FC<UnifiedErrorProps> = ({
 						</p>
 						{onDismiss && (
 							<button
+								type="button"
 								onClick={() => {
 									state.isExiting = true;
 									setTimeout(() => onDismiss(error.id), 300);
@@ -225,6 +231,7 @@ export const UnifiedError: React.FC<UnifiedErrorProps> = ({
 					<p className="mt-1 text-sm text-muted-foreground">{error.message}</p>
 					{hasDetails && (
 						<button
+							type="button"
 							onClick={setExpanded}
 							className="mt-2 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
 						>
@@ -295,6 +302,7 @@ export const UnifiedError: React.FC<UnifiedErrorProps> = ({
 					<div className="flex items-center gap-1 shrink-0">
 						{error.retryable && onRetry && (
 							<button
+								type="button"
 								onClick={() => onRetry(error.id)}
 								className="rounded-md p-1.5 hover:bg-muted transition-colors"
 								title="重试"
@@ -304,6 +312,7 @@ export const UnifiedError: React.FC<UnifiedErrorProps> = ({
 						)}
 						{hasDetails && (
 							<button
+								type="button"
 								onClick={setExpanded}
 								className="rounded-md p-1.5 hover:bg-muted transition-colors"
 								title={isExpanded ? "收起详情" : "查看详情"}
@@ -317,6 +326,7 @@ export const UnifiedError: React.FC<UnifiedErrorProps> = ({
 						)}
 						{onDismiss && (
 							<button
+								type="button"
 								onClick={() => onDismiss(error.id)}
 								className="rounded-md p-1.5 hover:bg-muted transition-colors"
 								title="关闭"

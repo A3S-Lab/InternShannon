@@ -12,8 +12,8 @@ export default function ChatLayout() {
 	const location = useLocation();
 
 	const currentCacheKey = useMemo(() => {
-		return location.pathname + location.search;
-	}, [location.pathname, location.search]);
+		return location.pathname;
+	}, [location.pathname]);
 
 	return (
 		<div className="flex h-screen w-screen bg-secondary">

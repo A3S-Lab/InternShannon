@@ -534,6 +534,7 @@ export function applyKeybindings(
   editor: monacoEditor.editor.IStandaloneCodeEditor,
   monaco: Monaco,
   keybindings: Record<string, string>,
+  options?: { excludedCommandIds?: readonly string[] },
 ): monacoEditor.IDisposable[] {
   // Register editor commands as Monaco actions.
   // For commands WITH Monaco equivalents (deleteLine, gotoLine, etc.),
@@ -542,6 +543,9 @@ export function applyKeybindings(
   // For commands WITHOUT Monaco equivalents (bold, italic, etc.),
   // we register a custom action that dispatches to the keyboard dispatcher.
   return EDITOR_COMMANDS.map((cmd) => {
+    if (options?.excludedCommandIds?.includes(cmd.id)) {
+      return { dispose: () => {} };
+    }
     const combo = keybindings[cmd.id] ?? cmd.defaultKey;
     const kb = parseKeybinding(monaco, combo);
     const monacoActionId = MONACO_ACTION_MAP[cmd.id];

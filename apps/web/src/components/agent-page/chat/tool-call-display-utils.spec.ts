@@ -3,8 +3,8 @@ import { test } from "node:test";
 import {
 	extractToolPath,
 	formatToolInvocation,
-	getToolInvocationParts,
 	getTerminalVerb,
+	getToolInvocationParts,
 	getToolKind,
 	shouldShowToolPreviewByDefault,
 	summarizeToolInput,
@@ -69,6 +69,22 @@ test("formats coding-agent style tool invocations", () => {
 	);
 });
 
+test("shows Skill(skill_name) without promoting a long prompt to the tool title", () => {
+	const input = JSON.stringify({
+		skill_name: "fire-evacuation-simulation",
+		prompt: "这是一段非常长的子任务说明，不应该出现在工具名称中。".repeat(20),
+	});
+
+	assert.equal(
+		formatToolInvocation("Skill", input),
+		"Skill(fire-evacuation-simulation)",
+	);
+	assert.deepEqual(getToolInvocationParts("mcp__a3s__skill", input), {
+		name: "Skill",
+		args: "fire-evacuation-simulation",
+	});
+});
+
 test("summarizes tool results as concise terminal receipts", () => {
 	assert.equal(
 		summarizeToolResult("command", undefined, false, true),
@@ -87,7 +103,12 @@ test("summarizes tool results as concise terminal receipts", () => {
 		"1 条匹配",
 	);
 	assert.equal(
-		summarizeToolResult("search", "No results found for this query", false, false),
+		summarizeToolResult(
+			"search",
+			"No results found for this query",
+			false,
+			false,
+		),
 		"未找到结果",
 	);
 	assert.equal(

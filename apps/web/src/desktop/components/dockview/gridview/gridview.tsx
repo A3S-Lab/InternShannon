@@ -33,6 +33,9 @@ export const GridviewReact = React.forwardRef(
 		const domRef = React.useRef<HTMLDivElement>(null);
 		const gridviewRef = React.useRef<GridviewApi | null>(null);
 		const [portals, addPortal] = usePortalsLifecycle();
+		const initialPropsRef = React.useRef(props);
+		const initialAddPortalRef = React.useRef(addPortal);
+		const { components } = props;
 
 		React.useImperativeHandle(ref, () => domRef.current!, []);
 
@@ -42,23 +45,25 @@ export const GridviewReact = React.forwardRef(
 					// noop
 				};
 			}
+			const initialProps = initialPropsRef.current;
+			const initialAddPortal = initialAddPortalRef.current;
 
 			const api = createGridview(domRef.current, {
-				disableAutoResizing: props.disableAutoResizing,
+				disableAutoResizing: initialProps.disableAutoResizing,
 				proportionalLayout:
-					typeof props.proportionalLayout === "boolean"
-						? props.proportionalLayout
+					typeof initialProps.proportionalLayout === "boolean"
+						? initialProps.proportionalLayout
 						: true,
-				orientation: props.orientation ?? Orientation.HORIZONTAL,
-				frameworkComponents: props.components,
+				orientation: initialProps.orientation ?? Orientation.HORIZONTAL,
+				frameworkComponents: initialProps.components,
 				frameworkComponentFactory: {
 					createComponent: (id: string, componentId, component) => {
 						return new ReactGridPanelView(id, componentId, component, {
-							addPortal,
+							addPortal: initialAddPortal,
 						});
 					},
 				},
-				styles: props.hideBorders
+				styles: initialProps.hideBorders
 					? { separatorBorder: "transparent" }
 					: undefined,
 			});
@@ -66,8 +71,8 @@ export const GridviewReact = React.forwardRef(
 			const { clientWidth, clientHeight } = domRef.current;
 			api.layout(clientWidth, clientHeight);
 
-			if (props.onReady) {
-				props.onReady({ api });
+			if (initialProps.onReady) {
+				initialProps.onReady({ api });
 			}
 
 			gridviewRef.current = api;
@@ -82,9 +87,9 @@ export const GridviewReact = React.forwardRef(
 				return;
 			}
 			gridviewRef.current.updateOptions({
-				frameworkComponents: props.components,
+					frameworkComponents: components,
 			});
-		}, [props.components]);
+		}, [components]);
 
 		return (
 			<div

@@ -97,7 +97,13 @@ impl std::error::Error for SidecarStartupFailure {}
 fn truncate_for_log(value: &str, max_len: usize) -> String {
     let mut output = value.trim().replace('\n', " ");
     if output.len() > max_len {
-        output.truncate(max_len);
+        let boundary = output
+            .char_indices()
+            .map(|(index, _)| index)
+            .take_while(|index| *index <= max_len)
+            .last()
+            .unwrap_or(0);
+        output.truncate(boundary);
         output.push_str("...");
     }
     output
@@ -252,6 +258,34 @@ fn node_spawn_path(path: &Path) -> PathBuf {
     PathBuf::from(node_spawn_path_string(&path.to_string_lossy()))
 }
 
+fn sidecar_path_with_node(
+    node_executable: &Path,
+    inherited_path: Option<&std::ffi::OsStr>,
+) -> Result<Option<std::ffi::OsString>, SidecarStartupFailure> {
+    let Some(node_dir) = node_executable
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    else {
+        return Ok(inherited_path.map(std::ffi::OsStr::to_os_string));
+    };
+
+    let mut entries = vec![node_dir.to_path_buf()];
+    if let Some(inherited_path) = inherited_path.filter(|value| !value.is_empty()) {
+        entries.extend(std::env::split_paths(inherited_path).filter(|entry| entry != node_dir));
+    }
+
+    std::env::join_paths(entries).map(Some).map_err(|error| {
+        SidecarStartupFailure::new(
+            "spawn",
+            "sidecar_path_invalid",
+            format!(
+                "Failed to expose Node runtime directory {} to the sidecar PATH: {error}",
+                node_dir.display()
+            ),
+        )
+    })
+}
+
 fn executable_file(path: &Path) -> Option<String> {
     fs::metadata(path)
         .ok()
@@ -378,75 +412,22 @@ fn sidecar_ready_attempts() -> usize {
         .clamp(MIN_SIDECAR_READY_ATTEMPTS, MAX_SIDECAR_READY_ATTEMPTS)
 }
 
-/// Check if the sidecar HTTP server is healthy.
-async fn is_sidecar_healthy(port: u16) -> bool {
-    let client = match reqwest::Client::builder().no_proxy().build() {
-        Ok(client) => client,
-        Err(_) => return false,
-    };
-    match client
-        .get(format!("http://127.0.0.1:{}/api/v1/health", port))
-        .send()
-        .await
-    {
-        Ok(resp) if resp.status().is_success() => true,
-        _ => false,
-    }
-}
-
+#[cfg(test)]
 fn model_fetch_route_compatible_status(status: reqwest::StatusCode) -> bool {
     status != reqwest::StatusCode::NOT_FOUND && status != reqwest::StatusCode::METHOD_NOT_ALLOWED
 }
 
+#[cfg(test)]
 fn knowledge_route_compatible_status(status: reqwest::StatusCode) -> bool {
     status.is_success()
 }
 
-/// Check whether the process already on the sidecar port supports the API shape
-/// required by this desktop bundle. A healthy old sidecar can otherwise be
-/// reused after an app update, leaving the new frontend talking to old routes.
-async fn is_sidecar_api_compatible(port: u16) -> bool {
-    let client = match reqwest::Client::builder().no_proxy().build() {
-        Ok(client) => client,
-        Err(_) => return false,
-    };
-
-    let model_fetch_compatible = match client
-        .post(format!(
-            "http://127.0.0.1:{}/api/v1/config/llm/providers/models/fetch",
-            port
-        ))
-        .header(reqwest::header::CONTENT_TYPE, "application/json")
-        .body(r#"{"providerName":""}"#)
-        .send()
-        .await
-    {
-        Ok(resp) => model_fetch_route_compatible_status(resp.status()),
-        Err(_) => false,
-    };
-    if !model_fetch_compatible {
-        return false;
-    }
-
-    match client
-        .get(format!(
-            "http://127.0.0.1:{}/api/v1/assets/me/knowledge",
-            port
-        ))
-        .send()
-        .await
-    {
-        Ok(resp) => knowledge_route_compatible_status(resp.status()),
-        Err(_) => false,
-    }
-}
-
 /// Find the PIDs of processes listening on port.
-fn find_port_29653_pids() -> Vec<u32> {
+fn find_port_pids(port: u16) -> Vec<u32> {
     #[cfg(target_os = "macos")]
     {
         let output = std::process::Command::new("lsof")
-            .args(["-t", "-iTCP:29653", "-sTCP:LISTEN"])
+            .args(["-t", &format!("-iTCP:{port}"), "-sTCP:LISTEN"])
             .output()
             .ok();
 
@@ -464,7 +445,7 @@ fn find_port_29653_pids() -> Vec<u32> {
     #[cfg(target_os = "linux")]
     {
         let output = std::process::Command::new("lsof")
-            .args(["-t", "-iTCP:29653", "-sTCP:LISTEN"])
+            .args(["-t", &format!("-iTCP:{port}"), "-sTCP:LISTEN"])
             .output()
             .ok();
 
@@ -490,7 +471,7 @@ fn find_port_29653_pids() -> Vec<u32> {
             let stdout = String::from_utf8_lossy(&output.stdout);
             return stdout
                 .lines()
-                .filter(|line| line.contains(":29653") && line.contains("LISTENING"))
+                .filter(|line| line.contains(&format!(":{port}")) && line.contains("LISTENING"))
                 .filter_map(|line| line.split_whitespace().last())
                 .filter_map(|pid_str| pid_str.parse::<u32>().ok())
                 .collect();
@@ -499,7 +480,7 @@ fn find_port_29653_pids() -> Vec<u32> {
     }
 }
 
-fn process_command(pid: u32) -> Option<String> {
+pub(crate) fn process_command(pid: u32) -> Option<String> {
     #[cfg(target_os = "windows")]
     {
         let filter = format!("PID eq {pid}");
@@ -542,8 +523,8 @@ fn process_command_label(pid: u32) -> Option<String> {
     process_command(pid).map(|value| truncate_for_log(&value, 160))
 }
 
-fn describe_port_29653_owners() -> String {
-    let pids = find_port_29653_pids();
+fn describe_port_owners(port: u16) -> String {
+    let pids = find_port_pids(port);
     if pids.is_empty() {
         return "owner unavailable".to_string();
     }
@@ -557,14 +538,13 @@ fn describe_port_29653_owners() -> String {
         .join("; ")
 }
 
-fn is_internshannon_sidecar_command(command: &str) -> bool {
-    let normalized = command.replace('\\', "/");
+pub(crate) fn is_internshannon_sidecar_command(command: &str) -> bool {
+    let normalized = command.replace('\\', "/").to_ascii_lowercase();
     if !normalized.contains("main.js") {
         return false;
     }
 
-    normalized.contains("internShannon.app/Contents/Resources/main.js")
-        || normalized.contains("InternShannon.app/Contents/Resources/main.js")
+    normalized.contains("internshannon.app/contents/resources/main.js")
         || normalized.contains("/apps/sidecar/dist/main.js")
 }
 
@@ -588,123 +568,40 @@ fn terminate_process(pid: u32) -> bool {
     }
 }
 
-async fn wait_for_port_to_be_free(port: u16) -> bool {
-    for _ in 0..20 {
-        if !is_port_in_use(port) {
-            return true;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
-    }
-    !is_port_in_use(port)
-}
-
-async fn restart_incompatible_internshannon_sidecar<F>(on_progress: &mut F) -> bool
+/// Ensure the selected isolated port is still available before spawning.
+async fn ensure_port_available<F>(
+    port: u16,
+    on_progress: &mut F,
+) -> Result<(), SidecarStartupFailure>
 where
     F: FnMut(&'static str, String),
 {
-    let pids = find_port_29653_pids();
-    if pids.is_empty() {
-        return false;
-    }
-
-    let mut terminated_any = false;
-    for pid in pids {
-        let Some(command) = process_command(pid) else {
-            continue;
-        };
-        if !is_internshannon_sidecar_command(&command) {
-            continue;
-        }
-        on_progress(
-            "reuse",
-            format!("Terminating incompatible existing InternShannon sidecar pid={pid}"),
-        );
-        if terminate_process(pid) {
-            terminated_any = true;
-        }
-    }
-
-    terminated_any && wait_for_port_to_be_free(29653).await
-}
-
-/// Ensure port 29653 is usable: reuse a healthy sidecar or report the owner.
-async fn ensure_port_available<F>(on_progress: &mut F) -> Result<(), SidecarStartupFailure>
-where
-    F: FnMut(&'static str, String),
-{
-    if !is_port_in_use(29653) {
-        on_progress("port-check", "Port 29653 is free".to_string());
+    if !is_port_in_use(port) {
+        on_progress("port-check", format!("Port {port} is free"));
         return Ok(());
     }
 
-    on_progress(
-        "port-check",
-        "Port 29653 is already in use, checking whether it is a healthy sidecar".to_string(),
-    );
-
-    // Port is in use — check if existing sidecar is healthy
-    if is_sidecar_healthy(29653).await {
-        if is_sidecar_api_compatible(29653).await {
-            tracing::info!("Port 29653 is occupied by a compatible healthy sidecar, reusing it");
-            on_progress(
-                "reuse",
-                "Existing process on port 29653 passed health and API compatibility checks, reusing it".to_string(),
-            );
-            return Err(SidecarStartupFailure::new(
-                "reuse",
-                "sidecar_already_running",
-                "Compatible healthy sidecar already running on port 29653",
-            ));
-        }
-
-        let owners = describe_port_29653_owners();
-        tracing::warn!(
-            "Port 29653 has a healthy but API-incompatible sidecar: {}",
-            owners
-        );
-        on_progress(
-            "reuse",
-            format!("Existing process on port 29653 is healthy but API-incompatible: {owners}"),
-        );
-        if restart_incompatible_internshannon_sidecar(on_progress).await {
-            on_progress(
-                "reuse",
-                "Incompatible existing InternShannon sidecar stopped; starting bundled sidecar"
-                    .to_string(),
-            );
-            return Ok(());
-        }
-
-        return Err(SidecarStartupFailure::new(
-            "reuse",
-            "sidecar_incompatible",
-            format!(
-                "Port 29653 is occupied by a healthy but API-incompatible process ({owners}). Quit the old internShannon app or stop that process, then retry."
-            ),
-        ));
-    }
-
-    let owners = describe_port_29653_owners();
+    let owners = describe_port_owners(port);
     tracing::warn!(
-        "Port 29653 is occupied by a process that did not pass /api/v1/health: {}",
-        owners
+        "Selected isolated gateway port {port} was occupied before sidecar spawn: {owners}"
     );
     on_progress(
         "port-check",
-        format!("Port 29653 is occupied but not healthy: {owners}"),
+        format!("Selected port {port} became occupied before sidecar spawn: {owners}"),
     );
 
     Err(SidecarStartupFailure::new(
         "port-check",
         "gateway_port_occupied",
         format!(
-            "Port 29653 is occupied by a process that did not pass /api/v1/health ({owners}). Stop that process or free the port, then retry."
+            "Selected gateway port {port} became occupied before startup ({owners}). Restart the app to select another isolated port."
         ),
     ))
 }
 
 /// Start the InternShannon API sidecar process.
 pub async fn start_sidecar_with_progress<F>(
+    port: u16,
     browser_runtime: Option<SearchBrowserRuntime>,
     mut on_progress: F,
 ) -> Result<Option<ManagedSidecarProcess>, SidecarStartupFailure>
@@ -726,6 +623,9 @@ where
     );
     let node_exe = get_node_executable()?;
     let node_exe_for_spawn = node_spawn_path_string(&node_exe);
+    let inherited_path = std::env::var_os("PATH");
+    let sidecar_path =
+        sidecar_path_with_node(Path::new(&node_exe_for_spawn), inherited_path.as_deref())?;
     on_progress(
         "spawn",
         format!("Using Node executable {node_exe_for_spawn}"),
@@ -756,13 +656,9 @@ where
     );
 
     // Ensure port is usable (reuse a healthy sidecar or surface the owner).
-    match ensure_port_available(&mut on_progress).await {
+    match ensure_port_available(port, &mut on_progress).await {
         Ok(()) => {
             // Port was free, proceed to spawn
-        }
-        Err(e) if e.code == "sidecar_already_running" => {
-            // Healthy sidecar exists, reuse it
-            return Ok(None);
         }
         Err(e) => {
             return Err(e);
@@ -780,7 +676,7 @@ where
     command
         .arg(&node_script_path)
         .current_dir(&node_sidecar_cwd)
-        .env("APP_PORT", "29653")
+        .env("APP_PORT", port.to_string())
         .env("APP_HOST", "127.0.0.1")
         .env("APP_MODE", "desktop")
         .env("KERNEL_WORKSPACE_STORAGE_PROVIDER", "local")
@@ -789,6 +685,10 @@ where
         .env("RUST_LOG", "info")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+
+    if let Some(sidecar_path) = sidecar_path {
+        command.env("PATH", sidecar_path);
+    }
 
     if let Some(runtime) = &browser_runtime {
         command.env(runtime.env_name, &runtime.path);
@@ -804,7 +704,7 @@ where
     } else {
         on_progress(
             "search_browser",
-            "Web search unavailable: install Lightpanda or Chrome in Settings, then restart InternShannon"
+            "Web search unavailable: install Lightpanda or Chrome in Settings, then restart 书小安"
                 .to_string(),
         );
     }
@@ -838,9 +738,10 @@ where
     capture_sidecar_stream("stderr", stderr, stderr_log, mirror_logs);
 
     tracing::info!(
-        "InternShannon API sidecar spawned: pid={} node {} on port 29653",
+        "InternShannon API sidecar spawned: pid={} node {} on port {}",
         child.id(),
-        node_script_path.display()
+        node_script_path.display(),
+        port
     );
     on_progress(
         "spawn",
@@ -867,7 +768,7 @@ where
         stderr_log_path,
     };
 
-    wait_for_sidecar(29653, ready_attempts, &mut process, &mut on_progress).await?;
+    wait_for_sidecar(port, ready_attempts, &mut process, &mut on_progress).await?;
 
     tracing::info!("InternShannon API sidecar is ready");
     on_progress(
@@ -882,6 +783,12 @@ where
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn truncates_unicode_log_text_at_a_character_boundary() {
+        assert_eq!(truncate_for_log("智谱/glm-5", 5), "智...");
+        assert_eq!(truncate_for_log("ascii", 5), "ascii");
+    }
 
     #[test]
     fn resolves_node_from_explicit_path_candidate() {
@@ -922,6 +829,104 @@ mod tests {
             node_from_bundled_resource_dir(&dir),
             Some(node.to_string_lossy().to_string())
         );
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn sidecar_path_prepends_node_dir_and_preserves_inherited_entries() {
+        let node_dir = PathBuf::from("/Applications/书 小安.app/Contents/Resources/node/bin");
+        let node = node_dir.join("node");
+        let inherited_entries = [PathBuf::from("/usr/bin"), PathBuf::from("/bin")];
+        let inherited = std::env::join_paths(&inherited_entries).expect("join inherited PATH");
+
+        let combined = sidecar_path_with_node(&node, Some(&inherited))
+            .expect("build sidecar PATH")
+            .expect("sidecar PATH");
+        let entries = std::env::split_paths(&combined).collect::<Vec<_>>();
+
+        assert_eq!(
+            entries,
+            vec![node_dir, PathBuf::from("/usr/bin"), PathBuf::from("/bin")]
+        );
+    }
+
+    #[test]
+    fn sidecar_path_uses_node_dir_when_inherited_path_is_absent() {
+        let node_dir = PathBuf::from("/Applications/InternShannon.app/Contents/Resources/node/bin");
+        let node = node_dir.join("node");
+
+        let combined = sidecar_path_with_node(&node, None)
+            .expect("build sidecar PATH")
+            .expect("sidecar PATH");
+
+        assert_eq!(
+            std::env::split_paths(&combined).collect::<Vec<_>>(),
+            vec![node_dir]
+        );
+    }
+
+    #[test]
+    fn sidecar_path_deduplicates_selected_node_dir() {
+        let node_dir = PathBuf::from("/Applications/InternShannon.app/Contents/Resources/node/bin");
+        let node = node_dir.join("node");
+        let inherited = std::env::join_paths([PathBuf::from("/usr/bin"), node_dir.clone()])
+            .expect("join inherited PATH");
+
+        let combined = sidecar_path_with_node(&node, Some(&inherited))
+            .expect("build sidecar PATH")
+            .expect("sidecar PATH");
+
+        assert_eq!(
+            std::env::split_paths(&combined).collect::<Vec<_>>(),
+            vec![node_dir, PathBuf::from("/usr/bin")]
+        );
+    }
+
+    #[test]
+    fn sidecar_path_preserves_inherited_path_for_bare_node_name() {
+        let inherited_entries = [PathBuf::from("/usr/bin"), PathBuf::from("/bin")];
+        let inherited = std::env::join_paths(&inherited_entries).expect("join inherited PATH");
+
+        assert_eq!(
+            sidecar_path_with_node(Path::new("node.exe"), Some(&inherited))
+                .expect("build sidecar PATH"),
+            Some(inherited)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn sidecar_path_makes_bundled_node_visible_to_shell() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = std::env::temp_dir().join(format!(
+            "internshannon-shell-node-test-{}-书 小安",
+            std::process::id()
+        ));
+        fs::create_dir_all(&dir).expect("create fake bundled node dir");
+        let node = dir.join("node");
+        fs::write(&node, "#!/bin/sh\nprintf controlled-node").expect("write fake bundled node");
+        let mut permissions = fs::metadata(&node)
+            .expect("fake node metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&node, permissions).expect("make fake node executable");
+        let inherited = std::env::join_paths([PathBuf::from("/usr/bin"), PathBuf::from("/bin")])
+            .expect("join inherited PATH");
+        let combined = sidecar_path_with_node(&node, Some(&inherited))
+            .expect("build sidecar PATH")
+            .expect("sidecar PATH");
+
+        let output = Command::new("/bin/bash")
+            .args(["-c", "command -v node && node"])
+            .env("PATH", combined)
+            .output()
+            .expect("run shell with sidecar PATH");
+
+        assert!(output.status.success());
+        let stdout = String::from_utf8(output.stdout).expect("utf-8 shell output");
+        assert_eq!(stdout, format!("{}\ncontrolled-node", node.display()));
 
         fs::remove_dir_all(&dir).ok();
     }

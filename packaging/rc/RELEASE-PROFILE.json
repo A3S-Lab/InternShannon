@@ -1,0 +1,65 @@
+{
+	"schemaVersion": 1,
+	"id": "shuxiaoan-0.2.3-internal-rc",
+	"scope": "windows-internal-candidate",
+	"sourceTrack": "rc/0.2.3-kc3",
+	"source": {
+		"branch": "rc/0.2.3-kc3/source",
+		"cleanTreeRequired": true,
+		"identityRecordedByBuildManifest": true
+	},
+	"inputs": {
+		"rcInputs": "packaging/rc/RC-INPUTS.json",
+		"controlledA3sPolicy": "apps/desktop/config/controlled-a3s-package.json",
+		"controlledA3sStage": "packaging/rc/scripts/stage-controlled-a3s-dependency.mjs",
+		"controlledA3sInstall": "packaging/rc/scripts/install-controlled-a3s-dependencies.mjs",
+		"controlledA3sVerify": "packaging/rc/scripts/verify-controlled-a3s-install.mjs",
+		"pnpmLock": "pnpm-lock.yaml",
+		"cargoLock": "apps/desktop/src-tauri/Cargo.lock"
+	},
+	"distribution": {
+		"productName": "书小安",
+		"version": "0.2.3",
+		"identifier": "com.a3s.internshannon",
+		"updater": {
+			"enabled": false,
+			"createArtifacts": false
+		}
+	},
+	"toolchain": {
+		"node": "22.18.0",
+		"packageManager": "pnpm@11.19.0"
+	},
+	"platformDependencies": {
+		"mode": "single-lock-deterministic-staging",
+		"selectedPath": "vendor/a3s/selected/package",
+		"registryFallback": false,
+		"nativeHostRequired": true,
+		"windows-x64": "PASS_FRESH_FROZEN_INSTALL_NATIVE_LOAD",
+		"macos-arm64": "PENDING_MAC_NATIVE_VALIDATION"
+	},
+	"targets": {
+		"windows-x64": {
+			"platform": "win32-x64",
+			"rustTarget": "x86_64-pc-windows-msvc",
+			"executable": "书小安.exe",
+			"installer": "nsis",
+			"controlledA3sTarget": "win32-x64",
+			"signing": {
+				"required": false,
+				"classification": "unsigned-internal"
+			},
+			"webview2": {
+				"type": "offlineInstaller",
+				"silent": true
+			},
+			"nsis": {
+				"installMode": "both",
+				"uacPolicy": "tauri-stock-highest-accepted",
+				"currentUserAdminFreeGuaranteed": false,
+				"languages": ["SimpChinese", "English"],
+				"displayLanguageSelector": true
+			}
+		}
+	}
+}

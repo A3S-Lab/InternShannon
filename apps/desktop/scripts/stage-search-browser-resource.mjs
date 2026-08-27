@@ -1,74 +1,228 @@
 #!/usr/bin/env node
 
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertBrowserChecksum, resolveBrowserManifestEntry } from "./search-browser-resource-state.mjs";
+import {
+	cleanResourceDirectory,
+	ensureResourceSentinel,
+	stageResourceDirectory,
+} from "./resource-directory.mjs";
+import {
+	assertBrowserChecksum,
+	assertBrowserVersionOutput,
+	resolveBrowserManifestEntry,
+	resolveSystemChromiumFallback,
+	validateBrowserReleasePin,
+} from "./search-browser-resource-state.mjs";
 
-const desktopDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const manifestPath = path.resolve(desktopDir, "../sidecar/config/browser-binary.json");
-const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-const entry = resolveBrowserManifestEntry(manifest);
-const resourceDir = path.join(desktopDir, "src-tauri/resources/search-browser");
-const allowDownload = process.argv.includes("--download");
-
-fs.mkdirSync(resourceDir, { recursive: true });
-
-if (!entry) {
-  fs.writeFileSync(
-    path.join(resourceDir, "UNSUPPORTED.txt"),
-    `No bundled Lightpanda runtime is published for ${process.platform}-${process.arch}; install Chrome.\n`,
-  );
-  console.log(`search browser resource: Lightpanda unsupported on ${process.platform}-${process.arch}; Chrome fallback required`);
-  process.exit(0);
-}
-
-const cacheDir = path.join(desktopDir, ".cache/search-browser", entry.snapshot, entry.key);
-const cachePath = path.join(cacheDir, process.platform === "win32" ? "lightpanda.exe" : "lightpanda");
-fs.mkdirSync(cacheDir, { recursive: true });
-
-let bytes = fs.existsSync(cachePath) ? fs.readFileSync(cachePath) : null;
-if (bytes) {
-  try {
-    assertBrowserChecksum(bytes, entry.sha256);
-  } catch {
-    bytes = null;
-  }
-}
-
-if (!bytes) {
-  if (!allowDownload) {
-    const unavailablePath = path.join(resourceDir, "UNAVAILABLE.txt");
-    fs.rmSync(path.join(resourceDir, process.platform === "win32" ? "lightpanda.exe" : "lightpanda"), {
-      force: true,
-    });
-    fs.rmSync(path.join(resourceDir, "manifest.json"), { force: true });
-    fs.writeFileSync(
-      unavailablePath,
-      `No verified cached Lightpanda runtime for ${entry.snapshot} ${entry.key}. Run pnpm --filter @internshannon/desktop download:search-browser explicitly, or install Chrome.\n`,
-    );
-    console.log(
-      `search browser resource: no verified cache for ${entry.snapshot} ${entry.key}; skipped network download during build`,
-    );
-    process.exit(0);
-  }
-
-  const response = await fetch(entry.url, {
-    redirect: "follow",
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!response.ok) throw new Error(`Lightpanda download failed: HTTP ${response.status}`);
-  bytes = Buffer.from(await response.arrayBuffer());
-  assertBrowserChecksum(bytes, entry.sha256);
-  fs.writeFileSync(cachePath, bytes, { mode: 0o755 });
-}
-
-const targetPath = path.join(resourceDir, path.basename(cachePath));
-fs.rmSync(path.join(resourceDir, "UNAVAILABLE.txt"), { force: true });
-fs.copyFileSync(cachePath, targetPath);
-if (process.platform !== "win32") fs.chmodSync(targetPath, 0o755);
-fs.writeFileSync(
-  path.join(resourceDir, "manifest.json"),
-  `${JSON.stringify({ snapshot: entry.snapshot, platform: entry.key, sha256: entry.sha256 }, null, 2)}\n`,
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+const desktopDir = path.resolve(path.dirname(SCRIPT_PATH), "..");
+const manifestPath = path.resolve(
+	desktopDir,
+	"../sidecar/config/browser-binary.json",
 );
-console.log(`search browser resource staged: ${entry.snapshot} ${entry.key} (${bytes.length} bytes, SHA-256 verified)`);
+const resourceDir = path.join(desktopDir, "src-tauri/resources/search-browser");
+const cacheRoot = path.join(desktopDir, ".cache/search-browser");
+const stagingRoot = path.join(desktopDir, ".cache/resource-staging");
+export const DOWNLOAD_TIMEOUT_MS = 300_000;
+
+function sourceManifest() {
+	return JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+}
+
+function browserFilename(platform) {
+	return platform === "win32" ? "lightpanda.exe" : "lightpanda";
+}
+
+function persistVerifiedCache(cachePath, bytes) {
+	fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+	const temporaryDir = fs.mkdtempSync(
+		path.join(path.dirname(cachePath), ".verified-download-"),
+	);
+	const temporaryPath = path.join(temporaryDir, path.basename(cachePath));
+	try {
+		fs.writeFileSync(temporaryPath, bytes, { mode: 0o755 });
+		fs.rmSync(cachePath, { force: true });
+		fs.renameSync(temporaryPath, cachePath);
+	} finally {
+		fs.rmSync(temporaryDir, { recursive: true, force: true });
+	}
+}
+
+export async function cleanSearchBrowserResource({
+	resourceDirectory = resourceDir,
+	resourceStagingRoot = stagingRoot,
+} = {}) {
+	return cleanResourceDirectory({
+		resourceDir: resourceDirectory,
+		stagingRoot: resourceStagingRoot,
+	});
+}
+
+export async function stageSearchBrowserResource({
+	manifest = sourceManifest(),
+	platform = process.platform,
+	arch = process.arch,
+	resourceDirectory = resourceDir,
+	resourceCacheRoot = cacheRoot,
+	resourceStagingRoot = stagingRoot,
+	allowDownload = false,
+	fetchImpl = globalThis.fetch,
+	timeoutSignal = () => AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
+	spawnImpl = spawnSync,
+	logger = console,
+} = {}) {
+	ensureResourceSentinel(resourceDirectory);
+	const entry = resolveBrowserManifestEntry(manifest, platform, arch);
+	const systemChromiumFallback = entry
+		? null
+		: resolveSystemChromiumFallback(platform, arch);
+	if (!entry && !systemChromiumFallback) {
+		throw new Error(
+			`No approved search browser resource policy for ${platform}-${arch}`,
+		);
+	}
+
+	if (!entry) {
+		const staged = await stageResourceDirectory({
+			resourceDir: resourceDirectory,
+			stagingRoot: resourceStagingRoot,
+			populate(candidateDir) {
+				fs.writeFileSync(
+					path.join(candidateDir, "manifest.json"),
+					`${JSON.stringify(systemChromiumFallback, null, 2)}\n`,
+				);
+				return systemChromiumFallback;
+			},
+		});
+		logger.log(
+			`search browser resource staged: ${systemChromiumFallback.mode} ${systemChromiumFallback.platform}`,
+		);
+		return staged;
+	}
+
+	validateBrowserReleasePin(entry);
+	const selectedCacheDir = path.join(
+		resourceCacheRoot,
+		entry.snapshot,
+		entry.key,
+	);
+	const filename = browserFilename(platform);
+	const cachePath = path.join(selectedCacheDir, filename);
+	let bytes = fs.existsSync(cachePath) ? fs.readFileSync(cachePath) : null;
+	if (bytes) {
+		try {
+			assertBrowserChecksum(bytes, entry.sha256);
+		} catch {
+			bytes = null;
+		}
+	}
+
+	if (!bytes && !allowDownload) {
+		const staged = await stageResourceDirectory({
+			resourceDir: resourceDirectory,
+			stagingRoot: resourceStagingRoot,
+			populate(candidateDir) {
+				fs.writeFileSync(
+					path.join(candidateDir, "UNAVAILABLE.txt"),
+					`No verified cached Lightpanda runtime for ${entry.snapshot} ${entry.key}. Run pnpm --filter @internshannon/desktop download:search-browser explicitly, or install Chrome.\n`,
+				);
+				return {
+					mode: "unavailable",
+					snapshot: entry.snapshot,
+					platform: entry.key,
+				};
+			},
+		});
+		logger.log(
+			`search browser resource: no verified cache for ${entry.snapshot} ${entry.key}; skipped network download during build`,
+		);
+		return staged;
+	}
+
+	let downloaded = false;
+	if (!bytes) {
+		const response = await fetchImpl(entry.url, {
+			redirect: "follow",
+			signal: timeoutSignal(),
+		});
+		if (!response.ok) {
+			throw new Error(`Lightpanda download failed: HTTP ${response.status}`);
+		}
+		bytes = Buffer.from(await response.arrayBuffer());
+		assertBrowserChecksum(bytes, entry.sha256);
+		downloaded = true;
+	}
+
+	const staged = await stageResourceDirectory({
+		resourceDir: resourceDirectory,
+		stagingRoot: resourceStagingRoot,
+		populate(candidateDir) {
+			const targetPath = path.join(candidateDir, filename);
+			fs.writeFileSync(targetPath, bytes, { mode: 0o755 });
+			if (platform !== "win32") fs.chmodSync(targetPath, 0o755);
+			const versionProbe = spawnImpl(targetPath, ["version"], {
+				encoding: "utf8",
+				timeout: 10_000,
+			});
+			if (versionProbe.error) {
+				throw new Error(
+					`Lightpanda version probe failed: ${versionProbe.error.message}`,
+				);
+			}
+			if (versionProbe.status !== 0) {
+				throw new Error(
+					`Lightpanda version probe exited with ${versionProbe.status}: ${versionProbe.stderr || versionProbe.stdout}`,
+				);
+			}
+			assertBrowserVersionOutput(versionProbe.stdout, entry.snapshot);
+			if (downloaded) persistVerifiedCache(cachePath, bytes);
+			fs.writeFileSync(
+				path.join(candidateDir, "manifest.json"),
+				`${JSON.stringify(
+					{
+						snapshot: entry.snapshot,
+						platform: entry.key,
+						sha256: entry.sha256,
+					},
+					null,
+					2,
+				)}\n`,
+			);
+			return {
+				snapshot: entry.snapshot,
+				platform: entry.key,
+				sha256: entry.sha256,
+				bytes: bytes.length,
+				downloaded,
+			};
+		},
+	});
+
+	logger.log(
+		`search browser resource staged: ${entry.snapshot} ${entry.key} (${bytes.length} bytes, SHA-256 verified)`,
+	);
+	return staged;
+}
+
+async function main() {
+	if (process.argv.includes("--clean")) {
+		await cleanSearchBrowserResource();
+		console.log(
+			`Reset search browser resources: ${path.relative(desktopDir, resourceDir)}`,
+		);
+		return;
+	}
+	await stageSearchBrowserResource({
+		allowDownload: process.argv.includes("--download"),
+	});
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === SCRIPT_PATH) {
+	main().catch((error) => {
+		console.error(`stage-search-browser-resource: ${error.message}`);
+		process.exitCode = 1;
+	});
+}

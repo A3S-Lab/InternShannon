@@ -1,6 +1,6 @@
 import type { AgentationProps } from "agentation";
 import React from "react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 import { isAgentationEnabled } from "@/lib/agentation-flag";
 
 const Agentation = React.lazy(async () => {

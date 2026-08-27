@@ -169,18 +169,23 @@ test("SXA-013 names MCP and Office controls for assistive technology", () => {
   assert.match(slides, /aria-label="演示文稿编辑器工具栏与画布"/);
 });
 
-test("SXA-014 never reports latest when update versions are unavailable", () => {
-  const api = read("apps/web/src/desktop/lib/update-api.ts");
-  const section = read("apps/web/src/desktop/pages/settings/components/update-section.tsx");
-  assert.match(api, /throw new Error\(desktopOnlyMessage\("检查更新"\)\)/);
-  assert.match(section, /!info\?\.currentVersion\?\.trim\(\) \|\| !info\.latestVersion\?\.trim\(\)/);
-  assert.match(section, /state\.info\?\.currentVersion\?\.trim\(\) && state\.info\.latestVersion\?\.trim\(\)/);
+test("SXA-014 disables the updater across config, Rust, and desktop UI", () => {
+  const tauri = JSON.parse(read("apps/desktop/src-tauri/tauri.conf.json"));
+  const cargo = read("apps/desktop/src-tauri/Cargo.toml");
+  const rust = read("apps/desktop/src-tauri/src/lib.rs");
+  const desktop = read("apps/web/src/desktop/DesktopApp.tsx");
+  const settings = read("apps/web/src/desktop/pages/settings/SettingsPage.tsx");
+  assert.deepEqual(tauri.plugins, {});
+  assert.doesNotMatch(cargo, /tauri-plugin-updater/);
+  assert.doesNotMatch(rust, /tauri_plugin_updater|check_app_update|install_app_update/);
+  assert.doesNotMatch(desktop, /AppUpdateBootstrap/);
+  assert.doesNotMatch(settings, /UpdateSection|id: "update"/);
 });
 
 test("SXA-015 declares and enforces a Node runtime capable of TS specs", () => {
   const pkg = JSON.parse(read("package.json"));
-  assert.equal(pkg.engines.node, ">=22.18.0");
-  assert.match(read(".nvmrc"), /^22\./);
+  assert.equal(pkg.engines.node, "22.18.0");
+  assert.match(read(".nvmrc"), /^22\.18\.0\s*$/);
   assert.match(read("apps/web/scripts/desktop-state-tests.mjs"), /Node >=22\.18 is required/);
 });
 
@@ -261,7 +266,8 @@ test("SXA-021 blocks unpinned search browsers and stages a checksum-verified des
   const server = read("apps/desktop/src-tauri/src/server.rs");
   assert.match(stage, /assertBrowserChecksum\(bytes, entry\.sha256\)/);
   assert.match(stage, /process\.argv\.includes\("--download"\)/);
-  assert.match(stage, /AbortSignal\.timeout\(30_000\)/);
+  assert.match(stage, /const DOWNLOAD_TIMEOUT_MS = 300_000/);
+  assert.match(stage, /AbortSignal\.timeout\(DOWNLOAD_TIMEOUT_MS\)/);
   assert.match(stage, /skipped network download during build/);
   assert.equal(tauri.bundle.resources["resources/search-browser/"], "search-browser/");
   assert.match(rust, /verify_lightpanda_file/);
@@ -283,9 +289,35 @@ test("SXA-022 separates the WebView, API, and plugin sandbox CSP boundaries", as
   assert.match(settings, /不依赖公网 CDN/);
   assert.doesNotMatch(sidecarCsp, /unsafe-inline|unsafe-eval/);
   assert.ok(sidecarBuild.include.includes("src/shared/infrastructure/network/desktop-csp.ts"));
-  assert.match(tauri.app.security.csp, /script-src 'self'/);
-  assert.doesNotMatch(tauri.app.security.csp, /unsafe-eval/);
+  assert.match(tauri.app.security.csp, /script-src 'self' 'wasm-unsafe-eval'/);
+  assert.match(tauri.app.security.csp, /style-src 'self'; style-src-attr 'unsafe-inline'/);
+  assert.doesNotMatch(tauri.app.security.csp, /style-src 'self' 'unsafe-inline'/);
+  assert.doesNotMatch(tauri.app.security.csp, /(?:^|\s)'unsafe-eval'(?:\s|;|$)/);
   const sandbox = composeSandboxDocument("<script>document.body.dataset.ready='1'</script>");
   assert.match(sandbox, /connect-src 'none'/);
   assert.doesNotMatch(sandbox, /https:\/\/unpkg\.com|cdn\.jsdelivr\.net|esm\.sh/);
+});
+
+test("SXA-023 keeps one native loopback transport and reuses it from the desktop runtime", () => {
+  const runtime = read("apps/web/src/desktop/runtime.ts");
+  const sidecar = read("apps/web/src/lib/sidecar-http.ts");
+  const adapter = read("apps/web/src/lib/native-loopback-http.ts");
+  assert.match(runtime, /import \{ sidecarFetch \} from "@\/lib\/sidecar-http"/);
+  assert.match(runtime, /fetch: sidecarFetch/);
+  assert.doesNotMatch(runtime, /loopback_http_request/);
+  assert.equal((sidecar.match(/"loopback_http_request"/g) ?? []).length, 1);
+  assert.match(sidecar, /nativeLoopbackInvokeArgs\(url, init, timeoutMs\)/);
+  assert.match(adapter, /new Uint8Array\(result\.body\)/);
+});
+
+test("SXA-024 exits the desktop process and managed sidecar when the main window closes", () => {
+  const source = read("apps/desktop/src-tauri/src/lib.rs");
+  const closeHandler = source.slice(
+    source.indexOf("// The desktop app treats the main window's close button"),
+    source.indexOf("#[cfg(debug_assertions)]", source.indexOf("// The desktop app treats the main window's close button")),
+  );
+  assert.match(closeHandler, /CloseRequested \{ \.\. \}/);
+  assert.match(closeHandler, /state::<ManagedSidecarState>\(\)\.shutdown\(\)/);
+  assert.match(closeHandler, /close_app_handle\.exit\(0\)/);
+  assert.doesNotMatch(closeHandler, /prevent_close|\.hide\(\)/);
 });

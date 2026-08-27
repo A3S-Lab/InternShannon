@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { hasKnowledgeTokenOverlap } from './knowledge-search-tokenizer';
 
 export const LOCAL_EMBEDDING_MODEL = 'local-hash-v1';
 export const LOCAL_EMBEDDING_DIMENSIONS = 192;
@@ -27,7 +28,7 @@ export function localEmbedding(text: string): number[] {
         vector[slot] += digest[2] % 2 === 0 ? 1 : -1;
     }
     const magnitude = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
-    return magnitude ? vector.map(value => Number((value / magnitude).toFixed(6))) : vector;
+    return magnitude ? vector.map((value) => Number((value / magnitude).toFixed(6))) : vector;
 }
 
 export function cosineSimilarity(left: number[], right: number[]): number {
@@ -50,20 +51,11 @@ export function normalizeSemanticText(text: string): string {
     return normalized.replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
 
-const LOCAL_SEMANTIC_STOP_WORDS = new Set([
-    'the', 'and', 'for', 'with', 'from', 'that', 'this', 'into', 'are', 'was', 'were', 'has', 'have', 'had',
-]);
-
 /**
  * local-hash-v1 is a compact lexical hash, not a neural embedding. Requiring a
  * real normalized token overlap prevents hash collisions in large corpora from
  * becoming semantic-only search hits while retaining the built-in synonyms.
  */
 export function hasLocalSemanticTokenOverlap(left: string, right: string): boolean {
-    const tokens = (value: string) =>
-        (normalizeSemanticText(value).match(/[a-z0-9]+/g) ?? []).filter(
-            token => token.length >= 3 && !LOCAL_SEMANTIC_STOP_WORDS.has(token),
-        );
-    const leftTokens = new Set(tokens(left));
-    return leftTokens.size > 0 && tokens(right).some(token => leftTokens.has(token));
+    return hasKnowledgeTokenOverlap(normalizeSemanticText(left), normalizeSemanticText(right));
 }

@@ -45,7 +45,15 @@ export function resolveStoredActivityRoute(input: {
   pathname: string;
   routeMap: Record<string, string>;
   staticKeys: readonly string[];
+  knowledgeReturnRequestId?: string | null;
 }): StoredActivityRouteDecision {
+  // Returning from a knowledge-source preview is an explicit chat navigation.
+  // Clear the persisted activity before it can redirect the root route back to
+  // the user's previously-opened knowledge page.
+  if (input.pathname === "/" && input.knowledgeReturnRequestId) {
+    return { kind: "clear" };
+  }
+
   if (!input.storedKey || input.storedKey === "chat") return { kind: "none" };
 
   const storedPath = input.routeMap[input.storedKey];

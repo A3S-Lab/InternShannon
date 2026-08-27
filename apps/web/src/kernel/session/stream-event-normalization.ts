@@ -191,11 +191,6 @@ function normalizeFirstOptionalInteger(...values: unknown[]): number | undefined
   return normalized === undefined ? undefined : Math.max(1, Math.floor(normalized));
 }
 
-function normalizeOptionalMillisecondsAsSeconds(value: unknown): number | undefined {
-  const milliseconds = normalizeOptionalFiniteNumber(value);
-  return milliseconds === undefined ? undefined : milliseconds / 1_000;
-}
-
 function normalizeFirstOptionalMillisecondsAsSeconds(...values: unknown[]): number | undefined {
   const milliseconds = normalizeFirstOptionalFiniteNumber(...values);
   return milliseconds === undefined ? undefined : milliseconds / 1_000;

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { NotFoundException } from '@/shared/common/errors';
 import type { Asset } from '../domain/entities/asset.entity';
+import { isInternalKnowledgePath, isPublicKnowledgeSourcePath } from '../domain/knowledge/knowledge-source-path.policy';
 import { ASSET_SERVICE, type IAssetService } from '../domain/services/asset.service.interface';
 
 export interface KnowledgePageEntry {
@@ -30,9 +31,9 @@ export class KnowledgeContentService {
     async loadContents(asset: Asset, prefix: string): Promise<Record<string, string>> {
         const cached = this.blobContents(asset);
         const paths = new Set([
-            ...Object.keys(cached).filter(path => path.startsWith(prefix)),
+            ...Object.keys(cached).filter(path => path.startsWith(prefix) && !isInternalKnowledgePath(path)),
             ...(asset.blobs ?? [])
-                .filter(blob => !blob.isBinary && blob.path.startsWith(prefix))
+                .filter(blob => !blob.isBinary && blob.path.startsWith(prefix) && !isInternalKnowledgePath(blob.path))
                 .map(blob => blob.path),
         ]);
         const pairs = await Promise.all(
@@ -46,7 +47,9 @@ export class KnowledgeContentService {
 
     pageEntries(asset: Asset, contents = this.blobContents(asset)): KnowledgePageEntry[] {
         return Object.entries(contents)
-            .filter(([path]) => path.startsWith('wiki/') && path.toLowerCase().endsWith('.md'))
+            .filter(([path]) =>
+                path.startsWith('wiki/') && path.toLowerCase().endsWith('.md') && !isInternalKnowledgePath(path),
+            )
             .map(([path, content]) => {
                 const frontmatter = this.readFrontmatter(content);
                 return {
@@ -64,8 +67,8 @@ export class KnowledgeContentService {
         const contents = this.blobContents(asset);
         const blobsByPath = new Map((asset.blobs ?? []).map(blob => [blob.path, blob]));
         const paths = new Set([
-            ...Object.keys(contents).filter(path => path.startsWith('raw/sources/')),
-            ...(asset.blobs ?? []).map(blob => blob.path).filter(path => path.startsWith('raw/sources/')),
+            ...Object.keys(contents).filter(isPublicKnowledgeSourcePath),
+            ...(asset.blobs ?? []).map(blob => blob.path).filter(isPublicKnowledgeSourcePath),
         ]);
         return Array.from(paths)
             .map(path => ({

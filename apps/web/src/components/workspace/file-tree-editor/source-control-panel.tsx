@@ -10,7 +10,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/components/ui/sonner";
 
 import { assetsApi, type Branch } from "@/lib/api/assets";
 import {
@@ -166,6 +166,7 @@ export function SourceControlPanel({
   const [branchReloadToken, setBranchReloadToken] = useState(0);
 
   useEffect(() => {
+    void branchReloadToken;
     if (!assetWorkspace) {
       setBranches([]);
       setBranchesError(null);
@@ -193,7 +194,7 @@ export function SourceControlPanel({
     return () => {
       cancelled = true;
     };
-  }, [assetWorkspace?.assetId, branchReloadToken]);
+  }, [assetWorkspace, branchReloadToken]);
 
   const activeBranch = useMemo(
     () => branches.find((branch) => branch.name === currentBranch) ?? null,

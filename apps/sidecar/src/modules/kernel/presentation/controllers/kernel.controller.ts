@@ -1,6 +1,7 @@
 import {
     BadRequestException,
     Body,
+    ConflictException,
     Controller,
     Delete,
     Get,
@@ -11,47 +12,48 @@ import {
     Patch,
     Post,
     Query,
-} from '@nestjs/common';
-import { CommandBus, QueryBus } from '@nestjs/cqrs';
-import { ApiQuery, ApiTags } from '@nestjs/swagger';
-import { AssetAccessService } from '@/modules/assets/application/asset-access.service';
-import { Asset } from '@/modules/assets/domain/entities/asset.entity';
-import { DesktopApi, RequireDesktopCapabilities } from '@/shared/security/desktop-access';
-import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiPaginatedResponse } from '@/shared/api/openapi';
+} from "@nestjs/common";
+import { CommandBus, QueryBus } from "@nestjs/cqrs";
+import { ApiQuery, ApiTags } from "@nestjs/swagger";
+import { AssetAccessService } from "@/modules/assets/application/asset-access.service";
+import { Asset } from "@/modules/assets/domain/entities/asset.entity";
+import { ApiCreatedResponse, ApiNoContentResponse, ApiOkResponse, ApiPaginatedResponse } from "@/shared/api/openapi";
 import {
     PaginatedResponseDto,
     PaginationQueryDto,
     parsePaginationOptions,
     toPaginatedResponse,
-} from '@/shared/api/presentation/dto/pagination.dto';
-import { DesktopOwnerId } from '@/shared/security/decorators/desktop-owner.decorator';
+} from "@/shared/api/presentation/dto/pagination.dto";
+import { DesktopOwnerId } from "@/shared/security/decorators/desktop-owner.decorator";
+import { DesktopApi, RequireDesktopCapabilities } from "@/shared/security/desktop-access";
 import {
     applyLockedAgentMetadata,
     isLockedAgent,
     lockedSessionViolation,
-} from '../../application/agents/locked-agent.policy';
-import type { CapabilityResult } from '../../application/capabilities-tool.service';
-import { CapabilitiesToolService } from '../../application/capabilities-tool.service';
-import { CreateSessionCommand } from '../../application/commands/create-session';
-import { EndSessionCommand } from '../../application/commands/end-session';
-import { KernelSessionAccessService } from '../../application/kernel-session-access.service';
-import { CountSessionsQuery } from '../../application/queries/count-sessions';
-import { ListSessionsQuery } from '../../application/queries/list-sessions';
-import { SessionService } from '../../application/session.service';
-import { Message } from '../../domain/entities/message.entity';
-import { Session } from '../../domain/entities/session.entity';
-import { IKernelService, KERNEL_SERVICE } from '../../domain/services/kernel-service.interface';
-import { CapabilitiesQueryDto, CreateSessionRequestDto, ListSessionsQueryDto } from '../dto/request';
+} from "../../application/agents/locked-agent.policy";
+import type { CapabilityResult } from "../../application/capabilities-tool.service";
+import { CapabilitiesToolService } from "../../application/capabilities-tool.service";
+import { CreateSessionCommand } from "../../application/commands/create-session";
+import { EndSessionCommand } from "../../application/commands/end-session";
+import { KernelSessionAccessService } from "../../application/kernel-session-access.service";
+import { KernelSessionRuntimeStateService } from "../../application/kernel-session-runtime-state.service";
+import { CountSessionsQuery } from "../../application/queries/count-sessions";
+import { ListSessionsQuery } from "../../application/queries/list-sessions";
+import { SessionService } from "../../application/session.service";
+import { Message } from "../../domain/entities/message.entity";
+import { Session } from "../../domain/entities/session.entity";
+import { IKernelService, KERNEL_SERVICE } from "../../domain/services/kernel-service.interface";
+import { CapabilitiesQueryDto, CreateSessionRequestDto, ListSessionsQueryDto } from "../dto/request";
 import {
     CreateSessionResponseDto,
     MessageResponseDto,
     SessionBoundAssetResponseDto,
     SessionResponseDto,
-} from '../dto/response';
+} from "../dto/response";
 
-@ApiTags('内核')
+@ApiTags("内核")
 @DesktopApi()
-@Controller('kernel')
+@Controller("kernel")
 export class KernelController {
     constructor(
         private readonly commandBus: CommandBus,
@@ -61,15 +63,16 @@ export class KernelController {
         private readonly sessionService: SessionService,
         private readonly capabilitiesTool: CapabilitiesToolService,
         private readonly sessionAccess: KernelSessionAccessService,
+        private readonly runtimeState: KernelSessionRuntimeStateService,
         private readonly assetAccess: AssetAccessService,
     ) {}
 
-    @Post('sessions')
-    @RequireDesktopCapabilities('agent:deploy')
+    @Post("sessions")
+    @RequireDesktopCapabilities("agent:deploy")
     @ApiCreatedResponse({
-        summary: '创建新会话',
+        summary: "创建新会话",
         description:
-            '在内核中创建一个新的会话实例（部署进程），用于执行智能体任务和管理工作区。需要 agent:deploy 权限（member/admin 默认具备，viewer 不可部署）。',
+            "在内核中创建一个新的会话实例（部署进程），用于执行智能体任务和管理工作区。需要 agent:deploy 权限（member/admin 默认具备，viewer 不可部署）。",
         type: CreateSessionResponseDto,
     })
     async createSession(
@@ -83,7 +86,7 @@ export class KernelController {
         const locked = isLockedAgent(dto.agentId);
         const baseMetadata = this.toSessionMetadata(dto);
         if (locked) {
-            baseMetadata.titleSource = typeof dto.title === 'string' && dto.title.trim() ? 'manual' : 'temporary';
+            baseMetadata.titleSource = typeof dto.title === "string" && dto.title.trim() ? "manual" : "temporary";
         }
         const metadata = locked ? applyLockedAgentMetadata(baseMetadata) : baseMetadata;
         const session = await this.commandBus.execute(
@@ -96,21 +99,21 @@ export class KernelController {
                 title: session.title,
                 cwd: session.cwd,
                 agentId: session.agentId,
-                model: this.sessionService.stringMeta(session, 'model'),
-                followDefaultModel: this.sessionService.booleanMeta(session, 'followDefaultModel'),
-                permissionMode: this.sessionService.stringMeta(session, 'permissionMode'),
+                model: this.sessionService.stringMeta(session, "model"),
+                followDefaultModel: this.sessionService.booleanMeta(session, "followDefaultModel"),
+                permissionMode: this.sessionService.stringMeta(session, "permissionMode"),
                 metadata: this.sessionService.pickPublicSessionMetadata(session.metadata),
-                assetId: this.sessionService.stringMeta(session, 'assetId'),
-                agentPhase: this.sessionService.stringMeta(session, 'agentPhase'),
+                assetId: this.sessionService.stringMeta(session, "assetId"),
+                agentPhase: this.sessionService.stringMeta(session, "agentPhase"),
                 workingDirectory: session.cwd,
             },
         };
     }
 
-    @Get('sessions')
+    @Get("sessions")
     @ApiPaginatedResponse({
-        summary: '获取会话列表',
-        description: '查询当前用户的所有会话，支持分页和按状态过滤',
+        summary: "获取会话列表",
+        description: "查询当前用户的所有会话，支持分页和按状态过滤",
         type: SessionResponseDto,
     })
     async listSessions(
@@ -122,7 +125,7 @@ export class KernelController {
         @Query() pagination: ListSessionsQueryDto,
     ): Promise<PaginatedResponseDto<SessionResponseDto>> {
         const { page, limit, offset } = parsePaginationOptions(pagination);
-        const conversationalOnly = pagination.conversational === 'true' || pagination.conversational === '1';
+        const conversationalOnly = pagination.conversational === "true" || pagination.conversational === "1";
         // Desktop 默认只有本地用户；保留 includeAllUsers 形态以兼容旧的分页查询路径。
         const includeAllUsers = await this.sessionAccess.isPlatformBypassUser(userId);
         const resolvedUserId = this.resolveUserId(userId);
@@ -137,7 +140,7 @@ export class KernelController {
             ),
         ]);
         // sessions 已是当前页（service 分页返回），直接映射，不再二次 slice（旧 slice 对 page>1 会清空）。
-        const items = await Promise.all(sessions.map(session => this.toSessionResponse(session)));
+        const items = await Promise.all(sessions.map((session) => this.toSessionResponse(session)));
         return toPaginatedResponse({
             items,
             total,
@@ -146,34 +149,40 @@ export class KernelController {
         });
     }
 
-    @Get('sessions/:id')
+    @Get("sessions/:id")
     @ApiOkResponse({
-        summary: '获取会话详情',
-        description: '根据会话ID获取详细信息，包括配置、状态和元数据',
+        summary: "获取会话详情",
+        description: "根据会话ID获取详细信息，包括配置、状态和元数据",
         type: SessionResponseDto,
     })
-    async getSession(@Param('id') id: string, @DesktopOwnerId() userId: string) {
+    async getSession(@Param("id") id: string, @DesktopOwnerId() userId: string) {
         const session = await this.sessionAccess.requireOwnedSession(id, userId);
         return this.toSessionResponse(session, userId, true);
     }
 
-    @Patch('sessions/:id')
+    @Patch("sessions/:id")
     @HttpCode(HttpStatus.OK)
     @ApiOkResponse({
-        summary: '更新会话配置',
-        description: '修改会话的名称、模型、权限模式等配置项',
+        summary: "更新会话配置",
+        description: "修改会话的名称、模型、权限模式等配置项",
         type: SessionResponseDto,
     })
     async updateSession(
-        @Param('id') id: string,
+        @Param("id") id: string,
         @Body() patch: Record<string, unknown>,
         @DesktopOwnerId() userId: string,
     ): Promise<SessionResponseDto | null> {
         const current = await this.sessionAccess.requireOwnedSession(id, userId);
         const violation = lockedSessionViolation(current?.agentId, patch);
         if (violation) throw new BadRequestException(violation);
+        if (this.runtimeState.isOperationActive(id) && this.runtimeState.patchAffectsRuntime(patch)) {
+            throw new ConflictException({
+                code: "session_busy",
+                message: "当前会话正在运行或压缩，请等待完成后再修改模型或运行配置。",
+            });
+        }
         const locked = isLockedAgent(current?.agentId);
-        if (typeof patch.cwd === 'string') {
+        if (typeof patch.cwd === "string") {
             await this.sessionAccess.assertWorkspacePathAccess(patch.cwd, userId);
         }
         const effectivePatchBase = this.markManualTitleSource(patch);
@@ -182,30 +191,30 @@ export class KernelController {
         return session ? this.toSessionResponse(session) : null;
     }
 
-    @Delete('sessions/:id')
+    @Delete("sessions/:id")
     @HttpCode(HttpStatus.NO_CONTENT)
-    @ApiNoContentResponse('结束并删除指定的会话，释放相关资源')
-    async endSession(@Param('id') id: string, @DesktopOwnerId() userId: string) {
+    @ApiNoContentResponse("结束并删除指定的会话，释放相关资源")
+    async endSession(@Param("id") id: string, @DesktopOwnerId() userId: string) {
         await this.sessionAccess.requireOwnedSession(id, userId);
         const command = new EndSessionCommand(id);
         return this.commandBus.execute(command);
     }
 
-    @Get('sessions/:id/messages')
+    @Get("sessions/:id/messages")
     @ApiPaginatedResponse({
-        summary: '获取消息列表',
-        description: '查询指定会话的所有消息记录，支持分页查询',
+        summary: "获取消息列表",
+        description: "查询指定会话的所有消息记录，支持分页查询",
         type: MessageResponseDto,
     })
     async getSessionMessages(
-        @Param('id') id: string,
+        @Param("id") id: string,
         @Query() pagination: PaginationQueryDto,
         @DesktopOwnerId() userId: string,
     ): Promise<PaginatedResponseDto<MessageResponseDto>> {
         await this.sessionAccess.requireOwnedSession(id, userId);
         const { page, limit, offset } = parsePaginationOptions(pagination);
         const messages = await this.kernelService.getSessionMessages(id);
-        const items = messages.map(message => this.toMessageResponse(message));
+        const items = messages.map((message) => this.toMessageResponse(message));
         return toPaginatedResponse({
             items: items.slice(offset, offset + limit),
             total: items.length,
@@ -214,26 +223,26 @@ export class KernelController {
         });
     }
 
-    @Get('capabilities')
+    @Get("capabilities")
     @HttpCode(HttpStatus.OK)
     @ApiQuery({
-        name: 'action',
+        name: "action",
         required: false,
-        enum: ['list', 'describe', 'search'],
+        enum: ["list", "describe", "search"],
     })
     @ApiQuery({
-        name: 'module',
+        name: "module",
         required: false,
-        description: '模块名称（用于 describe）',
+        description: "模块名称（用于 describe）",
     })
     @ApiQuery({
-        name: 'query',
+        name: "query",
         required: false,
-        description: '搜索关键词（用于 search）',
+        description: "搜索关键词（用于 search）",
     })
     @ApiOkResponse({
-        summary: '渐进式 API 能力发现',
-        description: '通过单一端点列出、描述或搜索内核 API 能力信息',
+        summary: "渐进式 API 能力发现",
+        description: "通过单一端点列出、描述或搜索内核 API 能力信息",
         type: Object,
     })
     async getCapabilities(
@@ -297,18 +306,18 @@ export class KernelController {
 
     private markManualTitleSource(patch: Record<string, unknown>): Record<string, unknown> {
         const hasTitlePatch =
-            (typeof patch.title === 'string' && patch.title.trim()) ||
-            (typeof patch.name === 'string' && patch.name.trim());
+            (typeof patch.title === "string" && patch.title.trim()) ||
+            (typeof patch.name === "string" && patch.name.trim());
         if (!hasTitlePatch) return patch;
 
         const metadataPatch =
-            patch.metadata && typeof patch.metadata === 'object' && !Array.isArray(patch.metadata)
+            patch.metadata && typeof patch.metadata === "object" && !Array.isArray(patch.metadata)
                 ? (patch.metadata as Record<string, unknown>)
                 : undefined;
         if (patch.titleSource !== undefined || metadataPatch?.titleSource !== undefined) {
             return patch;
         }
-        return { ...patch, titleSource: 'manual' };
+        return { ...patch, titleSource: "manual" };
     }
 
     private async toSessionResponse(
@@ -316,24 +325,24 @@ export class KernelController {
         userId?: string,
         includeBoundAsset = false,
     ): Promise<SessionResponseDto> {
-        const assetId = this.sessionService.stringMeta(session, 'assetId');
+        const assetId = this.sessionService.stringMeta(session, "assetId");
         return {
             id: session.id,
             sessionId: session.id,
-            agentId: session.agentId || '',
+            agentId: session.agentId || "",
             userId: session.userId,
             title: session.title,
             cwd: session.cwd,
             status: session.status,
             createdAt: session.createdAt,
             updatedAt: session.updatedAt,
-            model: this.sessionService.stringMeta(session, 'model'),
-            followDefaultModel: this.sessionService.booleanMeta(session, 'followDefaultModel'),
-            permissionMode: this.sessionService.stringMeta(session, 'permissionMode'),
+            model: this.sessionService.stringMeta(session, "model"),
+            followDefaultModel: this.sessionService.booleanMeta(session, "followDefaultModel"),
+            permissionMode: this.sessionService.stringMeta(session, "permissionMode"),
             metadata: this.sessionService.pickPublicSessionMetadata(session.metadata),
             assetId,
             boundAsset: includeBoundAsset && assetId ? await this.resolveBoundAsset(assetId, userId) : undefined,
-            agentPhase: this.sessionService.stringMeta(session, 'agentPhase'),
+            agentPhase: this.sessionService.stringMeta(session, "agentPhase"),
             workingDirectory: session.cwd,
         };
     }
@@ -352,7 +361,7 @@ export class KernelController {
     private toBoundAssetResponse(asset: Asset): SessionBoundAssetResponseDto {
         const lifecycle = asset.metadata?.assetLifecycle;
         const lifecycleState =
-            lifecycle && typeof lifecycle === 'object' && !Array.isArray(lifecycle)
+            lifecycle && typeof lifecycle === "object" && !Array.isArray(lifecycle)
                 ? ((lifecycle as Record<string, unknown>).state as string | undefined)
                 : undefined;
         return {

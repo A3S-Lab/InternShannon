@@ -35,6 +35,8 @@ export const DockviewDefaultTab: React.FunctionComponent<
 	params: _params,
 	hideClose,
 	closeActionOverride,
+	onClick: externalOnClick,
+	onKeyDown: externalOnKeyDown,
 	...rest
 }) => {
 	const title = useTitle(api);
@@ -64,30 +66,49 @@ export const DockviewDefaultTab: React.FunctionComponent<
 
 			api.setActive();
 
-			if (rest.onClick) {
-				rest.onClick(event);
+			if (externalOnClick) {
+				externalOnClick(event);
 			}
 		},
-		[api, rest.onClick],
+		[api, externalOnClick],
+	);
+	const onKeyDown = React.useCallback(
+		(event: React.KeyboardEvent<HTMLDivElement>) => {
+			externalOnKeyDown?.(event);
+			if (
+				event.defaultPrevented ||
+				(event.key !== "Enter" && event.key !== " ")
+			) {
+				return;
+			}
+			event.preventDefault();
+			api.setActive();
+		},
+		[api, externalOnKeyDown],
 	);
 
 	return (
 		<div
 			data-testid="dockview-dv-default-tab"
 			data-panel-id={api.id}
-			{...rest}
-			onClick={onClick}
-			className="dv-default-tab"
+				{...rest}
+				onClick={onClick}
+				onKeyDown={onKeyDown}
+				role="tab"
+				tabIndex={0}
+				className="dv-default-tab"
 		>
 			<span className="dv-default-tab-content">{title}</span>
 			{!hideClose && (
-				<div
-					className="dv-default-tab-action"
-					onPointerDown={onPointerDown}
-					onClick={onClose}
-				>
-					<CloseButton />
-				</div>
+					<button
+						type="button"
+						className="dv-default-tab-action"
+						onPointerDown={onPointerDown}
+						onClick={onClose}
+						aria-label="Close panel"
+					>
+						<CloseButton />
+					</button>
 			)}
 		</div>
 	);
